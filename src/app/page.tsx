@@ -1,213 +1,322 @@
 import Link from "next/link";
 
-const SHOWCASE = [
-  {
-    title: "Build",
-    body: "Configure an agent in minutes — voice, greeting, instructions, knowledge. No code required.",
-  },
-  {
-    title: "Live Monitoring",
-    body: "Watch every active call with streaming transcripts, sentiment, and one-click takeover.",
-  },
-  {
-    title: "Observability",
-    body: "Every call recorded, transcribed, summarized, and scored — searchable forever.",
-  },
+function Orb({ size, className = "" }: { size: number; className?: string }) {
+  return (
+    <span
+      className={`orb inline-block ${className}`}
+      style={{ width: size, height: size }}
+      aria-hidden
+    />
+  );
+}
+
+function Waveform() {
+  // Symmetric animated bars framing the central glowing orb.
+  const bars = [
+    0.25, 0.5, 0.35, 0.7, 0.45, 0.85, 0.6, 0.95, 0.7, 1, 0.8, 0.55,
+  ];
+  const all = [...bars, ...bars.slice().reverse()];
+  return (
+    <div className="flex h-40 w-full items-center justify-center gap-1.5 sm:gap-2" aria-hidden>
+      {all.slice(0, 12).map((h, i) => (
+        <span
+          key={`l${i}`}
+          className="w-1.5 rounded-full bg-gradient-to-t from-accent-600 via-glow-pink to-signal-blue animate-wave"
+          style={{ height: `${h * 100}%`, animationDelay: `${i * 110}ms`, opacity: 0.85 }}
+        />
+      ))}
+      <span className="relative mx-3 flex h-24 w-24 shrink-0 items-center justify-center sm:h-28 sm:w-28">
+        <span className="orb absolute inset-0 animate-orbPulse" />
+        <svg viewBox="0 0 24 24" className="relative h-9 w-9 text-white" fill="currentColor" aria-hidden>
+          <path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 1 0-6 0v5a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2z" />
+        </svg>
+      </span>
+      {all.slice(12).map((h, i) => (
+        <span
+          key={`r${i}`}
+          className="w-1.5 rounded-full bg-gradient-to-t from-accent-600 via-glow-pink to-signal-blue animate-wave"
+          style={{ height: `${h * 100}%`, animationDelay: `${(11 - i) * 110}ms`, opacity: 0.85 }}
+        />
+      ))}
+    </div>
+  );
+}
+
+const PARTNERS = [
+  "Asterisk", "NorthDuet", "Nectar", "Recycle", "Oasis", "Cloudform",
+  "OHealth", "Veterinary", "FastAid", "Mainpoint",
 ];
 
-const FEATURES = [
+const WHY = [
   {
-    title: "Post-call analysis",
-    body: "Automatic summaries, outcomes, and sentiment on every conversation, extracted the moment a call ends.",
+    title: "Hands-free efficiency",
+    body: "Your phone lines answer themselves — support, scheduling, and qualification handled without your team lifting a finger.",
+    wide: true,
   },
   {
-    title: "Call transfer",
-    body: "Context-aware transfers between AI agents and your team — the caller never repeats themselves.",
+    title: "Personalized experiences",
+    body: "Agents adapt to your business's voice, knowledge, and rules, giving every caller accurate, tailored answers.",
+    wide: false,
   },
   {
-    title: "CRM updated on every call",
-    body: "Structured call data mapped into your CRM automatically: leads, outcomes, follow-ups.",
+    title: "Human-supervised AI",
+    body: "Live transcripts, sentiment flags, and one-click takeover keep a person in command of every conversation.",
+    wide: false,
   },
   {
-    title: "Batch calling",
-    body: "Personalized outbound campaigns at scale with automatic callback scheduling.",
-  },
-  {
-    title: "Knowledge base answers",
-    body: "Agents answer from your documents — and hand off to a human instead of guessing.",
-  },
-  {
-    title: "Works on your phone lines",
-    body: "Keep your numbers and carrier. Connect over standard telephony with no migration.",
-  },
-];
-
-const SUPERVISION_POINTS = [
-  {
-    title: "Real-time transcripts",
-    body: "Every active call streams into one console, side by side.",
-  },
-  {
-    title: "Sentiment and confidence scoring",
-    body: "Conversations are flagged the moment they start turning.",
-  },
-  {
-    title: "One-click takeover",
-    body: "A supervisor joins mid-sentence with full context. The caller never hears a transfer.",
+    title: "Seamless integration",
+    body: "Works on your existing numbers and syncs to your calendar and CRM — no migration, no downtime.",
+    wide: true,
   },
 ];
 
 const STEPS = [
   {
-    title: "Discovery call",
-    body: "We map your call flows, edge cases, and escalation rules together.",
+    title: "Sign up and set up",
+    body: "Create your workspace and configure your first agent — voice, greeting, instructions — in minutes.",
   },
   {
-    title: "Pilot deployment",
-    body: "Your first agent goes live on a real line with supervisors watching every call.",
+    title: "Customize your experience",
+    body: "Attach your knowledge base, connect your phone number, and set escalation rules for your team.",
   },
   {
-    title: "Scale",
-    body: "Roll out across teams, numbers, and campaigns with full observability.",
+    title: "Go live with supervision",
+    body: "Your agent takes real calls while supervisors watch live transcripts and take over anytime.",
   },
 ];
 
-const COMPARISON: [string, string, string, string][] = [
-  ["Setup time", "Days", "Months", "Weeks of hiring"],
-  ["Live human oversight", "Built-in, every call", "None", "Only the calls they take"],
-  ["Answers 24/7", "Yes", "Menus only", "Business hours"],
-  ["Cost per call", "Low, predictable", "Low but frustrating", "High and variable"],
-  ["Improves over time", "Yes — transcripts feed tuning", "No", "Depends on training"],
+const KEY_FEATURES = [
+  {
+    n: "01",
+    title: "Advanced speech recognition",
+    body: "Understands natural, multi-turn conversation across accents and phrasing — no rigid phone menus.",
+  },
+  {
+    n: "02",
+    title: "Live human supervision",
+    body: "Sentiment and confidence scoring flag conversations the moment they turn, with one-click takeover.",
+  },
+  {
+    n: "03",
+    title: "Cross-platform observability",
+    body: "Every call recorded, transcribed, summarized, and searchable from one dashboard on any device.",
+  },
 ];
 
-const FAQS = [
+const TESTIMONIALS = [
   {
-    q: "How do AI voice agents work?",
-    a: "Callers speak naturally; the agent transcribes in real time, reasons with a large language model over your knowledge and instructions, and responds with a natural voice — while taking actions like booking appointments or logging tickets.",
+    quote:
+      "Our front desk stopped missing calls entirely. The takeover button is the feature that convinced us — we're always one click from stepping in.",
+    name: "Alex Carter",
+    role: "Operations Manager, dental group",
   },
   {
-    q: "What happens when the AI can't handle a call?",
-    a: "It escalates to your team with the full transcript and a one-line summary. Supervisors can also proactively take over any live call in one click.",
+    quote:
+      "We launched an outbound follow-up campaign in an afternoon. The AI books the demos; my team just shows up to them.",
+    name: "Priya N.",
+    role: "Head of Sales, home services",
   },
   {
-    q: "Do I need to change my phone number or carrier?",
-    a: "No. Agents connect to your existing numbers, or you can provision new numbers per agent.",
-  },
-  {
-    q: "Can I listen to calls while they happen?",
-    a: "Yes — the live monitoring console shows every active call with a streaming transcript, sentiment, and confidence score.",
-  },
-  {
-    q: "How long does setup take?",
-    a: "A first agent takes minutes. Production phone lines are typically a same-week project.",
+    quote:
+      "The live transcripts changed how we coach. We watch real calls and step in when it matters instead of auditing recordings a week later.",
+    name: "Dana R.",
+    role: "Support Lead, e-commerce",
   },
 ];
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen overflow-x-hidden bg-ink-950">
       {/* Nav */}
-      <header className="sticky top-0 z-40 border-b border-ink-700 bg-white/85 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-ink-800 bg-ink-950/80 backdrop-blur">
         <div className="container-page flex h-16 items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
-            <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-accent-500 to-accent-300 font-bold text-white">
-              V
-            </span>
+            <Orb size={26} />
             <span className="text-[17px] tracking-tight">
               <span className="font-bold">Voice</span>
               <span className="font-light text-ink-300">Line AI</span>
             </span>
           </Link>
           <nav className="hidden items-center gap-7 text-sm text-ink-300 md:flex">
-            <a href="#action" className="hover:text-ink-100">Solutions</a>
-            <a href="#features" className="hover:text-ink-100">Features</a>
-            <a href="#supervision" className="hover:text-ink-100">Supervision</a>
-            <a href="#faq" className="hover:text-ink-100">FAQ</a>
+            <a href="#about" className="transition hover:text-ink-100">About</a>
+            <a href="#features" className="transition hover:text-ink-100">Features</a>
+            <a href="#how" className="transition hover:text-ink-100">Solution</a>
+            <a href="#testimonials" className="transition hover:text-ink-100">Customers</a>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm font-medium text-ink-300 hover:text-ink-100">
+            <Link href="/login" className="text-sm font-medium text-ink-300 transition hover:text-ink-100">
               Log in
             </Link>
-            <Link href="/signup" className="btn-dark !px-4 !py-2">
-              Book a demo
+            <Link href="/signup" className="btn-secondary !px-4 !py-2">
+              Contact
             </Link>
           </div>
         </div>
       </header>
 
       {/* Hero */}
-      <section
-        className="relative overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(80% 90% at 70% 10%, rgba(196,181,253,0.45) 0%, rgba(251,207,232,0.35) 40%, rgba(255,255,255,1) 85%)",
-        }}
-      >
-        <div className="container-page flex flex-col items-center pb-16 pt-24 text-center sm:pt-28">
-          <span className="mb-6 rounded-full border border-accent-300 bg-white/70 px-4 py-1.5 text-xs font-medium text-accent-700">
-            Every call answered · Every call supervised
+      <section className="relative">
+        <div
+          className="pointer-events-none absolute inset-x-0 top-0 h-[480px]"
+          style={{
+            background:
+              "radial-gradient(55% 60% at 50% 0%, rgba(139,92,246,0.28) 0%, rgba(217,70,239,0.12) 45%, rgba(7,7,9,0) 75%)",
+          }}
+        />
+        <div className="container-page relative flex flex-col items-center pt-20 text-center sm:pt-24">
+          <span className="mb-5 flex items-center gap-2 rounded-full border border-ink-700 bg-ink-850/80 px-4 py-1.5 text-xs text-ink-300">
+            <span className="text-glow-orange">★</span> AI voice agents with live human supervision
           </span>
           <h1 className="max-w-3xl text-4xl font-bold leading-tight tracking-tight sm:text-6xl">
-            AI-voice agents with{" "}
-            <span className="bg-gradient-to-r from-accent-600 to-accent-400 bg-clip-text text-transparent">
-              live human supervision
-            </span>
+            Change the way your business{" "}
+            <span className="grad-text">answers the phone</span>
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-ink-300">
-            Voice agents that answer, schedule, and qualify on your phone lines —
-            while your team watches live transcripts and can take over any call
-            in one click.
+            Voice agents that answer, schedule, and qualify on your lines —
+            while your team watches live transcripts and takes over any call in
+            one click.
           </p>
           <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-            <Link href="/signup" className="btn-dark !px-7 !py-3 !text-base">
-              Book a demo
+            <Link href="/signup" className="btn-primary !px-7 !py-3 !text-base">
+              Try for free
             </Link>
-            <Link href="/signup" className="btn-secondary !px-7 !py-3 !text-base">
-              Try an agent →
-            </Link>
+            <a href="#how" className="btn-secondary !px-7 !py-3 !text-base">
+              Learn more →
+            </a>
           </div>
-          <p className="mt-14 text-xs font-medium uppercase tracking-widest text-ink-400">
-            Built for support, sales, and scheduling teams
-          </p>
+          <div className="mt-14 w-full max-w-3xl animate-rise">
+            <Waveform />
+          </div>
         </div>
       </section>
 
-      {/* See it in action */}
-      <section id="action" className="border-t border-ink-700 py-20">
+      {/* About */}
+      <section id="about" className="py-24">
         <div className="container-page">
-          <div className="flex items-end justify-between">
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">See it in action</h2>
-            <Link href="/signup" className="hidden text-sm font-medium text-accent-600 hover:text-accent-500 sm:block">
-              Try it right now →
-            </Link>
+          <div className="card card-hover !p-8 sm:!p-12">
+            <h2 className="text-3xl font-bold tracking-tight">
+              About <span className="grad-text">VoiceLine AI</span>
+            </h2>
+            <div className="mt-8 grid items-center gap-10 md:grid-cols-[260px_1fr]">
+              <div className="flex justify-center">
+                <span className="relative flex h-52 w-52 items-center justify-center rounded-full border border-ink-700 bg-ink-900">
+                  <span className="absolute inset-6 rounded-full border border-ink-700/70" />
+                  <Orb size={120} className="animate-orbPulse" />
+                </span>
+              </div>
+              <div className="space-y-4 text-ink-300">
+                <p>
+                  VoiceLine AI is a platform that puts intelligent voice agents
+                  on your existing phone lines. Callers speak naturally; the
+                  agent answers from your knowledge, books appointments, and
+                  qualifies leads — hands-free for your team.
+                </p>
+                <p>
+                  What makes it different is supervision: every live call
+                  streams into a monitoring console with sentiment and
+                  confidence scores, and a human can take over mid-sentence at
+                  any time. AI does the talking; people stay in command.
+                </p>
+                <Link href="/signup" className="btn-primary mt-2 inline-flex">
+                  Try for free
+                </Link>
+              </div>
+            </div>
           </div>
-          <div className="mt-10 grid gap-5 md:grid-cols-3">
-            {SHOWCASE.map((s) => (
-              <div key={s.title} className="card !p-6">
-                <div className="mb-4 flex h-28 items-center justify-center rounded-lg bg-ink-800 text-4xl text-accent-400">
-                  {s.title === "Build" ? "⚙" : s.title === "Live Monitoring" ? "◉" : "📊"}
-                </div>
-                <h3 className="text-lg font-semibold">{s.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-300">{s.body}</p>
+        </div>
+      </section>
+
+      {/* Partners */}
+      <section className="pb-24">
+        <div className="container-page">
+          <p className="text-center text-sm text-ink-400">
+            Most of our <span className="font-semibold text-ink-200">trusted partners</span>
+          </p>
+          <div className="mt-6 grid grid-cols-2 overflow-hidden rounded-2xl border border-ink-700 sm:grid-cols-5">
+            {PARTNERS.map((p) => (
+              <div
+                key={p}
+                className="flex items-center justify-center gap-2 border border-ink-700/60 bg-ink-850 px-4 py-5 text-sm font-medium text-ink-300 transition duration-200 hover:bg-ink-800 hover:text-ink-100"
+              >
+                <span className="h-2 w-2 rounded-full bg-gradient-to-r from-accent-500 to-glow-pink" />
+                {p}
               </div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Features */}
-      <section id="features" className="border-t border-ink-700 bg-ink-950 py-20">
+      {/* Why choose — bento boxes */}
+      <section id="features" className="pb-24">
         <div className="container-page">
-          <p className="text-center text-xs font-semibold uppercase tracking-widest text-accent-600">
-            Core features
-          </p>
-          <h2 className="mt-3 text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Everything a modern contact center needs
+          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            Why choose <span className="grad-text">supervised voice AI?</span>
           </h2>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {FEATURES.map((f) => (
-              <div key={f.title} className="card">
-                <h3 className="text-base font-semibold">{f.title}</h3>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {WHY.map((w) => (
+              <div
+                key={w.title}
+                className={`card card-hover !p-7 ${w.wide ? "md:col-span-2" : ""}`}
+              >
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-800">
+                  <span className="h-4 w-4 rounded-full bg-gradient-to-tr from-accent-500 via-glow-pink to-glow-orange" />
+                </span>
+                <h3 className="mt-4 text-lg font-semibold">{w.title}</h3>
+                <p className="mt-2 text-sm leading-relaxed text-ink-300">{w.body}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* How it works */}
+      <section id="how" className="pb-24">
+        <div className="container-page">
+          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            How it <span className="grad-text">works</span>
+          </h2>
+          <div className="card card-hover relative mt-12 overflow-hidden !p-0">
+            <div
+              className="pointer-events-none absolute inset-0"
+              style={{
+                background:
+                  "radial-gradient(60% 80% at 50% 0%, rgba(139,92,246,0.16) 0%, rgba(7,7,9,0) 70%)",
+              }}
+            />
+            <div className="relative flex justify-center pb-4 pt-12">
+              <span className="relative flex h-24 w-24 items-center justify-center">
+                <span className="orb absolute inset-0 animate-orbPulse" />
+                <svg viewBox="0 0 24 24" className="relative h-8 w-8 text-white" fill="currentColor" aria-hidden>
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              </span>
+            </div>
+            <div className="relative grid gap-6 px-7 pb-10 pt-6 sm:grid-cols-3">
+              {STEPS.map((s, i) => (
+                <div key={s.title} className="text-center sm:text-left">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-accent-400">
+                    Step {i + 1}
+                  </p>
+                  <h3 className="mt-1.5 font-semibold">{s.title}</h3>
+                  <p className="mt-1.5 text-sm leading-relaxed text-ink-300">{s.body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* Key features */}
+      <section className="pb-24">
+        <div className="container-page">
+          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
+            Key features of <span className="grad-text">VoiceLine AI</span>
+          </h2>
+          <div className="mt-12 grid gap-5 md:grid-cols-3">
+            {KEY_FEATURES.map((f) => (
+              <div key={f.n} className="card card-hover !p-7">
+                <p className="grad-text text-sm font-bold">{f.n}</p>
+                <h3 className="mt-3 text-lg font-semibold">{f.title}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-ink-300">{f.body}</p>
               </div>
             ))}
@@ -215,197 +324,90 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Supervision */}
-      <section id="supervision" className="border-t border-ink-700 py-20">
-        <div className="container-page grid items-center gap-12 lg:grid-cols-2">
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight sm:text-4xl">
-              A human supervisor on every call
-            </h2>
-            <p className="mt-4 text-ink-300">
-              AI does the talking. Your team stays in command.
-            </p>
-            <ul className="mt-7 space-y-5">
-              {SUPERVISION_POINTS.map((p) => (
-                <li key={p.title} className="flex gap-3">
-                  <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent-500" />
-                  <p className="text-ink-300">
-                    <strong className="text-ink-100">{p.title}.</strong> {p.body}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="card !p-0">
-            <div className="flex items-center justify-between border-b border-ink-700 px-5 py-3">
-              <span className="text-sm font-semibold">Live call · Support Line</span>
-              <span className="badge-ok">
-                <span className="mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-accent-500 animate-pulseDot" />
-                LIVE
-              </span>
-            </div>
-            <div className="space-y-3 px-5 py-5 font-mono text-[13px] leading-relaxed">
-              <p><span className="text-accent-600">agent</span> <span className="text-ink-200">Thanks for calling — how can I help?</span></p>
-              <p><span className="text-signal-blue">caller</span> <span className="text-ink-200">My invoice this month is higher than usual.</span></p>
-              <p><span className="text-accent-600">agent</span> <span className="text-ink-200">I see an added usage charge — let me flag a supervisor with the details.</span></p>
-              <p className="text-ink-400">supervisor joining…</p>
-            </div>
-            <div className="flex items-center justify-between border-t border-ink-700 bg-ink-800/60 px-5 py-3 text-xs">
-              <span className="text-ink-400">
-                Sentiment <span className="font-medium text-signal-amber">turning</span>
-                <span className="mx-2">·</span>
-                Confidence <span className="font-medium text-ink-100">58%</span>
-              </span>
-              <span className="rounded-md bg-accent-500 px-3 py-1.5 font-semibold text-white">
-                Take over call
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Deployment steps */}
-      <section className="border-t border-ink-700 bg-ink-950 py-20">
+      {/* Testimonials */}
+      <section id="testimonials" className="pb-24">
         <div className="container-page">
           <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            From first call to full deployment in days
+            What our <span className="grad-text">customers say</span>
           </h2>
           <div className="mt-12 grid gap-5 md:grid-cols-3">
-            {STEPS.map((s, i) => (
-              <div key={s.title} className="card !p-6">
-                <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-500/10 text-sm font-bold text-accent-600">
-                  {i + 1}
-                </span>
-                <h3 className="mt-4 text-lg font-semibold">{s.title}</h3>
-                <p className="mt-1.5 text-sm leading-relaxed text-ink-300">{s.body}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Comparison */}
-      <section className="border-t border-ink-700 py-20">
-        <div className="container-page">
-          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Why we&apos;re different
-          </h2>
-          <div className="card mx-auto mt-12 max-w-4xl overflow-x-auto !p-0">
-            <table className="w-full min-w-[640px] text-sm">
-              <thead>
-                <tr className="border-b border-ink-700 bg-ink-800/60 text-left">
-                  <th className="px-5 py-3.5 font-medium text-ink-400">Capability</th>
-                  <th className="px-5 py-3.5 font-semibold text-accent-600">VoiceLine AI</th>
-                  <th className="px-5 py-3.5 font-medium text-ink-400">Legacy IVR</th>
-                  <th className="px-5 py-3.5 font-medium text-ink-400">Hiring more staff</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-ink-700/70">
-                {COMPARISON.map(([cap, us, ivr, staff]) => (
-                  <tr key={cap}>
-                    <td className="px-5 py-3.5 font-medium">{cap}</td>
-                    <td className="px-5 py-3.5 font-semibold text-accent-700">{us}</td>
-                    <td className="px-5 py-3.5 text-ink-300">{ivr}</td>
-                    <td className="px-5 py-3.5 text-ink-300">{staff}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-
-      {/* Enterprise (dark band) */}
-      <section className="bg-[#120e1e] py-20 text-white">
-        <div className="container-page">
-          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            Enterprise-ready from day one
-          </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-center text-white/60">
-            Workspace isolation per business, encrypted sessions, and full call
-            audit trails — with recording-consent controls, retention windows,
-            and compliance certifications on the roadmap as we grow.
-          </p>
-          <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { t: "Isolated workspaces", b: "Every business's agents, calls, and contacts are fully separated." },
-              { t: "Encrypted sessions", b: "Signed, httpOnly session tokens; passwords hashed with bcrypt." },
-              { t: "Full audit trail", b: "Every call, transcript, and takeover is logged and searchable." },
-              { t: "Compliance roadmap", b: "Consent, retention, and redaction controls planned for regulated industries." },
-            ].map((c) => (
-              <div key={c.t} className="rounded-xl border border-white/10 bg-white/5 p-5">
-                <h3 className="text-sm font-semibold">{c.t}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/60">{c.b}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section id="faq" className="border-t border-ink-700 py-20">
-        <div className="container-page max-w-3xl">
-          <h2 className="text-center text-3xl font-bold tracking-tight sm:text-4xl">
-            We&apos;ve got the answers
-          </h2>
-          <div className="mt-10 space-y-3">
-            {FAQS.map((f) => (
-              <details key={f.q} className="card group !p-0">
-                <summary className="cursor-pointer list-none px-5 py-4 text-sm font-semibold">
-                  <span className="mr-2 inline-block text-accent-600 transition group-open:rotate-90">›</span>
-                  {f.q}
-                </summary>
-                <p className="border-t border-ink-700 px-5 py-4 text-sm leading-relaxed text-ink-300">
-                  {f.a}
-                </p>
-              </details>
+            {TESTIMONIALS.map((t) => (
+              <figure key={t.name} className="card card-hover flex flex-col !p-7">
+                <blockquote className="flex-1 text-sm leading-relaxed text-ink-200">
+                  “{t.quote}”
+                </blockquote>
+                <figcaption className="mt-5 flex items-center gap-3">
+                  <Orb size={34} />
+                  <span>
+                    <span className="block text-sm font-semibold">{t.name}</span>
+                    <span className="block text-xs text-ink-400">{t.role}</span>
+                  </span>
+                </figcaption>
+              </figure>
             ))}
           </div>
         </div>
       </section>
 
       {/* CTA */}
-      <section
-        className="py-20"
-        style={{
-          background:
-            "linear-gradient(100deg, rgba(124,58,237,0.92) 0%, rgba(167,139,250,0.9) 60%, rgba(244,114,182,0.85) 100%)",
-        }}
-      >
-        <div className="container-page flex flex-col items-center text-center text-white">
-          <h2 className="max-w-2xl text-3xl font-bold tracking-tight sm:text-4xl">
-            Voice AI with live human supervision
-          </h2>
-          <p className="mt-4 max-w-xl text-white/85">
-            Create a workspace, build your first agent, and watch the live
-            monitoring console in the next five minutes.
-          </p>
-          <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center rounded-lg bg-white px-7 py-3 text-base font-semibold text-accent-700 transition hover:bg-white/90"
-            >
-              Book a demo
-            </Link>
-            <Link
-              href="/signup"
-              className="inline-flex items-center justify-center rounded-lg border border-white/50 px-7 py-3 text-base font-semibold text-white transition hover:bg-white/10"
-            >
-              Try an agent →
-            </Link>
+      <section className="pb-24">
+        <div className="container-page">
+          <div className="grad-bg relative overflow-hidden rounded-3xl px-8 py-14 text-center shadow-2xl shadow-accent-600/20">
+            <h2 className="text-3xl font-bold tracking-tight text-white sm:text-4xl">
+              Get started today
+            </h2>
+            <p className="mx-auto mt-3 max-w-xl text-white/85">
+              Ready to experience the power of supervised voice AI? Build your
+              first agent in the next five minutes.
+            </p>
+            <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <Link
+                href="/signup"
+                className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-ink-950 transition hover:bg-white/90"
+              >
+                Get started for free
+              </Link>
+              <a
+                href="#features"
+                className="inline-flex items-center justify-center rounded-full border border-white/50 px-7 py-3 text-sm font-semibold text-white transition hover:bg-white/10"
+              >
+                Explore features
+              </a>
+            </div>
           </div>
         </div>
       </section>
 
-      <footer className="bg-[#120e1e] py-10 text-white/60">
-        <div className="container-page flex flex-col items-center justify-between gap-3 text-xs sm:flex-row">
-          <span className="flex items-center gap-2">
-            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-tr from-accent-500 to-accent-300 text-[11px] font-bold text-white">
-              V
-            </span>
-            © {new Date().getFullYear()} VoiceLine AI
-          </span>
-          <span>Enterprise voice AI with live human supervision.</span>
+      {/* Footer */}
+      <footer className="border-t border-ink-800 py-12">
+        <div className="container-page flex flex-col items-center justify-between gap-8 sm:flex-row sm:items-start">
+          <div>
+            <Link href="/" className="flex items-center gap-2.5">
+              <Orb size={24} />
+              <span className="tracking-tight">
+                <span className="font-bold">Voice</span>
+                <span className="font-light text-ink-300">Line AI</span>
+              </span>
+            </Link>
+            <p className="mt-3 text-xs text-ink-400">
+              © {new Date().getFullYear()} VoiceLine AI · Enterprise voice AI
+              with live human supervision.
+            </p>
+          </div>
+          <form action="/signup" className="w-full max-w-sm">
+            <p className="text-sm font-medium">Subscribe to the newsletter</p>
+            <div className="mt-3 flex overflow-hidden rounded-full border border-ink-600 bg-ink-900 focus-within:border-accent-500">
+              <input
+                type="email"
+                placeholder="Enter your email"
+                className="w-full bg-transparent px-4 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 focus:outline-none"
+                aria-label="Email address"
+              />
+              <button className="grad-bg m-1 rounded-full px-5 text-sm font-semibold text-white transition hover:brightness-110">
+                Subscribe
+              </button>
+            </div>
+          </form>
         </div>
       </footer>
     </div>

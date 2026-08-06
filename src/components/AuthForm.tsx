@@ -36,12 +36,17 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-5">
-      <div className="w-full max-w-md">
+    <div className="relative flex min-h-screen flex-col items-center justify-center bg-ink-950 px-5">
+      <div
+        className="pointer-events-none absolute inset-x-0 top-0 h-[420px]"
+        style={{
+          background:
+            "radial-gradient(55% 60% at 50% 0%, rgba(139,92,246,0.22) 0%, rgba(217,70,239,0.10) 45%, rgba(7,7,9,0) 75%)",
+        }}
+      />
+      <div className="relative w-full max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-accent-500 to-accent-300 text-lg font-bold text-white">
-            V
-          </span>
+          <span className="orb inline-block h-10 w-10" aria-hidden />
           <span className="text-2xl tracking-tight">
             <span className="font-bold">Voice</span>
             <span className="font-light text-ink-300">Line AI</span>
@@ -55,7 +60,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
           easily, and scale globally
         </p>
 
-        <div className="mt-8 rounded-xl border border-ink-700 bg-white p-7 shadow-sm">
+        <div className="card mt-8 !p-7">
           <h2 className="text-2xl font-bold">
             {mode === "login" ? "Login" : "Create account"}
           </h2>
@@ -126,7 +131,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
               </p>
             )}
 
-            <button type="submit" disabled={busy} className="btn-dark w-full !py-3 disabled:opacity-60">
+            <button type="submit" disabled={busy} className="btn-primary w-full !py-3 disabled:opacity-60">
               {busy ? "One moment…" : mode === "login" ? "→ Login" : "Create account"}
             </button>
           </form>

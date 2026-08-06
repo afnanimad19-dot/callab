@@ -24,7 +24,7 @@ export default async function AgentsPage() {
 
       <div className="grid gap-5 sm:grid-cols-2">
         {agents.map((a) => (
-          <Link key={a.id} href={`/dashboard/agents/${a.id}`} className="card transition hover:border-ink-500">
+          <Link key={a.id} href={`/dashboard/agents/${a.id}`} className="card card-hover">
             <div className="flex items-start justify-between">
               <div>
                 <h2 className="text-base font-semibold">{a.name}</h2>

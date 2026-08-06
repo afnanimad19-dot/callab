@@ -143,7 +143,7 @@ export default function LiveConsole() {
                 className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${
                   isTaken
                     ? "bg-signal-amber/20 text-signal-amber hover:bg-signal-amber/30"
-                    : "bg-accent-500 text-ink-950 hover:bg-accent-400"
+                    : "bg-gradient-to-r from-accent-600 to-glow-pink text-white hover:brightness-110"
                 }`}
               >
                 {isTaken ? "Return to AI" : "Take over call"}

@@ -1,8 +1,10 @@
 // Lightweight SVG charts (no chart library): smooth area lines, bars,
-// donut, and a semicircle gauge — all in the purple accent palette.
+// donut, and a semicircle gauge — themed for the dark UI with the
+// violet→fuchsia gradient accent.
 
-const PURPLE = "#7c3aed";
+const PURPLE = "#8b5cf6";
 const PURPLE_SOFT = "#c4b5fd";
+const FUCHSIA = "#d946ef";
 
 function smoothPath(points: { x: number; y: number }[]): string {
   if (points.length < 2) return "";
@@ -56,7 +58,7 @@ export function AreaChart({
             x2={w - pad.right}
             y1={pad.top + innerH * t}
             y2={pad.top + innerH * t}
-            stroke="#e8e5f3"
+            stroke="#24242e"
             strokeDasharray="3 4"
           />
           <text
@@ -64,7 +66,7 @@ export function AreaChart({
             y={pad.top + innerH * t + 4}
             textAnchor="end"
             fontSize="10"
-            fill="#7c7691"
+            fill="#8b8b9a"
           >
             {Math.round(max * (1 - t) * 10) / 10}
           </text>
@@ -79,7 +81,7 @@ export function AreaChart({
           y={h - 8}
           textAnchor="middle"
           fontSize="10"
-          fill="#7c7691"
+          fill="#8b8b9a"
         >
           {label}
         </text>
@@ -113,7 +115,7 @@ export function BarChart({
             x2={w - pad.right}
             y1={pad.top + innerH * t}
             y2={pad.top + innerH * t}
-            stroke="#e8e5f3"
+            stroke="#24242e"
             strokeDasharray="3 4"
           />
           <text
@@ -121,7 +123,7 @@ export function BarChart({
             y={pad.top + innerH * t + 4}
             textAnchor="end"
             fontSize="10"
-            fill="#7c7691"
+            fill="#8b8b9a"
           >
             {Math.round(max * (1 - t))}
           </text>
@@ -145,7 +147,7 @@ export function BarChart({
               y={h - 10}
               textAnchor="middle"
               fontSize="10"
-              fill="#5b5570"
+              fill="#b4b4c0"
             >
               {item.label.length > 14 ? `${item.label.slice(0, 13)}…` : item.label}
             </text>
@@ -170,7 +172,7 @@ export function Donut({
 
   return (
     <svg viewBox="0 0 120 120" width={size} height={size} role="img">
-      <circle cx="60" cy="60" r={r} fill="none" stroke="#f3f1fa" strokeWidth="18" />
+      <circle cx="60" cy="60" r={r} fill="none" stroke="#191920" strokeWidth="18" />
       {segments.map((seg, i) => {
         const frac = seg.value / total;
         const dash = `${frac * c} ${c}`;
@@ -204,7 +206,7 @@ export function Gauge({ percent }: { percent: number }) {
       <path
         d="M 14 62 A 46 46 0 0 1 106 62"
         fill="none"
-        stroke="#f3f1fa"
+        stroke="#191920"
         strokeWidth="11"
         strokeLinecap="round"
       />
@@ -216,11 +218,16 @@ export function Gauge({ percent }: { percent: number }) {
         strokeLinecap="round"
         strokeDasharray={`${frac * half} ${half}`}
       />
-      <text x="60" y="52" textAnchor="middle" fontSize="19" fontWeight="700" fill="#191527">
+      <text x="60" y="52" textAnchor="middle" fontSize="19" fontWeight="700" fill="#f5f5f8">
         {Math.round(percent * 10) / 10}%
       </text>
     </svg>
   );
 }
 
-export const CHART_COLORS = { purple: PURPLE, purpleSoft: PURPLE_SOFT, lilac: "#a78bfa" };
+export const CHART_COLORS = {
+  purple: PURPLE,
+  purpleSoft: PURPLE_SOFT,
+  fuchsia: FUCHSIA,
+  lilac: "#a78bfa",
+};

@@ -252,7 +252,14 @@ async function rest(pathAndQuery: string, init?: RequestInit) {
     { ...init, headers: { ...supabaseHeaders(), ...init?.headers } }
   );
   if (!res.ok) {
-    throw new Error(`Supabase ${res.status}: ${await res.text()}`);
+    const text = await res.text();
+    // 42501 = row-level security violation. The service_role key bypasses
+    // RLS, so hitting this means the anon/publishable key was configured
+    // by mistake. Say so explicitly — it's the #1 setup error.
+    const hint = text.includes("42501")
+      ? " — SUPABASE_SERVICE_ROLE_KEY appears to be the anon/publishable key. Use the service_role (secret) key from Supabase → Project Settings → API keys."
+      : "";
+    throw new Error(`Supabase ${res.status}: ${text}${hint}`);
   }
   return res;
 }

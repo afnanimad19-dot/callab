@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 }
 
 body {
@@ -11,41 +11,66 @@ body {
 }
 
 ::selection {
-  @apply bg-accent-500/25;
+  @apply bg-accent-500/40;
 }
 
 @layer components {
   .container-page {
     @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
   }
+
+  /* Gradient signature of the theme: violet → fuchsia → orange */
+  .grad-text {
+    @apply bg-gradient-to-r from-accent-400 via-glow-pink to-glow-orange bg-clip-text text-transparent;
+  }
+  .grad-bg {
+    @apply bg-gradient-to-br from-accent-600 via-glow-pink to-glow-orange;
+  }
+
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-accent-500 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-accent-600 focus:outline-none focus:ring-2 focus:ring-accent-400/60;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-accent-600 to-glow-pink px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-600/25 transition duration-200 hover:shadow-accent-500/40 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent-400/60;
   }
   .btn-dark {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-ink-100 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-ink-200 focus:outline-none focus:ring-2 focus:ring-ink-400/50;
+    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ink-100 px-5 py-2.5 text-sm font-semibold text-ink-950 transition duration-200 hover:bg-white focus:outline-none focus:ring-2 focus:ring-ink-400/50;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-ink-600 bg-white px-5 py-2.5 text-sm font-semibold text-ink-200 transition hover:border-ink-500 hover:bg-ink-800;
+    @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink-600 bg-ink-850 px-5 py-2.5 text-sm font-semibold text-ink-200 transition duration-200 hover:border-accent-500/50 hover:bg-ink-800 hover:text-ink-100;
   }
+
+  /* Boxes: dark card, subtle border; on hover the border lights up with the
+     accent, the card lifts, and a soft glow appears underneath. */
   .card {
-    @apply rounded-xl border border-ink-700 bg-white p-5 shadow-sm shadow-ink-700/40;
+    @apply rounded-2xl border border-ink-700 bg-ink-850 p-5 transition duration-200;
   }
+  .card-hover {
+    @apply hover:-translate-y-0.5 hover:border-accent-500/40 hover:bg-ink-800 hover:shadow-xl hover:shadow-accent-600/10;
+  }
+
   .field {
-    @apply w-full rounded-lg border border-ink-600 bg-white px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500/50;
+    @apply w-full rounded-lg border border-ink-600 bg-ink-900 px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 transition focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500/50;
   }
   .label {
     @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-400;
   }
+
   .badge-ok {
-    @apply rounded-full bg-accent-500/10 px-2.5 py-1 text-xs font-medium text-accent-600;
+    @apply rounded-full bg-accent-500/15 px-2.5 py-1 text-xs font-medium text-accent-300;
   }
   .badge-warn {
-    @apply rounded-full bg-signal-amber/10 px-2.5 py-1 text-xs font-medium text-signal-amber;
+    @apply rounded-full bg-signal-amber/15 px-2.5 py-1 text-xs font-medium text-signal-amber;
   }
   .badge-bad {
-    @apply rounded-full bg-signal-red/10 px-2.5 py-1 text-xs font-medium text-signal-red;
+    @apply rounded-full bg-signal-red/15 px-2.5 py-1 text-xs font-medium text-signal-red;
   }
   .badge-muted {
     @apply rounded-full bg-ink-800 px-2.5 py-1 text-xs font-medium text-ink-300;
+  }
+
+  /* The glowing gradient orb used across the site (hero, about, brand). */
+  .orb {
+    @apply rounded-full bg-gradient-to-tr from-accent-600 via-glow-pink to-glow-orange;
+    box-shadow:
+      0 0 40px rgba(139, 92, 246, 0.45),
+      0 0 90px rgba(217, 70, 239, 0.25);
   }
 }
