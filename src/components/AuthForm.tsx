@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ThemeToggle from "@/components/ThemeToggle";
 
 export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const router = useRouter();
@@ -44,6 +45,9 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
             "radial-gradient(55% 60% at 50% 0%, rgba(139,92,246,0.22) 0%, rgba(217,70,239,0.10) 45%, rgba(7,7,9,0) 75%)",
         }}
       />
+      <div className="absolute right-5 top-5">
+        <ThemeToggle />
+      </div>
       <div className="relative w-full max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2.5">
           <span className="orb inline-block h-10 w-10" aria-hidden />

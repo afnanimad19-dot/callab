@@ -9,18 +9,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Role-based surface scale backed by CSS variables (see globals.css):
+        // dark by default, flipped to light by [data-theme="light"] on <html>.
         ink: {
-          950: "#070709", // page background
-          900: "#0d0d11", // raised surface
-          850: "#111116", // card background
-          800: "#191920", // subtle fill / hover
-          700: "#24242e", // borders
-          600: "#32323e", // strong borders
-          500: "#585866", // placeholders
-          400: "#8b8b9a", // muted text
-          300: "#b4b4c0", // secondary text
-          200: "#dcdce4", // strong text
-          100: "#f5f5f8", // primary text
+          950: "rgb(var(--ink-950) / <alpha-value>)", // page background
+          900: "rgb(var(--ink-900) / <alpha-value>)", // raised surface
+          850: "rgb(var(--ink-850) / <alpha-value>)", // card background
+          800: "rgb(var(--ink-800) / <alpha-value>)", // subtle fill / hover
+          700: "rgb(var(--ink-700) / <alpha-value>)", // borders
+          600: "rgb(var(--ink-600) / <alpha-value>)", // strong borders
+          500: "rgb(var(--ink-500) / <alpha-value>)", // placeholders
+          400: "rgb(var(--ink-400) / <alpha-value>)", // muted text
+          300: "rgb(var(--ink-300) / <alpha-value>)", // secondary text
+          200: "rgb(var(--ink-200) / <alpha-value>)", // strong text
+          100: "rgb(var(--ink-100) / <alpha-value>)", // primary text
         },
         accent: {
           300: "#c4b5fd",

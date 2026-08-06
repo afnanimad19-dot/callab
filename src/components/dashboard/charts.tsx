@@ -58,7 +58,7 @@ export function AreaChart({
             x2={w - pad.right}
             y1={pad.top + innerH * t}
             y2={pad.top + innerH * t}
-            stroke="#24242e"
+            style={{ stroke: "var(--chart-grid)" }}
             strokeDasharray="3 4"
           />
           <text
@@ -66,7 +66,7 @@ export function AreaChart({
             y={pad.top + innerH * t + 4}
             textAnchor="end"
             fontSize="10"
-            fill="#8b8b9a"
+            style={{ fill: "var(--chart-label)" }}
           >
             {Math.round(max * (1 - t) * 10) / 10}
           </text>
@@ -81,7 +81,7 @@ export function AreaChart({
           y={h - 8}
           textAnchor="middle"
           fontSize="10"
-          fill="#8b8b9a"
+          style={{ fill: "var(--chart-label)" }}
         >
           {label}
         </text>
@@ -115,7 +115,7 @@ export function BarChart({
             x2={w - pad.right}
             y1={pad.top + innerH * t}
             y2={pad.top + innerH * t}
-            stroke="#24242e"
+            style={{ stroke: "var(--chart-grid)" }}
             strokeDasharray="3 4"
           />
           <text
@@ -123,7 +123,7 @@ export function BarChart({
             y={pad.top + innerH * t + 4}
             textAnchor="end"
             fontSize="10"
-            fill="#8b8b9a"
+            style={{ fill: "var(--chart-label)" }}
           >
             {Math.round(max * (1 - t))}
           </text>
@@ -147,7 +147,7 @@ export function BarChart({
               y={h - 10}
               textAnchor="middle"
               fontSize="10"
-              fill="#b4b4c0"
+              style={{ fill: "var(--chart-bar-label)" }}
             >
               {item.label.length > 14 ? `${item.label.slice(0, 13)}…` : item.label}
             </text>
@@ -172,7 +172,7 @@ export function Donut({
 
   return (
     <svg viewBox="0 0 120 120" width={size} height={size} role="img">
-      <circle cx="60" cy="60" r={r} fill="none" stroke="#191920" strokeWidth="18" />
+      <circle cx="60" cy="60" r={r} fill="none" style={{ stroke: "var(--chart-track)" }} strokeWidth="18" />
       {segments.map((seg, i) => {
         const frac = seg.value / total;
         const dash = `${frac * c} ${c}`;
@@ -206,7 +206,7 @@ export function Gauge({ percent }: { percent: number }) {
       <path
         d="M 14 62 A 46 46 0 0 1 106 62"
         fill="none"
-        stroke="#191920"
+        style={{ stroke: "var(--chart-track)" }}
         strokeWidth="11"
         strokeLinecap="round"
       />
@@ -218,7 +218,7 @@ export function Gauge({ percent }: { percent: number }) {
         strokeLinecap="round"
         strokeDasharray={`${frac * half} ${half}`}
       />
-      <text x="60" y="52" textAnchor="middle" fontSize="19" fontWeight="700" fill="#f5f5f8">
+      <text x="60" y="52" textAnchor="middle" fontSize="19" fontWeight="700" style={{ fill: "var(--chart-text)" }}>
         {Math.round(percent * 10) / 10}%
       </text>
     </svg>

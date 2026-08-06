@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function Orb({ size, className = "" }: { size: number; className?: string }) {
   return (
@@ -144,6 +145,7 @@ export default function LandingPage() {
             <a href="#testimonials" className="transition hover:text-ink-100">Customers</a>
           </nav>
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <Link href="/login" className="text-sm font-medium text-ink-300 transition hover:text-ink-100">
               Log in
             </Link>
@@ -363,7 +365,7 @@ export default function LandingPage() {
             <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
               <Link
                 href="/signup"
-                className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-ink-950 transition hover:bg-white/90"
+                className="inline-flex items-center justify-center rounded-full bg-white px-7 py-3 text-sm font-semibold text-[#191527] transition hover:bg-white/90"
               >
                 Get started for free
               </Link>
