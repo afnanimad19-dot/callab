@@ -11,7 +11,7 @@ export default async function CallDetailPage({
   const session = await getSession();
   if (!session) redirect("/login");
   const { id } = await params;
-  const call = findCall(session.userId, id);
+  const call = await findCall(session.userId, id);
   if (!call) notFound();
 
   return (

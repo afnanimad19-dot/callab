@@ -9,6 +9,7 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -35,53 +36,88 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-ink-950 px-5">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-5">
       <div className="w-full max-w-md">
-        <Link href="/" className="mb-8 flex items-center justify-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-500 font-bold text-ink-950">
+        <Link href="/" className="flex items-center justify-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-accent-500 to-accent-300 text-lg font-bold text-white">
             V
           </span>
-          <span className="text-lg font-semibold tracking-tight">VoiceLine AI</span>
+          <span className="text-2xl tracking-tight">
+            <span className="font-bold">Voice</span>
+            <span className="font-light text-ink-300">Line AI</span>
+          </span>
         </Link>
+        <h1 className="mt-5 text-center text-3xl font-bold tracking-tight">
+          Voice AI Agents
+        </h1>
+        <p className="mx-auto mt-3 max-w-sm text-center text-ink-300">
+          Low-latency, multilingual Voice AI Agents that take action, integrate
+          easily, and scale globally
+        </p>
 
-        <div className="card !p-7">
-          <h1 className="text-xl font-bold">
-            {mode === "login" ? "Welcome back" : "Create your workspace"}
-          </h1>
+        <div className="mt-8 rounded-xl border border-ink-700 bg-white p-7 shadow-sm">
+          <h2 className="text-2xl font-bold">
+            {mode === "login" ? "Login" : "Create account"}
+          </h2>
           <p className="mt-1 text-sm text-ink-400">
             {mode === "login"
-              ? "Log in to your business dashboard."
-              : "Your team gets its own isolated dashboard, agents, and call history."}
+              ? "Enter your credentials to access your account"
+              : "Your business gets its own dashboard, agents, and call logs"}
           </p>
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             {mode === "signup" && (
               <>
                 <div>
-                  <label className="label" htmlFor="name">Your name</label>
-                  <input id="name" name="name" className="field" placeholder="Alex Rivera" required />
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="name">
+                    Your name
+                  </label>
+                  <input id="name" name="name" className="field" placeholder="Enter your name" required />
                 </div>
                 <div>
-                  <label className="label" htmlFor="company">Company</label>
-                  <input id="company" name="company" className="field" placeholder="Acme Dental" required />
+                  <label className="mb-1.5 block text-sm font-medium" htmlFor="company">
+                    Company
+                  </label>
+                  <input id="company" name="company" className="field" placeholder="Enter your company name" required />
                 </div>
               </>
             )}
             <div>
-              <label className="label" htmlFor="email">Work email</label>
-              <input id="email" name="email" type="email" className="field" placeholder="you@company.com" required />
-            </div>
-            <div>
-              <label className="label" htmlFor="password">Password</label>
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="email">
+                Email
+              </label>
               <input
-                id="password"
-                name="password"
-                type="password"
+                id="email"
+                name="email"
+                type="email"
                 className="field"
-                placeholder={mode === "signup" ? "At least 8 characters" : "••••••••"}
-                minLength={mode === "signup" ? 8 : undefined}
+                placeholder="Enter your email"
                 required
               />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-sm font-medium" htmlFor="password">
+                Password
+              </label>
+              <div className="relative">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  className="field pr-11"
+                  placeholder="Enter your password"
+                  minLength={mode === "signup" ? 8 : undefined}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-ink-400 hover:text-ink-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  {showPassword ? "🙈" : "👁"}
+                </button>
+              </div>
             </div>
 
             {error && (
@@ -90,27 +126,29 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
               </p>
             )}
 
-            <button type="submit" disabled={busy} className="btn-primary w-full disabled:opacity-60">
-              {busy
-                ? "One moment…"
-                : mode === "login"
-                  ? "Log in"
-                  : "Create workspace"}
+            <button type="submit" disabled={busy} className="btn-dark w-full !py-3 disabled:opacity-60">
+              {busy ? "One moment…" : mode === "login" ? "→ Login" : "Create account"}
             </button>
           </form>
-        </div>
 
-        <p className="mt-5 text-center text-sm text-ink-400">
-          {mode === "login" ? (
-            <>Don&apos;t have an account?{" "}
-              <Link href="/signup" className="font-medium text-accent-400 hover:text-accent-300">Sign up</Link>
-            </>
-          ) : (
-            <>Already have an account?{" "}
-              <Link href="/login" className="font-medium text-accent-400 hover:text-accent-300">Log in</Link>
-            </>
-          )}
-        </p>
+          <p className="mt-5 text-center text-sm text-ink-400">
+            {mode === "login" ? (
+              <>
+                Don&apos;t have an account?{" "}
+                <Link href="/signup" className="font-medium text-accent-600 hover:text-accent-500">
+                  Sign up
+                </Link>
+              </>
+            ) : (
+              <>
+                Already have an account?{" "}
+                <Link href="/login" className="font-medium text-accent-600 hover:text-accent-500">
+                  Login
+                </Link>
+              </>
+            )}
+          </p>
+        </div>
       </div>
     </div>
   );

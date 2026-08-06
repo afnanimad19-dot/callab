@@ -1,8 +1,17 @@
-// Seeds realistic demo agents and call history for a fresh account, so the
-// dashboard demonstrates the full product before real telephony is wired in.
-// Delete this module once Twilio + a voice pipeline are connected.
+// Seeds realistic demo data for a fresh account so every dashboard section is
+// alive before real telephony (Vapi) is connected. Remove once live.
 
-import { Agent, Call, TranscriptTurn, newId } from "./db";
+import {
+  Agent,
+  Call,
+  Campaign,
+  Contact,
+  KnowledgeBase,
+  PhoneNumber,
+  TranscriptTurn,
+  Webhook,
+  newId,
+} from "./db";
 
 const CALLER_PREFIXES = ["+1 (415)", "+1 (212)", "+1 (737)", "+1 (305)", "+1 (206)"];
 
@@ -16,6 +25,7 @@ function phone(i: number): string {
 interface CallTemplate {
   direction: "inbound" | "outbound";
   outcome: Call["outcome"];
+  endReason: string;
   sentiment: Call["sentiment"];
   confidence: number;
   durationSec: number;
@@ -27,6 +37,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "inbound",
     outcome: "resolved",
+    endReason: "caller ended the call",
     sentiment: "positive",
     confidence: 0.94,
     durationSec: 187,
@@ -44,6 +55,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "inbound",
     outcome: "escalated",
+    endReason: "transferred to supervisor",
     sentiment: "negative",
     confidence: 0.61,
     durationSec: 342,
@@ -62,6 +74,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "outbound",
     outcome: "callback_scheduled",
+    endReason: "busy — callback booked",
     sentiment: "neutral",
     confidence: 0.88,
     durationSec: 96,
@@ -78,6 +91,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "inbound",
     outcome: "resolved",
+    endReason: "agent ended the call",
     sentiment: "positive",
     confidence: 0.97,
     durationSec: 141,
@@ -94,6 +108,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "inbound",
     outcome: "voicemail",
+    endReason: "call terminated",
     sentiment: "neutral",
     confidence: 0.9,
     durationSec: 38,
@@ -108,6 +123,7 @@ const TEMPLATES: CallTemplate[] = [
   {
     direction: "outbound",
     outcome: "resolved",
+    endReason: "agent ended the call",
     sentiment: "positive",
     confidence: 0.92,
     durationSec: 204,
@@ -161,24 +177,63 @@ const DEMO_AGENTS: Omit<Agent, "id" | "userId" | "createdAt">[] = [
   },
 ];
 
-export function seedDemoData(userId: string): { agents: Agent[]; calls: Call[] } {
+const CONTACT_NAMES = [
+  "Jordan Reyes", "Maya Patel", "Chris Delgado", "Sam Whitfield",
+  "Aisha Rahman", "Leo Tanaka", "Priya Nair", "Omar Haddad",
+];
+
+export interface DemoData {
+  agents: Agent[];
+  calls: Call[];
+  campaigns: Campaign[];
+  contacts: Contact[];
+  phoneNumbers: PhoneNumber[];
+  webhooks: Webhook[];
+  knowledgeBases: KnowledgeBase[];
+}
+
+export function seedDemoData(userId: string): DemoData {
   const now = Date.now();
+  const at = (hoursAgo: number) => new Date(now - hoursAgo * 3600_000).toISOString();
 
   const agents: Agent[] = DEMO_AGENTS.map((a) => ({
     ...a,
     id: newId("agt"),
     userId,
-    createdAt: new Date(now).toISOString(),
+    createdAt: at(24 * 14),
   }));
 
+  const campaigns: Campaign[] = [
+    {
+      id: newId("cmp"),
+      userId,
+      name: "Quote follow-ups — August",
+      agentId: agents[2].id,
+      agentName: agents[2].name,
+      goal: "Call every lead who requested a quote in the last 30 days and book a demo.",
+      status: "running",
+      contactsTotal: 120,
+      contactsCalled: 47,
+      createdAt: at(24 * 5),
+    },
+    {
+      id: newId("cmp"),
+      userId,
+      name: "Appointment reminders",
+      agentId: agents[0].id,
+      agentName: agents[0].name,
+      goal: "Remind next week's appointments and offer rescheduling.",
+      status: "draft",
+      contactsTotal: 36,
+      contactsCalled: 0,
+      createdAt: at(24 * 2),
+    },
+  ];
+
   const calls: Call[] = [];
-  // Spread ~28 calls across the last 7 days.
   for (let i = 0; i < 28; i++) {
     const template = TEMPLATES[i % TEMPLATES.length];
-    const agent =
-      template.direction === "outbound"
-        ? agents[2]
-        : agents[i % 2];
+    const agent = template.direction === "outbound" ? agents[2] : agents[i % 2];
     const hoursAgo = 2 + i * 5.7 + (i % 3) * 1.3;
     calls.push({
       id: newId("call"),
@@ -187,15 +242,62 @@ export function seedDemoData(userId: string): { agents: Agent[]; calls: Call[] }
       agentName: agent.name,
       callerNumber: phone(i),
       direction: template.direction,
-      startedAt: new Date(now - hoursAgo * 3600_000).toISOString(),
+      startedAt: at(hoursAgo),
       durationSec: template.durationSec + (i % 5) * 11,
       outcome: template.outcome,
+      endReason: template.endReason,
       sentiment: template.sentiment,
       confidence: Math.min(0.99, template.confidence + (i % 4) * 0.01),
       summary: template.summary,
+      campaignId: template.direction === "outbound" ? campaigns[0].id : undefined,
       transcript: template.transcript,
     });
   }
 
-  return { agents, calls };
+  const contacts: Contact[] = CONTACT_NAMES.map((name, i) => ({
+    id: newId("cnt"),
+    userId,
+    name,
+    phone: phone(i + 40),
+    tag: i % 3 === 0 ? "lead" : i % 3 === 1 ? "customer" : "quote-request",
+    createdAt: at(24 * (10 - i)),
+  }));
+
+  const phoneNumbers: PhoneNumber[] = [
+    { id: newId("num"), userId, number: "+1 (415) 555-0132", provider: "Vapi", agentName: "Front Desk", status: "active", createdAt: at(24 * 14) },
+    { id: newId("num"), userId, number: "+1 (415) 555-0198", provider: "Vapi", agentName: "Support Line", status: "active", createdAt: at(24 * 14) },
+    { id: newId("num"), userId, number: "+1 (415) 555-0177", provider: "Vapi", agentName: "Outbound SDR", status: "unassigned", createdAt: at(24 * 7) },
+  ];
+
+  const webhooks: Webhook[] = [
+    {
+      id: newId("wbh"),
+      userId,
+      url: "https://example.com/webhooks/calls",
+      events: ["call.started", "call.ended"],
+      active: true,
+      createdAt: at(24 * 6),
+    },
+  ];
+
+  const knowledgeBases: KnowledgeBase[] = [
+    {
+      id: newId("kb"),
+      userId,
+      name: "Company FAQ",
+      description: "Hours, location, pricing, and policies the agents answer from.",
+      docsCount: 12,
+      createdAt: at(24 * 12),
+    },
+    {
+      id: newId("kb"),
+      userId,
+      name: "Product catalog",
+      description: "Service descriptions and plan details for sales conversations.",
+      docsCount: 7,
+      createdAt: at(24 * 9),
+    },
+  ];
+
+  return { agents, calls, campaigns, contacts, phoneNumbers, webhooks, knowledgeBases };
 }

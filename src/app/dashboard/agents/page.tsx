@@ -6,13 +6,13 @@ import { listAgents } from "@/lib/db";
 export default async function AgentsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  const agents = listAgents(session.userId);
+  const agents = await listAgents(session.userId);
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Agents</h1>
+          <h1 className="text-2xl font-bold tracking-tight">AI Agents</h1>
           <p className="mt-1 text-sm text-ink-400">
             Each agent has its own voice, instructions, and phone number.
           </p>
@@ -31,13 +31,13 @@ export default async function AgentsPage() {
                 <p className="mt-0.5 text-sm text-ink-400">{a.role}</p>
               </div>
               <span
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                className={
                   a.status === "active"
-                    ? "bg-accent-500/15 text-accent-400"
+                    ? "badge-ok"
                     : a.status === "paused"
-                      ? "bg-signal-amber/15 text-signal-amber"
-                      : "bg-ink-600/40 text-ink-300"
-                }`}
+                      ? "badge-warn"
+                      : "badge-muted"
+                }
               >
                 {a.status}
               </span>

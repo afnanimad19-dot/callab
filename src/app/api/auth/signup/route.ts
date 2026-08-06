@@ -1,11 +1,16 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import {
-  createUser,
-  findUserByEmail,
-  newId,
   createAgent,
+  createCampaign,
+  createContact,
+  createKnowledgeBase,
+  createPhoneNumber,
+  createUser,
+  createWebhook,
+  findUserByEmail,
   insertCalls,
+  newId,
 } from "@/lib/db";
 import {
   createSessionToken,
@@ -36,14 +41,14 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (findUserByEmail(email)) {
+  if (await findUserByEmail(email)) {
     return NextResponse.json(
       { error: "An account with this email already exists." },
       { status: 409 }
     );
   }
 
-  const user = createUser({
+  const user = await createUser({
     id: newId("usr"),
     email,
     passwordHash: await bcrypt.hash(password, 10),
@@ -52,10 +57,15 @@ export async function POST(request: Request) {
     createdAt: new Date().toISOString(),
   });
 
-  // Seed demo agents + call history so the dashboard is alive on first login.
-  const { agents, calls } = seedDemoData(user.id);
-  agents.forEach(createAgent);
-  insertCalls(calls);
+  // Seed demo data so every dashboard section is alive on first login.
+  const demo = seedDemoData(user.id);
+  for (const a of demo.agents) await createAgent(a);
+  await insertCalls(demo.calls);
+  for (const c of demo.campaigns) await createCampaign(c);
+  for (const c of demo.contacts) await createContact(c);
+  for (const p of demo.phoneNumbers) await createPhoneNumber(p);
+  for (const w of demo.webhooks) await createWebhook(w);
+  for (const k of demo.knowledgeBases) await createKnowledgeBase(k);
 
   const token = await createSessionToken({
     userId: user.id,

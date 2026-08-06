@@ -1,34 +1,37 @@
 import type { Config } from "tailwindcss";
 
+// Light theme with purple accent. The "ink" scale is ordered by *surface depth*
+// (950 = page background … 100 = primary text), so components reference roles,
+// not literal colors — retheming means editing only this file.
 const config: Config = {
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
       colors: {
         ink: {
-          950: "#07090f",
-          900: "#0b0e17",
-          850: "#10141f",
-          800: "#151a29",
-          700: "#1e2537",
-          600: "#2a3349",
-          500: "#3d4763",
-          400: "#6b7694",
-          300: "#98a2be",
-          200: "#c3cade",
-          100: "#e4e8f2",
+          950: "#f6f5fa", // page background
+          900: "#ffffff", // raised surface
+          850: "#ffffff", // card background
+          800: "#f3f1fa", // subtle fill / hover
+          700: "#e8e5f3", // borders
+          600: "#d9d4ea", // strong borders
+          500: "#a49fbd", // placeholders
+          400: "#7c7691", // muted text
+          300: "#5b5570", // secondary text
+          200: "#38334d", // strong text
+          100: "#191527", // primary text
         },
         accent: {
-          300: "#8be9c3",
-          400: "#4fd8a4",
-          500: "#22c58b",
-          600: "#16a374",
-          700: "#0f815d",
+          300: "#c4b5fd",
+          400: "#a78bfa",
+          500: "#7c3aed",
+          600: "#6d28d9",
+          700: "#5b21b6",
         },
         signal: {
-          amber: "#f5b453",
-          red: "#f0645c",
-          blue: "#5ca8f0",
+          amber: "#d97706",
+          red: "#dc2626",
+          blue: "#2563eb",
         },
       },
       fontFamily: {

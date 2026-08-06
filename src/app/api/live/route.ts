@@ -60,7 +60,9 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const agents = listAgents(session.userId).filter((a) => a.status === "active");
+  const agents = (await listAgents(session.userId)).filter(
+    (a) => a.status === "active"
+  );
   const now = Math.floor(Date.now() / 1000);
 
   const calls = SCRIPTS.map((script, i) => {

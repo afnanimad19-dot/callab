@@ -5,12 +5,38 @@ import NavLink from "@/components/dashboard/NavLink";
 
 export const metadata = { title: "Dashboard — VoiceLine AI" };
 
-const NAV = [
-  { href: "/dashboard", label: "Overview", exact: true },
-  { href: "/dashboard/live", label: "Live monitoring" },
-  { href: "/dashboard/agents", label: "Agents" },
-  { href: "/dashboard/calls", label: "Call history" },
-  { href: "/dashboard/settings", label: "Settings" },
+const NAV_GROUPS: {
+  heading: string | null;
+  items: { href: string; label: string; exact?: boolean }[];
+}[] = [
+  {
+    heading: null,
+    items: [{ href: "/dashboard", label: "Dashboard", exact: true }],
+  },
+  {
+    heading: "AI & Knowledge",
+    items: [
+      { href: "/dashboard/agents", label: "AI Agents" },
+      { href: "/dashboard/knowledge", label: "Knowledge Bases" },
+      { href: "/dashboard/launch", label: "Launch your AI" },
+    ],
+  },
+  {
+    heading: "Communication",
+    items: [
+      { href: "/dashboard/phone-numbers", label: "Phone Numbers" },
+      { href: "/dashboard/contacts", label: "Contacts" },
+      { href: "/dashboard/calls", label: "Call Logs" },
+      { href: "/dashboard/live", label: "Live Monitoring" },
+    ],
+  },
+  {
+    heading: "Connections",
+    items: [
+      { href: "/dashboard/integrations", label: "Integrations" },
+      { href: "/dashboard/webhooks", label: "Webhooks" },
+    ],
+  },
 ];
 
 export default async function DashboardLayout({
@@ -21,44 +47,95 @@ export default async function DashboardLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const initials = session.name
+    .split(" ")
+    .map((p) => p[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+
   return (
     <div className="flex min-h-screen bg-ink-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-ink-800 bg-ink-900/70 lg:flex">
-        <Link href="/" className="flex h-16 items-center gap-2.5 border-b border-ink-800 px-5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-accent-500 font-bold text-ink-950">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-ink-700 bg-white lg:flex">
+        <Link href="/" className="flex h-16 items-center gap-2.5 px-5">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-tr from-accent-500 to-accent-300 font-bold text-white">
             V
           </span>
-          <span className="font-semibold tracking-tight">VoiceLine AI</span>
+          <span className="text-[17px] font-semibold tracking-tight">
+            <span className="font-bold">Voice</span>Line AI
+          </span>
         </Link>
-        <nav className="flex-1 space-y-1 px-3 py-4">
-          {NAV.map((item) => (
-            <NavLink key={item.href} {...item} />
+
+        <nav className="flex-1 overflow-y-auto px-3 pb-4">
+          {NAV_GROUPS.map((group, gi) => (
+            <div key={gi} className="mt-3">
+              {group.heading && (
+                <p className="px-3 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
+                  {group.heading}
+                </p>
+              )}
+              <div className="space-y-0.5">
+                {group.items.map((item) => (
+                  <NavLink key={item.href} {...item} />
+                ))}
+              </div>
+            </div>
           ))}
         </nav>
-        <div className="border-t border-ink-800 px-5 py-4">
-          <p className="truncate text-sm font-medium">{session.company}</p>
-          <p className="truncate text-xs text-ink-400">{session.email}</p>
-          <form action="/api/auth/logout" method="post" className="mt-3">
-            <button className="text-xs font-medium text-ink-400 hover:text-signal-red">
-              Log out
-            </button>
-          </form>
+
+        <div className="space-y-3 border-t border-ink-700 px-4 py-4">
+          <div className="flex items-center justify-between rounded-lg border border-ink-700 px-3 py-2">
+            <span className="truncate text-sm font-medium">{session.company}</span>
+            <span className="text-ink-400">▾</span>
+          </div>
+          <div className="rounded-lg border border-ink-700 px-3 py-2.5">
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-ink-400">Balance</span>
+              <span className="font-semibold">9,986 / 10,000 min</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
+              <div className="h-full w-[99%] rounded-full bg-ink-100" />
+            </div>
+          </div>
+          <div className="flex items-center justify-between px-1">
+            <Link
+              href="/dashboard/settings"
+              className="text-sm font-medium text-ink-300 hover:text-ink-100"
+            >
+              ⚙ Settings
+            </Link>
+            <form action="/api/auth/logout" method="post">
+              <button className="text-xs font-medium text-ink-400 hover:text-signal-red">
+                Log out
+              </button>
+            </form>
+          </div>
         </div>
       </aside>
 
       <div className="flex-1 lg:pl-60">
-        {/* Mobile top bar */}
-        <div className="flex h-14 items-center justify-between border-b border-ink-800 px-4 lg:hidden">
-          <Link href="/dashboard" className="font-semibold">VoiceLine AI</Link>
-          <nav className="flex gap-4 overflow-x-auto text-sm text-ink-300">
-            {NAV.map((item) => (
-              <Link key={item.href} href={item.href} className="whitespace-nowrap hover:text-ink-100">
-                {item.label}
-              </Link>
-            ))}
-          </nav>
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-700 bg-white/90 px-5 backdrop-blur lg:justify-end">
+          <Link href="/dashboard" className="font-semibold lg:hidden">
+            VoiceLine AI
+          </Link>
+          <div className="flex items-center gap-3">
+            <span className="hidden text-sm text-ink-400 sm:block">{session.email}</span>
+            <span className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-500 text-xs font-bold text-white">
+              {initials}
+            </span>
+          </div>
+        </header>
+
+        {/* Mobile nav */}
+        <div className="flex gap-4 overflow-x-auto border-b border-ink-700 bg-white px-4 py-2.5 text-sm text-ink-300 lg:hidden">
+          {NAV_GROUPS.flatMap((g) => g.items).map((item) => (
+            <Link key={item.href} href={item.href} className="whitespace-nowrap hover:text-ink-100">
+              {item.label}
+            </Link>
+          ))}
         </div>
-        <main className="container-page py-8 !max-w-5xl">{children}</main>
+
+        <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">{children}</main>
       </div>
     </div>
   );

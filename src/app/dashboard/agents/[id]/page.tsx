@@ -12,7 +12,7 @@ export default async function AgentDetailPage({
   const session = await getSession();
   if (!session) redirect("/login");
   const { id } = await params;
-  const agent = findAgent(session.userId, id);
+  const agent = await findAgent(session.userId, id);
   if (!agent) notFound();
 
   return (
@@ -24,13 +24,13 @@ export default async function AgentDetailPage({
         <div className="mt-2 flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">{agent.name}</h1>
           <span
-            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+            className={
               agent.status === "active"
-                ? "bg-accent-500/15 text-accent-400"
+                ? "badge-ok"
                 : agent.status === "paused"
-                  ? "bg-signal-amber/15 text-signal-amber"
-                  : "bg-ink-600/40 text-ink-300"
-            }`}
+                  ? "badge-warn"
+                  : "badge-muted"
+            }
           >
             {agent.status}
           </span>

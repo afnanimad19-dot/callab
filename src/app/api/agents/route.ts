@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createAgent, listAgents, newId } from "@/lib/db";
+import { syncAgentToVapi } from "@/lib/vapi";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  return NextResponse.json({ agents: listAgents(session.userId) });
+  return NextResponse.json({ agents: await listAgents(session.userId) });
 }
 
 export async function POST(request: Request) {
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Agent name is required." }, { status: 400 });
   }
 
-  const agent = createAgent({
+  const agent = await createAgent({
     id: newId("agt"),
     userId: session.userId,
     name,
@@ -33,6 +34,14 @@ export async function POST(request: Request) {
     status: "draft",
     createdAt: new Date().toISOString(),
   });
+
+  // Best-effort Vapi sync; the agent still saves if Vapi isn't configured.
+  try {
+    const vapiId = await syncAgentToVapi(agent);
+    if (vapiId) agent.vapiAssistantId = vapiId;
+  } catch (e) {
+    console.error("Vapi sync failed:", e);
+  }
 
   return NextResponse.json({ agent }, { status: 201 });
 }

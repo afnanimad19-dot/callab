@@ -1,0 +1,10 @@
+# Netlify configuration for the Next.js app.
+# Netlify auto-detects Next.js and uses its official runtime; this file just
+# pins the build settings so imports of this repo work with zero setup.
+
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

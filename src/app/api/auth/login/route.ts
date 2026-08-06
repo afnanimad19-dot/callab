@@ -12,7 +12,7 @@ export async function POST(request: Request) {
   const email = String(body?.email ?? "").trim();
   const password = String(body?.password ?? "");
 
-  const user = findUserByEmail(email);
+  const user = await findUserByEmail(email);
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return NextResponse.json(
       { error: "Invalid email or password." },

@@ -16,12 +16,12 @@ function formatWhen(iso: string) {
 export default async function CallsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
-  const calls = listCalls(session.userId);
+  const calls = await listCalls(session.userId);
 
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Call history</h1>
+        <h1 className="text-2xl font-bold tracking-tight">Call Logs</h1>
         <p className="mt-1 text-sm text-ink-400">
           Every call is recorded, transcribed, summarized, and scored automatically.
         </p>
@@ -70,11 +70,7 @@ export default async function CallsPage() {
                 <td className="px-5 py-3">
                   <Link
                     href={`/dashboard/calls/${c.id}`}
-                    className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                      c.outcome === "escalated"
-                        ? "bg-signal-red/15 text-signal-red"
-                        : "bg-accent-500/15 text-accent-400"
-                    }`}
+                    className={c.outcome === "escalated" ? "badge-bad" : "badge-ok"}
                   >
                     {c.outcome.replace("_", " ")}
                   </Link>
