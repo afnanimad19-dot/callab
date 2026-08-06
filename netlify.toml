@@ -15,3 +15,7 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  # SUPABASE_URL is a public API endpoint, not a secret (only the
+  # service_role key is), so exclude it from Netlify's secrets scanner —
+  # otherwise the scanner blocks the build if the URL ever appears in a file.
+  SECRETS_SCAN_OMIT_KEYS = "SUPABASE_URL"
