@@ -196,14 +196,14 @@ export default async function OverviewPage() {
           <h2 className="text-sm font-semibold">Call Duration Over Time</h2>
           <p className="text-xs text-ink-400">Total talk time per day (seconds)</p>
           <div className="mt-4">
-            <AreaChart values={durationPerDay} labels={labels} />
+            <AreaChart values={durationPerDay} labels={labels} valueSuffix="s" />
           </div>
         </div>
         <div className="card">
           <h2 className="text-sm font-semibold">Success Rate Over Time</h2>
           <p className="text-xs text-ink-400">Call success percentage</p>
           <div className="mt-4">
-            <AreaChart values={successPerDay} labels={labels} />
+            <AreaChart values={successPerDay} labels={labels} valueSuffix="%" />
           </div>
         </div>
       </div>
@@ -214,7 +214,7 @@ export default async function OverviewPage() {
           <h2 className="text-sm font-semibold">Performance by AI Agent</h2>
           <p className="text-xs text-ink-400">Avg duration (sec) by agent</p>
           <div className="mt-4">
-            <BarChart items={perAgent} />
+            <BarChart items={perAgent} valueSuffix="s" />
           </div>
         </div>
         <div className="card">
@@ -222,7 +222,7 @@ export default async function OverviewPage() {
           <p className="text-xs text-ink-400">Avg duration (sec) by campaign</p>
           <div className="mt-4">
             {perCampaign.length ? (
-              <BarChart items={perCampaign} />
+              <BarChart items={perCampaign} valueSuffix="s" />
             ) : (
               <p className="py-10 text-center text-sm text-ink-400">No campaigns yet.</p>
             )}
