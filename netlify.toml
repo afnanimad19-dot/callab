@@ -1,10 +1,17 @@
-# Netlify configuration for the Next.js app.
-# Netlify auto-detects Next.js and uses its official runtime; this file just
-# pins the build settings so imports of this repo work with zero setup.
+# Netlify configuration for this Next.js app.
+#
+# IMPORTANT: deploy by CONNECTING THIS GITHUB REPO (Add new site → Import an
+# existing project → GitHub). Do NOT drag-and-drop a ZIP — that skips the
+# build step and cannot run a Next.js server app.
+#
+# Netlify auto-detects Next.js and installs its official runtime, which sets
+# the publish directory itself — so we intentionally do NOT set `publish`.
 
 [build]
   command = "npm run build"
-  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "22"
 
 [[plugins]]
   package = "@netlify/plugin-nextjs"
