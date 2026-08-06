@@ -1,25 +1,40 @@
 import { NextResponse } from "next/server";
-import { storeMode, listAgents, createContact, newId } from "@/lib/db";
+import {
+  storeMode,
+  listAgents,
+  createContact,
+  deleteContact,
+  newId,
+} from "@/lib/db";
 
 // Diagnostic endpoint — visit /api/health on the deployed site.
-// Reports which storage backend is active and whether reads AND writes
-// actually work, WITHOUT ever exposing key values. The write probe catches
-// the most common misconfiguration: using the anon key instead of the
-// service_role key (reads look fine, writes fail with an RLS error).
+// Reports which storage backend is active, whether reads AND writes work
+// (the write probe catches using the anon key instead of service_role), and
+// exactly which Vapi keys are present — WITHOUT exposing any key values.
 
 export async function GET() {
   const health: {
     storeMode: string;
     supabaseUrlSet: boolean;
     serviceKeySet: boolean;
-    vapiConfigured: boolean;
+    vapi: {
+      configured: boolean;
+      privateKeySet: boolean;
+      publicKeySet: boolean;
+      webhookSecretSet: boolean;
+    };
     read: { ok: boolean; error?: string };
     write: { ok: boolean; error?: string };
   } = {
     storeMode,
     supabaseUrlSet: Boolean(process.env.SUPABASE_URL),
     serviceKeySet: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
-    vapiConfigured: Boolean(process.env.VAPI_API_KEY),
+    vapi: {
+      configured: Boolean(process.env.VAPI_API_KEY),
+      privateKeySet: Boolean(process.env.VAPI_API_KEY),
+      publicKeySet: Boolean(process.env.VAPI_PUBLIC_KEY),
+      webhookSecretSet: Boolean(process.env.VAPI_WEBHOOK_SECRET),
+    },
     read: { ok: false },
     write: { ok: false },
   };
@@ -31,11 +46,10 @@ export async function GET() {
     health.read = { ok: false, error: (e as Error).message };
   }
 
-  // Write probe: insert a throwaway row, then remove it via the store's own
-  // path. Uses the contacts table; the probe user id never collides with a
-  // real account.
+  // Write probe: insert a throwaway row and then remove it, so the check
+  // leaves no residue behind.
+  const probeId = newId("probe");
   try {
-    const probeId = newId("probe");
     await createContact({
       id: probeId,
       userId: "__health_probe__",
@@ -45,6 +59,7 @@ export async function GET() {
       createdAt: new Date().toISOString(),
     });
     health.write.ok = true;
+    await deleteContact(probeId).catch(() => {});
   } catch (e) {
     health.write = { ok: false, error: (e as Error).message };
   }

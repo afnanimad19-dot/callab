@@ -1,16 +1,29 @@
 // Vapi (vapi.ai) integration.
 //
-// Set VAPI_API_KEY (server) to enable. Agents sync to Vapi assistants when
-// created/updated; campaigns use Vapi's outbound calling. Until the key is
-// set, every function is a safe no-op so the app runs fully in demo mode.
+// Set VAPI_API_KEY (the PRIVATE/server key) to enable. Agents sync to Vapi
+// assistants when created/updated; campaigns place outbound calls; and the
+// webhook at /api/vapi/webhook ingests finished calls. Until the key is set,
+// every function is a safe no-op so the app runs fully in demo mode.
+//
+// ElevenLabs (voices) and Anthropic (the LLM) keys are configured inside the
+// Vapi dashboard under Provider Keys — we only reference providers by name.
 
-import type { Agent } from "./db";
+import type { Agent, Call, TranscriptTurn } from "./db";
 
 const BASE = "https://api.vapi.ai";
 
 export function vapiConfigured(): boolean {
   return Boolean(process.env.VAPI_API_KEY);
 }
+
+// Our friendly voice labels → ElevenLabs voice IDs (public default voices).
+// Swap these for your own cloned voices' IDs when you have them.
+const VOICE_MAP: Record<string, string> = {
+  "Nova (female, warm)": "21m00Tcm4TlvDq8ikWAM", // Rachel
+  "Atlas (male, calm)": "pNInz6obpgDQGcFmaJgB", // Adam
+  "Sage (female, professional)": "EXAVITQu4vr4xnSDxMaL", // Bella
+  "Orion (male, energetic)": "ErXwobaYiN019PkySvjV", // Antoni
+};
 
 async function vapi(path: string, init?: RequestInit) {
   const res = await fetch(`${BASE}${path}`, {
@@ -34,12 +47,23 @@ export async function syncAgentToVapi(agent: Agent): Promise<string | null> {
     name: agent.name,
     firstMessage: agent.greeting,
     model: {
+      // If Vapi rejects this model id, change it here to a model string Vapi
+      // accepts for the anthropic provider — the rest of the flow is unchanged.
       provider: "anthropic",
-      model: "claude-sonnet-5",
+      model: "claude-3-5-sonnet-20241022",
       messages: [{ role: "system", content: agent.systemPrompt }],
     },
-    // Voice/transcriber choices are configurable in the Vapi dashboard too.
-    transcriber: { provider: "deepgram" },
+    voice: {
+      provider: "11labs",
+      voiceId: VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"],
+    },
+    transcriber: { provider: "deepgram", model: "nova-2" },
+    // Post-call summary/analysis, sent to our webhook (configure Server URL
+    // in the Vapi dashboard, or pass server.url per-assistant here).
+    analysisPlan: {
+      summaryPrompt:
+        "Summarize the call in 1-2 sentences: what the caller wanted and how it was resolved.",
+    },
   };
 
   if (agent.vapiAssistantId) {
@@ -72,4 +96,99 @@ export async function startOutboundCall(options: {
       customer: { number: options.customerNumber },
     }),
   });
+}
+
+// --- Webhook mapping --------------------------------------------------------
+// Convert a Vapi "end-of-call-report" message into our Call shape. Vapi's
+// payload is deeply nested and can vary by version, so every field is read
+// defensively with a sensible fallback.
+
+interface VapiMessage {
+  type?: string;
+  endedReason?: string;
+  startedAt?: string;
+  endedAt?: string;
+  durationSeconds?: number;
+  summary?: string;
+  transcript?: string;
+  recordingUrl?: string;
+  call?: {
+    id?: string;
+    assistantId?: string;
+    type?: string;
+    customer?: { number?: string };
+  };
+  assistant?: { id?: string };
+  analysis?: { summary?: string; successEvaluation?: string | boolean };
+  artifact?: {
+    messages?: { role?: string; message?: string; secondsFromStart?: number }[];
+    recordingUrl?: string;
+  };
+}
+
+export function getAssistantId(message: VapiMessage): string | undefined {
+  return message.call?.assistantId ?? message.assistant?.id;
+}
+
+function mapTranscript(message: VapiMessage): TranscriptTurn[] {
+  const msgs = message.artifact?.messages ?? [];
+  const turns: TranscriptTurn[] = [];
+  for (const m of msgs) {
+    if (m.role === "assistant" || m.role === "bot") {
+      turns.push({ speaker: "agent", text: m.message ?? "", at: Math.round(m.secondsFromStart ?? 0) });
+    } else if (m.role === "user" || m.role === "customer") {
+      turns.push({ speaker: "caller", text: m.message ?? "", at: Math.round(m.secondsFromStart ?? 0) });
+    }
+    // system/tool messages are skipped
+  }
+  return turns;
+}
+
+function mapOutcome(endedReason?: string): Call["outcome"] {
+  const r = (endedReason ?? "").toLowerCase();
+  if (r.includes("transfer") || r.includes("forward")) return "escalated";
+  if (r.includes("voicemail")) return "voicemail";
+  if (r.includes("no-answer") || r.includes("busy")) return "callback_scheduled";
+  return "resolved";
+}
+
+export function mapEndOfCallReport(
+  message: VapiMessage,
+  agent: Agent
+): Call {
+  const durationSec =
+    message.durationSeconds ??
+    (message.startedAt && message.endedAt
+      ? Math.max(
+          0,
+          Math.round(
+            (Date.parse(message.endedAt) - Date.parse(message.startedAt)) / 1000
+          )
+        )
+      : 0);
+
+  const success = message.analysis?.successEvaluation;
+  const positive = success === true || success === "true" || success === "pass";
+
+  return {
+    id: `call_${(message.call?.id ?? crypto.randomUUID()).replace(/-/g, "").slice(0, 20)}`,
+    userId: agent.userId,
+    agentId: agent.id,
+    agentName: agent.name,
+    callerNumber: message.call?.customer?.number ?? "Unknown",
+    direction: (message.call?.type ?? "").toLowerCase().includes("outbound")
+      ? "outbound"
+      : "inbound",
+    startedAt: message.startedAt ?? new Date().toISOString(),
+    durationSec,
+    outcome: mapOutcome(message.endedReason),
+    endReason: message.endedReason ?? "completed",
+    sentiment: positive ? "positive" : "neutral",
+    confidence: positive ? 0.9 : 0.7,
+    summary:
+      message.analysis?.summary ??
+      message.summary ??
+      "Call completed. (No summary provided by the voice pipeline.)",
+    transcript: mapTranscript(message),
+  };
 }

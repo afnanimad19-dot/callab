@@ -54,7 +54,7 @@ export default async function IntegrationsPage() {
 
       <div className="grid gap-4 sm:grid-cols-2">
         {integrations.map((i) => (
-          <div key={i.name} className="card">
+          <div key={i.name} className="card card-hover">
             <div className="flex items-start justify-between gap-3">
               <h2 className="text-base font-semibold">{i.name}</h2>
               <span className={i.connected ? "badge-ok" : "badge-muted"}>
@@ -70,6 +70,22 @@ export default async function IntegrationsPage() {
           </div>
         ))}
       </div>
+
+      {vapiOn && (
+        <div className="card">
+          <h2 className="text-base font-semibold">Vapi webhook</h2>
+          <p className="mt-2 text-sm text-ink-300">
+            In the Vapi dashboard, set your <strong>Server URL</strong> to the
+            address below (and a Server Secret matching{" "}
+            <code className="rounded bg-ink-800 px-1">VAPI_WEBHOOK_SECRET</code>).
+            Finished calls will then appear automatically in Call Logs and the
+            dashboard.
+          </p>
+          <p className="mt-3 break-all rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-accent-300">
+            https://&lt;your-site&gt;/api/vapi/webhook
+          </p>
+        </div>
+      )}
     </div>
   );
 }

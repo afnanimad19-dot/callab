@@ -343,6 +343,14 @@ export async function findAgent(userId: string, id: string) {
 }
 export const createAgent = (a: Agent) => store.insert("agents", a);
 export const insertAgents = (rows: Agent[]) => store.insertMany("agents", rows);
+// Used by the Vapi webhook to route an incoming call to the right workspace,
+// since the webhook only knows the Vapi assistant id (across all users).
+export async function findAgentByVapiAssistantId(
+  assistantId: string
+): Promise<Agent | undefined> {
+  const all = await store.list<Agent>("agents");
+  return all.find((a) => a.vapiAssistantId === assistantId);
+}
 export async function updateAgent(userId: string, id: string, patch: Partial<Agent>) {
   if (!(await findAgent(userId, id))) return undefined;
   return store.update<Agent>("agents", id, patch);
@@ -373,6 +381,7 @@ export async function updateCampaign(userId: string, id: string, patch: Partial<
 export const listContacts = (userId: string) => store.list<Contact>("contacts", userId);
 export const createContact = (c: Contact) => store.insert("contacts", c);
 export const insertContacts = (rows: Contact[]) => store.insertMany("contacts", rows);
+export const deleteContact = (id: string) => store.remove("contacts", id);
 
 export const listPhoneNumbers = (userId: string) => store.list<PhoneNumber>("phoneNumbers", userId);
 export const createPhoneNumber = (p: PhoneNumber) => store.insert("phoneNumbers", p);
