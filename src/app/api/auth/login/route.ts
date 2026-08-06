@@ -12,7 +12,19 @@ export async function POST(request: Request) {
   const email = String(body?.email ?? "").trim();
   const password = String(body?.password ?? "");
 
-  const user = await findUserByEmail(email);
+  let user;
+  try {
+    user = await findUserByEmail(email);
+  } catch (e) {
+    // Surface a real backend error (e.g. database unreachable) rather than
+    // masking it as "invalid credentials".
+    console.error("Login lookup failed:", e);
+    return NextResponse.json(
+      { error: `Sign-in is temporarily unavailable: ${(e as Error).message}` },
+      { status: 503 }
+    );
+  }
+
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return NextResponse.json(
       { error: "Invalid email or password." },

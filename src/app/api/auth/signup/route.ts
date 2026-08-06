@@ -1,15 +1,15 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import {
-  createAgent,
-  createCampaign,
-  createContact,
-  createKnowledgeBase,
-  createPhoneNumber,
   createUser,
-  createWebhook,
   findUserByEmail,
+  insertAgents,
   insertCalls,
+  insertCampaigns,
+  insertContacts,
+  insertKnowledgeBases,
+  insertPhoneNumbers,
+  insertWebhooks,
   newId,
 } from "@/lib/db";
 import {
@@ -41,31 +41,50 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-  if (await findUserByEmail(email)) {
+
+  let user;
+  try {
+    if (await findUserByEmail(email)) {
+      return NextResponse.json(
+        { error: "An account with this email already exists." },
+        { status: 409 }
+      );
+    }
+
+    // Create the account first. If this fails, no account exists and we
+    // return the underlying reason so the cause is visible, not a blank 500.
+    user = await createUser({
+      id: newId("usr"),
+      email,
+      passwordHash: await bcrypt.hash(password, 10),
+      company,
+      name,
+      createdAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    console.error("Signup failed:", e);
     return NextResponse.json(
-      { error: "An account with this email already exists." },
-      { status: 409 }
+      { error: `Could not create account: ${(e as Error).message}` },
+      { status: 500 }
     );
   }
 
-  const user = await createUser({
-    id: newId("usr"),
-    email,
-    passwordHash: await bcrypt.hash(password, 10),
-    company,
-    name,
-    createdAt: new Date().toISOString(),
-  });
-
-  // Seed demo data so every dashboard section is alive on first login.
-  const demo = seedDemoData(user.id);
-  for (const a of demo.agents) await createAgent(a);
-  await insertCalls(demo.calls);
-  for (const c of demo.campaigns) await createCampaign(c);
-  for (const c of demo.contacts) await createContact(c);
-  for (const p of demo.phoneNumbers) await createPhoneNumber(p);
-  for (const w of demo.webhooks) await createWebhook(w);
-  for (const k of demo.knowledgeBases) await createKnowledgeBase(k);
+  // Seed demo data in bulk (one request per table). Non-fatal: if it fails,
+  // the account still exists and the dashboard just starts empty.
+  try {
+    const demo = seedDemoData(user.id);
+    await Promise.all([
+      insertAgents(demo.agents),
+      insertCalls(demo.calls),
+      insertCampaigns(demo.campaigns),
+      insertContacts(demo.contacts),
+      insertPhoneNumbers(demo.phoneNumbers),
+      insertWebhooks(demo.webhooks),
+      insertKnowledgeBases(demo.knowledgeBases),
+    ]);
+  } catch (e) {
+    console.error("Demo seeding failed (account still created):", e);
+  }
 
   const token = await createSessionToken({
     userId: user.id,

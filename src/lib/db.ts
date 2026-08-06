@@ -133,9 +133,16 @@ export function newId(prefix: string): string {
 interface Store {
   list<T extends Row>(table: Table, userId?: string): Promise<T[]>;
   insert<T extends Row>(table: Table, row: T): Promise<T>;
+  insertMany<T extends Row>(table: Table, rows: T[]): Promise<T[]>;
   update<T extends Row>(table: Table, id: string, patch: Partial<T>): Promise<T | undefined>;
   remove(table: Table, id: string): Promise<boolean>;
 }
+
+/** Which backend is active, for diagnostics (see /api/health). */
+export const storeMode: "supabase" | "file" =
+  process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
+    ? "supabase"
+    : "file";
 
 // --- FileStore (local dev) --------------------------------------------------
 
@@ -152,45 +159,66 @@ const EMPTY: Database = {
   knowledgeBases: [],
 };
 
+function readFileDb(): Database {
+  try {
+    return { ...EMPTY, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) };
+  } catch {
+    return { ...EMPTY };
+  }
+}
+
+function writeFileDb(db: Database) {
+  try {
+    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
+    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+  } catch (e: unknown) {
+    // On serverless hosts (Netlify/Vercel) the filesystem is read-only, so
+    // file storage cannot persist. Surface a clear, actionable message
+    // instead of an opaque crash — the fix is always to configure Supabase.
+    const code = (e as { code?: string }).code;
+    if (code === "EROFS" || code === "EACCES") {
+      throw new Error(
+        "Persistent storage is not configured. Set SUPABASE_URL and " +
+          "SUPABASE_SERVICE_ROLE_KEY environment variables (see README)."
+      );
+    }
+    throw e;
+  }
+}
+
 const fileStore: Store = {
   async list(table, userId) {
-    let db: Database;
-    try {
-      db = { ...EMPTY, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) };
-    } catch {
-      db = EMPTY;
-    }
-    const rows = db[table] as Row[];
+    const rows = readFileDb()[table] as Row[];
     return (userId
       ? rows.filter((r) => "userId" in r && r.userId === userId)
       : rows) as never;
   },
   async insert(table, row) {
-    let db: Database;
-    try {
-      db = { ...EMPTY, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) };
-    } catch {
-      db = { ...EMPTY, users: [], agents: [], calls: [], campaigns: [], contacts: [], phoneNumbers: [], webhooks: [], knowledgeBases: [] };
-    }
+    const db = readFileDb();
     (db[table] as Row[]).push(row);
-    fs.mkdirSync(path.dirname(DB_FILE), { recursive: true });
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    writeFileDb(db);
     return row;
   },
+  async insertMany(table, rows) {
+    const db = readFileDb();
+    (db[table] as Row[]).push(...rows);
+    writeFileDb(db);
+    return rows;
+  },
   async update(table, id, patch) {
-    const db: Database = { ...EMPTY, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) };
+    const db = readFileDb();
     const row = (db[table] as Row[]).find((r) => r.id === id);
     if (!row) return undefined;
     Object.assign(row, patch, { id: row.id });
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    writeFileDb(db);
     return row as never;
   },
   async remove(table, id) {
-    const db: Database = { ...EMPTY, ...JSON.parse(fs.readFileSync(DB_FILE, "utf8")) };
+    const db = readFileDb();
     const rows = db[table] as Row[];
     const next = rows.filter((r) => r.id !== id);
     (db[table] as Row[]) = next as never;
-    fs.writeFileSync(DB_FILE, JSON.stringify(db, null, 2));
+    writeFileDb(db);
     return next.length < rows.length;
   },
 };
@@ -241,6 +269,7 @@ const supabaseStore: Store = {
     const t = TABLE_NAMES[table];
     await rest(t, {
       method: "POST",
+      headers: { Prefer: "return=minimal" },
       body: JSON.stringify({
         id: row.id,
         user_id: "userId" in row ? row.userId : null,
@@ -248,6 +277,23 @@ const supabaseStore: Store = {
       }),
     });
     return row;
+  },
+  async insertMany(table, rows) {
+    if (rows.length === 0) return rows;
+    const t = TABLE_NAMES[table];
+    // One request inserts the whole array — avoids dozens of round-trips.
+    await rest(t, {
+      method: "POST",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify(
+        rows.map((row) => ({
+          id: row.id,
+          user_id: "userId" in row ? row.userId : null,
+          data: row,
+        }))
+      ),
+    });
+    return rows;
   },
   async update(table, id, patch) {
     const t = TABLE_NAMES[table];
@@ -289,6 +335,7 @@ export async function findAgent(userId: string, id: string) {
   return (await listAgents(userId)).find((a) => a.id === id);
 }
 export const createAgent = (a: Agent) => store.insert("agents", a);
+export const insertAgents = (rows: Agent[]) => store.insertMany("agents", rows);
 export async function updateAgent(userId: string, id: string, patch: Partial<Agent>) {
   if (!(await findAgent(userId, id))) return undefined;
   return store.update<Agent>("agents", id, patch);
@@ -305,12 +352,11 @@ export async function listCalls(userId: string): Promise<Call[]> {
 export async function findCall(userId: string, id: string) {
   return (await store.list<Call>("calls", userId)).find((c) => c.id === id);
 }
-export async function insertCalls(calls: Call[]) {
-  for (const c of calls) await store.insert("calls", c);
-}
+export const insertCalls = (calls: Call[]) => store.insertMany("calls", calls);
 
 export const listCampaigns = (userId: string) => store.list<Campaign>("campaigns", userId);
 export const createCampaign = (c: Campaign) => store.insert("campaigns", c);
+export const insertCampaigns = (rows: Campaign[]) => store.insertMany("campaigns", rows);
 export async function updateCampaign(userId: string, id: string, patch: Partial<Campaign>) {
   const exists = (await listCampaigns(userId)).some((c) => c.id === id);
   if (!exists) return undefined;
@@ -319,12 +365,16 @@ export async function updateCampaign(userId: string, id: string, patch: Partial<
 
 export const listContacts = (userId: string) => store.list<Contact>("contacts", userId);
 export const createContact = (c: Contact) => store.insert("contacts", c);
+export const insertContacts = (rows: Contact[]) => store.insertMany("contacts", rows);
 
 export const listPhoneNumbers = (userId: string) => store.list<PhoneNumber>("phoneNumbers", userId);
 export const createPhoneNumber = (p: PhoneNumber) => store.insert("phoneNumbers", p);
+export const insertPhoneNumbers = (rows: PhoneNumber[]) => store.insertMany("phoneNumbers", rows);
 
 export const listWebhooks = (userId: string) => store.list<Webhook>("webhooks", userId);
 export const createWebhook = (w: Webhook) => store.insert("webhooks", w);
+export const insertWebhooks = (rows: Webhook[]) => store.insertMany("webhooks", rows);
 
 export const listKnowledgeBases = (userId: string) => store.list<KnowledgeBase>("knowledgeBases", userId);
 export const createKnowledgeBase = (k: KnowledgeBase) => store.insert("knowledgeBases", k);
+export const insertKnowledgeBases = (rows: KnowledgeBase[]) => store.insertMany("knowledgeBases", rows);
