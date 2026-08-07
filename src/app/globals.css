@@ -6,6 +6,16 @@
    (950 = page background … 100 = primary text). Dark is the default;
    [data-theme="light"] flips every surface to white/lavender while the
    accent gradient (violet → fuchsia → orange) stays identical. */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+@keyframes aurora-drift {
+  from { background-position: 0% 0%; }
+  to { background-position: 100% 100%; }
+}
+
 :root {
   color-scheme: dark;
   --ink-950: 7 7 9;
@@ -124,6 +134,38 @@ body {
   }
   .badge-muted {
     @apply rounded-full bg-ink-800 px-2.5 py-1 text-xs font-medium text-ink-300;
+  }
+
+  /* Landing page marquees: duplicated track sliding 0 → -50% for a
+     seamless infinite loop. */
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 22s linear infinite;
+  }
+  .backers-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 30s linear infinite;
+  }
+
+  /* Soft animated "aurora" media backgrounds for landing cards. */
+  .aurora {
+    background:
+      radial-gradient(60% 80% at 20% 20%, rgba(196, 181, 253, 0.9) 0%, transparent 60%),
+      radial-gradient(50% 70% at 80% 30%, rgba(251, 207, 232, 0.9) 0%, transparent 60%),
+      radial-gradient(70% 90% at 60% 85%, rgba(253, 230, 138, 0.55) 0%, transparent 60%),
+      linear-gradient(140deg, #ede9fe 0%, #fdf2f8 55%, #fef3c7 100%);
+    background-size: 160% 160%;
+    animation: aurora-drift 16s ease-in-out infinite alternate;
+  }
+  .aurora-cool {
+    background:
+      radial-gradient(60% 80% at 25% 25%, rgba(167, 139, 250, 0.85) 0%, transparent 60%),
+      radial-gradient(55% 75% at 75% 70%, rgba(110, 231, 183, 0.5) 0%, transparent 60%),
+      linear-gradient(150deg, #ede9fe 0%, #e0f2fe 60%, #ecfdf5 100%);
+    background-size: 160% 160%;
+    animation: aurora-drift 18s ease-in-out infinite alternate;
   }
 
   /* The glowing gradient orb used across the site (hero, about, brand). */

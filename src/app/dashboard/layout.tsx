@@ -9,34 +9,34 @@ export const metadata = { title: "Dashboard — VoiceLine AI" };
 
 const NAV_GROUPS: {
   heading: string | null;
-  items: { href: string; label: string; exact?: boolean }[];
+  items: { href: string; label: string; icon: string; exact?: boolean }[];
 }[] = [
   {
     heading: null,
-    items: [{ href: "/dashboard", label: "Dashboard", exact: true }],
+    items: [{ href: "/dashboard", label: "Dashboard", icon: "layout-dashboard", exact: true }],
   },
   {
     heading: "AI & Knowledge",
     items: [
-      { href: "/dashboard/agents", label: "AI Agents" },
-      { href: "/dashboard/knowledge", label: "Knowledge Bases" },
-      { href: "/dashboard/launch", label: "Launch your AI" },
+      { href: "/dashboard/agents", label: "AI Agents", icon: "bot" },
+      { href: "/dashboard/knowledge", label: "Knowledge Bases", icon: "book-open" },
+      { href: "/dashboard/launch", label: "Launch your AI", icon: "rocket" },
     ],
   },
   {
     heading: "Communication",
     items: [
-      { href: "/dashboard/phone-numbers", label: "Phone Numbers" },
-      { href: "/dashboard/contacts", label: "Contacts" },
-      { href: "/dashboard/calls", label: "Call Logs" },
-      { href: "/dashboard/live", label: "Live Monitoring" },
+      { href: "/dashboard/phone-numbers", label: "Phone Numbers", icon: "phone" },
+      { href: "/dashboard/contacts", label: "Contacts", icon: "users" },
+      { href: "/dashboard/calls", label: "Call Logs", icon: "phone-call" },
+      { href: "/dashboard/live", label: "Live Monitoring", icon: "radio" },
     ],
   },
   {
     heading: "Connections",
     items: [
-      { href: "/dashboard/integrations", label: "Integrations" },
-      { href: "/dashboard/webhooks", label: "Webhooks" },
+      { href: "/dashboard/integrations", label: "Integrations", icon: "plug" },
+      { href: "/dashboard/webhooks", label: "Webhooks", icon: "webhook" },
     ],
   },
 ];
@@ -102,7 +102,7 @@ export default async function DashboardLayout({
               href="/dashboard/settings"
               className="text-sm font-medium text-ink-300 hover:text-ink-100"
             >
-              ⚙ Settings
+              Settings
             </Link>
             <form action="/api/auth/logout" method="post">
               <button className="text-xs font-medium text-ink-400 hover:text-signal-red">
@@ -114,7 +114,7 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="flex-1 lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-700 bg-ink-950/85 px-5 backdrop-blur lg:justify-end">
+        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-700 bg-ink-950/85 px-6 backdrop-blur lg:justify-end lg:px-10">
           <Link href="/dashboard" className="font-semibold lg:hidden">
             VoiceLine AI
           </Link>
@@ -139,7 +139,9 @@ export default async function DashboardLayout({
           ))}
         </div>
 
-        <main className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8">{children}</main>
+        {/* Full-width main content — pages own the whole canvas like a real
+            SaaS console; no artificial center column. */}
+        <main className="w-full px-6 py-8 lg:px-10">{children}</main>
       </div>
     </div>
   );

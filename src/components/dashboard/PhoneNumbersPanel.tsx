@@ -1,4 +1,5 @@
 "use client";
+import { Search, RefreshCw, MoreVertical } from "lucide-react";
 
 // Phone Numbers: search + provider/status filters, number cards, and the
 // "Add Phone Number" flow (provider picker → provider-specific form).
@@ -70,7 +71,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
       {/* Toolbar */}
       <div className="card flex flex-wrap items-center gap-3 !p-4">
         <div className="relative min-w-[220px] flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500">🔍</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-4 w-4" /></span>
           <input className="field !pl-10" placeholder="Search phone numbers..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
         <select className="field w-40 !py-2.5" value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
@@ -82,7 +83,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
           <option value="active">Active</option>
           <option value="unassigned">Unassigned</option>
         </select>
-        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5">⟳</button>
+        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5"><RefreshCw className="h-4 w-4" /></button>
       </div>
 
       {/* Cards */}
@@ -94,7 +95,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
               <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === n.id ? null : n.id); }}
                 aria-label="Actions"
                 className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
-                ⋮
+                <MoreVertical className="h-4 w-4" />
               </button>
               {menuFor === n.id && (
                 <div className="absolute right-4 top-11 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30"

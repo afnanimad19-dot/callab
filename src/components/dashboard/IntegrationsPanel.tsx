@@ -1,4 +1,5 @@
 "use client";
+import { Search, RefreshCw } from "lucide-react";
 
 // Integrations: platform connections (env-based status) + custom
 // integration workflows (name, tags, N-step workflow, interval,
@@ -68,11 +69,11 @@ export default function IntegrationsPanel({
 
       <div className="card flex items-center gap-3 !p-4">
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500">🔍</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-4 w-4" /></span>
           <input className="field !pl-10" placeholder="Search by name, tag, or category..."
             value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5">⟳</button>
+        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5"><RefreshCw className="h-4 w-4" /></button>
       </div>
 
       {/* Custom integration workflows */}

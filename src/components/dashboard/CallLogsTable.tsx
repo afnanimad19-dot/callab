@@ -1,4 +1,5 @@
 "use client";
+import { Search, RefreshCw } from "lucide-react";
 
 // Call Logs: searchable, filterable, paginated table with CSV export.
 // Clicking a row (or its recording icon) opens the call detail page.
@@ -88,7 +89,7 @@ export default function CallLogsTable({
       {/* Toolbar */}
       <div className="card flex flex-wrap items-center gap-3 !p-4">
         <div className="relative min-w-[200px] flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500">🔍</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-4 w-4" /></span>
           <input className="field !pl-10" placeholder="Search..." value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
         </div>
@@ -103,7 +104,7 @@ export default function CallLogsTable({
           <option value="all">All Campaigns</option>
           {campaigns.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
-        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5">⟳</button>
+        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5"><RefreshCw className="h-4 w-4" /></button>
       </div>
 
       {/* Table */}

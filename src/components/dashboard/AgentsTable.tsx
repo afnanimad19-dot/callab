@@ -1,4 +1,5 @@
 "use client";
+import { Search, RefreshCw, MoreVertical } from "lucide-react";
 
 // Agents list: search, filter-by-status, refresh, and per-row actions menu.
 
@@ -40,7 +41,7 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
       <div className="card flex flex-wrap items-center gap-3 !p-4">
         <div className="relative min-w-[220px] flex-1">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500">
-            🔍
+            <Search className="h-4 w-4" />
           </span>
           <input
             value={query}
@@ -64,7 +65,7 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
           aria-label="Refresh"
           className="btn-secondary !px-3.5 !py-2.5"
         >
-          ⟳
+          <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
@@ -130,7 +131,7 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
                     aria-label="Actions"
                     className="rounded-lg px-2.5 py-1 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
                   >
-                    ⋮
+                    <MoreVertical className="h-4 w-4" />
                   </button>
                   {menuFor === a.id && (
                     <div className="absolute right-4 top-11 z-20 w-40 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 text-left shadow-xl shadow-black/30">

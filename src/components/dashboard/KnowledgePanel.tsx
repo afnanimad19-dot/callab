@@ -1,4 +1,5 @@
 "use client";
+import { Search, RefreshCw, MoreVertical } from "lucide-react";
 
 // Knowledge Base: searchable grid of resources, "+ Add Resource" dropdown
 // (Text Content / URL / Upload File / Google Doc) opening the type-specific
@@ -74,10 +75,10 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
       {/* Search */}
       <div className="card flex items-center gap-3 !p-4">
         <div className="relative flex-1">
-          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500">🔍</span>
+          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-4 w-4" /></span>
           <input className="field !pl-10" placeholder="Search by name or content..." value={query} onChange={(e) => setQuery(e.target.value)} />
         </div>
-        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5">⟳</button>
+        <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5"><RefreshCw className="h-4 w-4" /></button>
       </div>
 
       {/* Grid */}
@@ -100,7 +101,7 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
                 <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === kb.id ? null : kb.id); }}
                   aria-label="Actions"
                   className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
-                  ⋮
+                  <MoreVertical className="h-4 w-4" />
                 </button>
                 {menuFor === kb.id && (
                   <div className="absolute right-4 top-12 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30"
