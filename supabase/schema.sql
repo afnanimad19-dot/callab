@@ -60,6 +60,13 @@ create table if not exists knowledge_bases (
   created_at timestamptz default now()
 );
 
+create table if not exists integrations (
+  id text primary key,
+  user_id text not null,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+
 create index if not exists agents_user_idx on agents (user_id);
 create index if not exists calls_user_idx on calls (user_id);
 create index if not exists campaigns_user_idx on campaigns (user_id);
@@ -67,6 +74,7 @@ create index if not exists contacts_user_idx on contacts (user_id);
 create index if not exists phone_numbers_user_idx on phone_numbers (user_id);
 create index if not exists webhooks_user_idx on webhooks (user_id);
 create index if not exists knowledge_bases_user_idx on knowledge_bases (user_id);
+create index if not exists integrations_user_idx on integrations (user_id);
 
 -- The app talks to these tables with the service-role key from the server
 -- only (never from the browser), so RLS stays enabled with no public access.
@@ -78,3 +86,4 @@ alter table contacts enable row level security;
 alter table phone_numbers enable row level security;
 alter table webhooks enable row level security;
 alter table knowledge_bases enable row level security;
+alter table integrations enable row level security;

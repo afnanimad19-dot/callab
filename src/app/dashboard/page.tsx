@@ -8,6 +8,7 @@ import {
   Donut,
   Gauge,
 } from "@/components/dashboard/charts";
+import DateRangeSelect from "@/components/dashboard/DateRangeSelect";
 
 function fmtDuration(totalSec: number) {
   const m = Math.floor(totalSec / 60);
@@ -19,12 +20,35 @@ function dayKey(iso: string) {
   return iso.slice(0, 10);
 }
 
-function lastNDays(n: number): string[] {
+function lastNDays(n: number, endOffset = 0): string[] {
   const days: string[] = [];
-  for (let i = n - 1; i >= 0; i--) {
+  for (let i = n - 1 + endOffset; i >= endOffset; i--) {
     days.push(new Date(Date.now() - i * 86400_000).toISOString().slice(0, 10));
   }
   return days;
+}
+
+// Resolve the ?range= param into the day window shown on every chart.
+function daysForRange(range: string, calls: Call[]): string[] {
+  switch (range) {
+    case "today":
+      return lastNDays(1);
+    case "yesterday":
+      return lastNDays(1, 1);
+    case "30d":
+      return lastNDays(30);
+    case "90d":
+      return lastNDays(90);
+    case "all": {
+      const earliest = calls.length
+        ? calls.reduce((min, c) => (c.startedAt < min ? c.startedAt : min), calls[0].startedAt)
+        : new Date().toISOString();
+      const spanDays = Math.ceil((Date.now() - Date.parse(earliest)) / 86400_000) + 1;
+      return lastNDays(Math.min(Math.max(spanDays, 1), 90));
+    }
+    default:
+      return lastNDays(7);
+  }
 }
 
 function dayLabel(key: string) {
@@ -35,17 +59,24 @@ function dayLabel(key: string) {
 const SUCCESS_OUTCOMES = new Set(["resolved", "callback_scheduled"]);
 const isSuccess = (c: Call) => SUCCESS_OUTCOMES.has(c.outcome);
 
-export default async function OverviewPage() {
+export default async function OverviewPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ range?: string }>;
+}) {
   const session = await getSession();
   if (!session) redirect("/login");
+  const { range = "7d" } = await searchParams;
 
-  const [agents, calls, campaigns] = await Promise.all([
+  const [agents, allCalls, campaigns] = await Promise.all([
     listAgents(session.userId),
     listCalls(session.userId),
     listCampaigns(session.userId),
   ]);
 
-  const days = lastNDays(7);
+  const days = daysForRange(range, allCalls);
+  const daySet = new Set(days);
+  const calls = allCalls.filter((c) => daySet.has(dayKey(c.startedAt)));
   const byDay = new Map(days.map((d) => [d, [] as Call[]]));
   for (const c of calls) {
     byDay.get(dayKey(c.startedAt))?.push(c);
@@ -115,7 +146,7 @@ export default async function OverviewPage() {
             Overview of your call analytics, agents, campaigns and performance.
           </p>
         </div>
-        <span className="badge-muted">Last 7 Days</span>
+        <DateRangeSelect current={range} />
       </div>
 
       {/* Stat cards */}

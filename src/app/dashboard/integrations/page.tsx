@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { listIntegrations } from "@/lib/db";
 import { vapiConfigured } from "@/lib/vapi";
+import IntegrationsPanel from "@/components/dashboard/IntegrationsPanel";
 
 export const metadata = { title: "Integrations — VoiceLine AI" };
 
@@ -8,17 +10,17 @@ export default async function IntegrationsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const integrations = await listIntegrations(session.userId);
   const supabaseOn = Boolean(
     process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
-  const vapiOn = vapiConfigured();
 
-  const integrations = [
+  const platforms = [
     {
       name: "Vapi",
       detail:
         "Voice pipeline: telephony, speech-to-text, LLM, and text-to-speech. Powers real inbound calls and outbound campaigns.",
-      connected: vapiOn,
+      connected: vapiConfigured(),
       hint: "Set VAPI_API_KEY in your Netlify environment variables.",
     },
     {
@@ -26,66 +28,21 @@ export default async function IntegrationsPage() {
       detail:
         "Production database for accounts, agents, calls, campaigns, and contacts.",
       connected: supabaseOn,
-      hint: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify, and run supabase/schema.sql once.",
+      hint: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify, then run supabase/schema.sql.",
     },
     {
       name: "Google Calendar",
       detail: "Real appointment booking during calls.",
       connected: false,
-      hint: "Planned — Phase 5 of the roadmap.",
+      hint: "Planned — actions phase of the roadmap.",
     },
     {
       name: "CRM (HubSpot / Salesforce)",
       detail: "Sync leads and call outcomes automatically after every call.",
       connected: false,
-      hint: "Planned — Phase 5 of the roadmap.",
+      hint: "Planned — actions phase of the roadmap.",
     },
   ];
 
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Integrations</h1>
-        <p className="mt-1 text-sm text-ink-400">
-          Connections status is read from your environment variables — no keys
-          are ever stored in the database.
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2">
-        {integrations.map((i) => (
-          <div key={i.name} className="card card-hover">
-            <div className="flex items-start justify-between gap-3">
-              <h2 className="text-base font-semibold">{i.name}</h2>
-              <span className={i.connected ? "badge-ok" : "badge-muted"}>
-                {i.connected ? "Connected" : "Not connected"}
-              </span>
-            </div>
-            <p className="mt-2 text-sm text-ink-300">{i.detail}</p>
-            {!i.connected && (
-              <p className="mt-3 rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-ink-300">
-                {i.hint}
-              </p>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {vapiOn && (
-        <div className="card">
-          <h2 className="text-base font-semibold">Vapi webhook</h2>
-          <p className="mt-2 text-sm text-ink-300">
-            In the Vapi dashboard, set your <strong>Server URL</strong> to the
-            address below (and a Server Secret matching{" "}
-            <code className="rounded bg-ink-800 px-1">VAPI_WEBHOOK_SECRET</code>).
-            Finished calls will then appear automatically in Call Logs and the
-            dashboard.
-          </p>
-          <p className="mt-3 break-all rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-accent-300">
-            https://&lt;your-site&gt;/api/vapi/webhook
-          </p>
-        </div>
-      )}
-    </div>
-  );
+  return <IntegrationsPanel integrations={integrations} platforms={platforms} />;
 }

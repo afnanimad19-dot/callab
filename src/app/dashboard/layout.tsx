@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import NavLink from "@/components/dashboard/NavLink";
 import ThemeToggle from "@/components/ThemeToggle";
+import ProfileMenu from "@/components/dashboard/ProfileMenu";
 
 export const metadata = { title: "Dashboard — VoiceLine AI" };
 
@@ -120,9 +121,12 @@ export default async function DashboardLayout({
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <span className="hidden text-sm text-ink-400 sm:block">{session.email}</span>
-            <span className="grad-bg flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-white">
-              {initials}
-            </span>
+            <ProfileMenu
+              name={session.name}
+              email={session.email}
+              company={session.company}
+              initials={initials}
+            />
           </div>
         </header>
 

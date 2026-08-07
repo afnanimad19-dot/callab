@@ -17,6 +17,7 @@ export interface User {
   company: string;
   name: string;
   createdAt: string;
+  apiKey?: string;
 }
 
 import type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
@@ -138,12 +139,42 @@ export interface PhoneNumber {
   updatedAt?: string;
 }
 
+export interface WebhookStep {
+  name: string;
+  method: "POST" | "GET" | "PUT";
+  url: string;
+}
+
+export interface WebhookVariable {
+  name: string;
+  jsonPath: string;
+  sourceType: "response" | "static";
+  dataType: "string" | "number" | "boolean";
+  value?: string;
+}
+
 export interface Webhook {
   id: string;
   userId: string;
   url: string;
   events: string[];
   active: boolean;
+  createdAt: string;
+  name?: string;
+  steps?: WebhookStep[];
+  variables?: WebhookVariable[];
+}
+
+export interface Integration {
+  id: string;
+  userId: string;
+  name: string;
+  tag: string;
+  category: string;
+  intervalSeconds: number;
+  steps: WebhookStep[];
+  status: "idle" | "running" | "failed" | "success";
+  lastRunAt?: string;
   createdAt: string;
 }
 
@@ -172,6 +203,7 @@ interface Database {
   phoneNumbers: PhoneNumber[];
   webhooks: Webhook[];
   knowledgeBases: KnowledgeBase[];
+  integrations: Integration[];
 }
 
 type Table = keyof Database;
@@ -212,6 +244,7 @@ const EMPTY: Database = {
   phoneNumbers: [],
   webhooks: [],
   knowledgeBases: [],
+  integrations: [],
 };
 
 function readFileDb(): Database {
@@ -290,6 +323,7 @@ const TABLE_NAMES: Record<Table, string> = {
   phoneNumbers: "phone_numbers",
   webhooks: "webhooks",
   knowledgeBases: "knowledge_bases",
+  integrations: "integrations",
 };
 
 function supabaseHeaders() {
@@ -391,6 +425,11 @@ export async function findUserByEmail(email: string): Promise<User | undefined> 
 }
 
 export const createUser = (u: User) => store.insert("users", u);
+export const updateUser = (id: string, patch: Partial<User>) =>
+  store.update<User>("users", id, patch);
+export async function findUserById(id: string): Promise<User | undefined> {
+  return (await store.list<User>("users")).find((u) => u.id === id);
+}
 
 export const listAgents = (userId: string) => store.list<Agent>("agents", userId);
 export async function findAgent(userId: string, id: string) {
@@ -450,6 +489,29 @@ export async function deletePhoneNumber(userId: string, id: string) {
 export const listWebhooks = (userId: string) => store.list<Webhook>("webhooks", userId);
 export const createWebhook = (w: Webhook) => store.insert("webhooks", w);
 export const insertWebhooks = (rows: Webhook[]) => store.insertMany("webhooks", rows);
+export async function deleteWebhook(userId: string, id: string) {
+  const exists = (await listWebhooks(userId)).some((w) => w.id === id);
+  if (!exists) return false;
+  return store.remove("webhooks", id);
+}
+
+export const listIntegrations = (userId: string) =>
+  store.list<Integration>("integrations", userId);
+export const createIntegration = (i: Integration) => store.insert("integrations", i);
+export async function updateIntegration(
+  userId: string,
+  id: string,
+  patch: Partial<Integration>
+) {
+  const exists = (await listIntegrations(userId)).some((i) => i.id === id);
+  if (!exists) return undefined;
+  return store.update<Integration>("integrations", id, patch);
+}
+export async function deleteIntegration(userId: string, id: string) {
+  const exists = (await listIntegrations(userId)).some((i) => i.id === id);
+  if (!exists) return false;
+  return store.remove("integrations", id);
+}
 
 export const listKnowledgeBases = (userId: string) => store.list<KnowledgeBase>("knowledgeBases", userId);
 export const createKnowledgeBase = (k: KnowledgeBase) => store.insert("knowledgeBases", k);
