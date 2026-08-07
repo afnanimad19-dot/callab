@@ -72,17 +72,43 @@ export interface Call {
   transcript: TranscriptTurn[];
 }
 
+export interface CampaignSchedule {
+  startDate: string; // YYYY-MM-DD
+  endDate: string; // empty = ongoing
+  from: string; // HH:MM
+  to: string; // HH:MM
+  days: string[]; // ["Mon", ...]
+  timezone: string;
+  retryAttempts: boolean;
+}
+
 export interface Campaign {
   id: string;
   userId: string;
   name: string;
   agentId: string;
   agentName: string;
-  goal: string;
-  status: "draft" | "running" | "paused" | "completed";
+  goal: string; // description
+  status:
+    | "draft"
+    | "scheduled"
+    | "running"
+    | "paused"
+    | "stopped"
+    | "completed"
+    | "archived";
   contactsTotal: number;
   contactsCalled: number;
   createdAt: string;
+  // Wizard fields (optional so older rows stay valid)
+  direction?: "inbound" | "outbound";
+  phoneNumber?: string;
+  schedule?: CampaignSchedule;
+  filters?: { sources: string[]; tags: string[]; categories: string[] };
+  variableMapping?: Record<string, string>;
+  webhookId?: string;
+  syncWithContact?: boolean;
+  updatedAt?: string;
 }
 
 export interface Contact {

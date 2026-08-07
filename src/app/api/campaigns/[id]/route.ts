@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { updateCampaign } from "@/lib/db";
+import { Campaign, updateCampaign } from "@/lib/db";
 
-// When Vapi is configured, setting a campaign to "running" is where outbound
-// calls kick off via startOutboundCall() over the contact list (see lib/vapi.ts).
+const STATUSES: Campaign["status"][] = [
+  "draft",
+  "scheduled",
+  "running",
+  "paused",
+  "stopped",
+  "completed",
+  "archived",
+];
 
 export async function PATCH(
   request: Request,
@@ -14,14 +21,13 @@ export async function PATCH(
   const { id } = await params;
 
   const body = await request.json().catch(() => ({}));
-  const status = String(body?.status ?? "");
-  if (!["draft", "running", "paused", "completed"].includes(status)) {
-    return NextResponse.json({ error: "Invalid status." }, { status: 400 });
-  }
+  const patch: Partial<Campaign> = { updatedAt: new Date().toISOString() };
 
-  const campaign = await updateCampaign(session.userId, id, {
-    status: status as "draft" | "running" | "paused" | "completed",
-  });
+  if (STATUSES.includes(body?.status)) patch.status = body.status;
+  if (typeof body?.name === "string" && body.name.trim()) patch.name = body.name.trim();
+  if (typeof body?.description === "string") patch.goal = body.description;
+
+  const campaign = await updateCampaign(session.userId, id, patch);
   if (!campaign) return NextResponse.json({ error: "Not found" }, { status: 404 });
   return NextResponse.json({ campaign });
 }
