@@ -99,13 +99,24 @@ export default function LandingPage() {
         <section className="flex flex-1 items-end px-6 pb-6 pt-20">
           <div className="relative mx-auto w-full max-w-[88rem] overflow-hidden rounded-2xl"
             style={{ height: "calc(100vh - 96px)" }}>
-            {/* Media backdrop — replace with a <video> when footage is ready */}
+            {/* Media backdrop — generated brand visual over the aurora base */}
             <div className="aurora absolute inset-0" />
-            {/* Soft waveform texture */}
-            <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex h-40 items-end justify-center gap-1 px-8 opacity-30" aria-hidden>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/media/hero.webp" alt=""
+              className="absolute inset-0 h-full w-full object-cover" />
+            {/* Legibility wash behind the headline */}
+            <div className="absolute inset-0"
+              style={{ background: "linear-gradient(105deg, rgba(245,245,245,0.82) 0%, rgba(245,245,245,0.45) 38%, rgba(245,245,245,0) 62%)" }} />
+            {/* Live animated soundbar */}
+            <div className="pointer-events-none absolute bottom-0 left-0 right-0 flex h-40 items-end justify-center gap-1 px-8 opacity-40" aria-hidden>
               {Array.from({ length: 80 }, (_, i) => (
-                <span key={i} className="w-1 rounded-full bg-black/40"
-                  style={{ height: `${18 + 60 * Math.abs(Math.sin(i * 0.5))}%` }} />
+                <span key={i} className="w-1 animate-wave rounded-full bg-black/40"
+                  style={{
+                    height: `${18 + 60 * Math.abs(Math.sin(i * 0.5))}%`,
+                    transformOrigin: "bottom",
+                    animationDelay: `${(i % 12) * 0.12}s`,
+                    animationDuration: `${1.4 + (i % 5) * 0.18}s`,
+                  }} />
               ))}
             </div>
 
@@ -161,6 +172,9 @@ export default function LandingPage() {
             {/* Card 1 — media card, spans 2 */}
             <div className="relative overflow-hidden rounded-2xl lg:col-span-2">
               <div className="aurora-cool absolute inset-0" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/media/bloom.webp" alt=""
+                className="absolute inset-0 h-full w-full object-cover" />
               <div className="relative flex min-h-80 flex-col justify-between p-7">
                 <h3 className="text-2xl font-medium leading-snug text-black" style={{ letterSpacing: "-0.02em" }}>
                   Calls that convert
@@ -239,6 +253,9 @@ export default function LandingPage() {
 
           <div className="relative min-h-[720px] overflow-hidden rounded-3xl">
             <div className="aurora absolute inset-0" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/media/equalizer.webp" alt=""
+              className="absolute inset-0 h-full w-full object-cover" />
             <div className="relative z-10 p-10 md:p-12">
               <h3 className="mb-5 text-4xl font-medium leading-tight text-black md:text-5xl"
                 style={{ letterSpacing: "-0.03em" }}>
