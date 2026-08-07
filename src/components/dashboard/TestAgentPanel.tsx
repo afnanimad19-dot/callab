@@ -7,7 +7,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Send, Mic, MicOff, MessageSquare, AudioLines, FlaskConical } from "lucide-react";
+import {
+  X,
+  Send,
+  Mic,
+  MicOff,
+  MessageSquare,
+  AudioLines,
+  FlaskConical,
+  PhoneOff,
+  Volume2,
+  VolumeX,
+  ChevronDown,
+  Check,
+} from "lucide-react";
 import type { Agent } from "@/lib/db";
 
 interface Turn {
@@ -32,16 +45,29 @@ export default function TestAgentPanel({
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);
   const [voiceState, setVoiceState] = useState<"idle" | "connecting" | "live">("idle");
+  const [muted, setMuted] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [publicKey, setPublicKey] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const startedAtRef = useRef<string | null>(null);
   const chatIdRef = useRef<string | undefined>(undefined);
   const turnsRef = useRef<Turn[]>([]);
-  const vapiRef = useRef<{ stop: () => void } | null>(null);
+  const vapiRef = useRef<{ stop: () => void; setMuted?: (m: boolean) => void } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
 
   const agent = agents.find((a) => a.id === agentId);
+
+  // Close the agent picker on outside click.
+  useEffect(() => {
+    if (!pickerOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPickerOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [pickerOpen]);
 
   useEffect(() => {
     fetch("/api/vapi/public-key")
@@ -116,12 +142,33 @@ export default function TestAgentPanel({
       setNotice("Voice testing needs VAPI_PUBLIC_KEY set in your environment variables.");
       return;
     }
-    if (!agent.vapiAssistantId) {
-      setNotice("This agent isn't synced to Vapi yet — save it once with VAPI_API_KEY configured.");
-      return;
-    }
     setVoiceState("connecting");
     setNotice(null);
+
+    // Sync the agent to Vapi on the fly if it was created before Vapi was
+    // configured — no manual re-save needed.
+    let assistantId = agent.vapiAssistantId;
+    if (!assistantId) {
+      try {
+        const res = await fetch(`/api/agents/${agent.id}/sync`, { method: "POST" });
+        const data = await res.json();
+        assistantId = data.vapiAssistantId ?? undefined;
+        if (assistantId) agent.vapiAssistantId = assistantId;
+        if (!assistantId) {
+          setVoiceState("idle");
+          setNotice(
+            data.error ??
+              "Couldn't sync this agent to Vapi — check VAPI_API_KEY on the server."
+          );
+          return;
+        }
+      } catch {
+        setVoiceState("idle");
+        setNotice("Couldn't reach the server to sync this agent to Vapi.");
+        return;
+      }
+    }
+
     try {
       const { default: Vapi } = await import("@vapi-ai/web");
       const vapi = new Vapi(publicKey);
@@ -129,8 +176,12 @@ export default function TestAgentPanel({
       vapi.on("call-start", () => {
         startedAtRef.current = startedAtRef.current ?? new Date().toISOString();
         setVoiceState("live");
+        setMuted(false);
       });
-      vapi.on("call-end", () => setVoiceState("idle"));
+      vapi.on("call-end", () => {
+        setVoiceState("idle");
+        setMuted(false);
+      });
       vapi.on("error", (e: unknown) => {
         console.error(e);
         setVoiceState("idle");
@@ -141,7 +192,7 @@ export default function TestAgentPanel({
           pushTurn(m.role === "assistant" ? "agent" : "caller", m.transcript);
         }
       });
-      await vapi.start(agent.vapiAssistantId);
+      await vapi.start(assistantId);
     } catch (e) {
       console.error(e);
       setVoiceState("idle");
@@ -152,6 +203,13 @@ export default function TestAgentPanel({
   function stopVoice() {
     vapiRef.current?.stop();
     setVoiceState("idle");
+    setMuted(false);
+  }
+
+  function toggleMute() {
+    const next = !muted;
+    vapiRef.current?.setMuted?.(next);
+    setMuted(next);
   }
 
   // --- Logging --------------------------------------------------------------
@@ -208,21 +266,43 @@ export default function TestAgentPanel({
 
         {/* Agent + mode */}
         <div className="space-y-3 border-b border-ink-700 px-5 py-4">
-          <select
-            value={agentId}
-            onChange={(e) => {
-              setAgentId(e.target.value);
-              resetSession();
-            }}
-            className="field !py-2.5"
-          >
-            {agents.length === 0 && <option value="">No agents yet</option>}
-            {agents.map((a) => (
-              <option key={a.id} value={a.id}>
-                {a.name} — {a.role}
-              </option>
-            ))}
-          </select>
+          <div ref={pickerRef} className="relative">
+            <button
+              onClick={() => setPickerOpen((v) => !v)}
+              className="field flex w-full items-center justify-between !py-2.5 text-left"
+            >
+              <span className="truncate">
+                {agent ? `${agent.name} — ${agent.role}` : "No agents yet"}
+              </span>
+              <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${pickerOpen ? "rotate-180" : ""}`} />
+            </button>
+            {pickerOpen && (
+              <div className="absolute inset-x-0 top-12 z-20 max-h-[26rem] overflow-y-auto rounded-xl border border-ink-700 bg-ink-950 py-1 shadow-xl shadow-black/20">
+                {agents.map((a) => (
+                  <button
+                    key={a.id}
+                    onClick={() => {
+                      setPickerOpen(false);
+                      if (a.id !== agentId) {
+                        stopVoice();
+                        setAgentId(a.id);
+                        resetSession();
+                      }
+                    }}
+                    className={`flex w-full items-center justify-between gap-2 px-3.5 py-2.5 text-left text-sm transition hover:bg-ink-800 ${
+                      a.id === agentId ? "bg-ink-800/60" : ""
+                    }`}
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate font-medium">{a.name}</span>
+                      <span className="block truncate text-xs text-ink-400">{a.role}</span>
+                    </span>
+                    {a.id === agentId && <Check className="h-4 w-4 shrink-0 text-[#301C3F]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={() => setMode("text")}
@@ -299,18 +379,41 @@ export default function TestAgentPanel({
               </button>
             </div>
           ) : (
+            <>
             <div className="flex items-center gap-2">
               {voiceState === "idle" ? (
                 <button onClick={startVoice} disabled={!agent} className="btn-primary flex flex-1 items-center justify-center gap-2 !py-2.5">
                   <Mic className="h-4 w-4" /> Start voice call
                 </button>
               ) : (
-                <button onClick={stopVoice} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-signal-red px-3 py-2.5 text-sm font-medium text-white">
-                  <MicOff className="h-4 w-4" />
-                  {voiceState === "connecting" ? "Connecting…" : "End voice call"}
-                </button>
+                <>
+                  <button
+                    onClick={toggleMute}
+                    disabled={voiceState !== "live"}
+                    title={muted ? "Unmute microphone" : "Mute microphone"}
+                    className={`flex items-center justify-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm font-medium transition disabled:opacity-50 ${
+                      muted
+                        ? "border-amber-400 bg-amber-50 text-amber-700"
+                        : "border-ink-700 text-ink-300 hover:bg-ink-800"
+                    }`}
+                  >
+                    {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+                    {muted ? "Unmute" : "Mute"}
+                  </button>
+                  <button onClick={stopVoice} className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-signal-red px-3 py-2.5 text-sm font-medium text-white">
+                    {voiceState === "connecting" ? <MicOff className="h-4 w-4" /> : <PhoneOff className="h-4 w-4" />}
+                    {voiceState === "connecting" ? "Connecting…" : "End call"}
+                  </button>
+                </>
               )}
             </div>
+            {voiceState === "live" && (
+              <p className="mt-2 flex items-center justify-center gap-2 text-xs text-emerald-600">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /> Live — speak now
+                {muted && <span className="text-amber-600">(mic muted)</span>}
+              </p>
+            )}
+            </>
           )}
           <button
             onClick={endAndLog}

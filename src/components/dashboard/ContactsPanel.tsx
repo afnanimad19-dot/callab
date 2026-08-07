@@ -1,5 +1,6 @@
 "use client";
-import { Search, RefreshCw, MoreHorizontal } from "lucide-react";
+import { Search, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import RowMenu from "./RowMenu";
 
 // Contacts: Import / Export / Add Contact toolbar, searchable paginated
 // table with select checkboxes, source/category/tag badges, per-row menu,
@@ -11,7 +12,7 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { Contact } from "@/lib/db";
 
-const PAGE_SIZE = 10;
+const PAGE_SIZES = [10, 25, 50, 100];
 
 const COUNTRY_CODES = [
   ["+1", "United States"],
@@ -43,9 +44,10 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [editing, setEditing] = useState<Contact | null>(null);
   const [importOpen, setImportOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
 
@@ -56,9 +58,9 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
   }, [contacts, query]);
 
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const current = Math.min(page, pages);
-  const rows = filtered.slice((current - 1) * PAGE_SIZE, current * PAGE_SIZE);
+  const rows = filtered.slice((current - 1) * perPage, current * perPage);
 
   function showToast(msg: string) {
     setToast(msg);
@@ -66,7 +68,6 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   }
 
   async function remove(c: Contact) {
-    setMenuFor(null);
     if (!confirm(`Delete contact "${c.name}"?`)) return;
     await fetch(`/api/contacts/${c.id}`, { method: "DELETE" });
     router.refresh();
@@ -79,7 +80,7 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   }
 
   return (
-    <div className="space-y-5" onClick={() => setMenuFor(null)}>
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Contacts</h1>
@@ -157,18 +158,13 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
                 <td className="px-4 py-3 text-ink-400">
                   {new Date(c.createdAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                 </td>
-                <td className="relative px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => setMenuFor(menuFor === c.id ? null : c.id)} aria-label="Actions"
-                    className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                  {menuFor === c.id && (
-                    <div className="absolute right-4 top-11 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 text-left shadow-xl shadow-black/30">
-                      <button onClick={() => remove(c)} className="block w-full px-4 py-2 text-sm text-signal-red transition hover:bg-ink-800">
-                        🗑 Delete
-                      </button>
-                    </div>
-                  )}
+                <td className="px-4 py-3 text-right">
+                  <RowMenu
+                    items={[
+                      { label: "Edit", icon: Pencil, onClick: () => setEditing(c) },
+                      { label: "Delete", icon: Trash2, danger: true, onClick: () => remove(c) },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}
@@ -181,9 +177,26 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
         )}
         {/* Pagination */}
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-ink-700 px-5 py-3 text-sm text-ink-400">
-          <span>
-            Showing {filtered.length === 0 ? 0 : (current - 1) * PAGE_SIZE + 1} to{" "}
-            {Math.min(current * PAGE_SIZE, filtered.length)} of {filtered.length} contacts
+          <span className="flex items-center gap-3">
+            <span>
+              Showing {filtered.length === 0 ? 0 : (current - 1) * perPage + 1} to{" "}
+              {Math.min(current * perPage, filtered.length)} of {filtered.length} contacts
+            </span>
+            <label className="flex items-center gap-1.5 text-xs">
+              Rows per page
+              <select
+                className="field !w-auto !px-2 !py-1 !text-xs"
+                value={perPage}
+                onChange={(e) => {
+                  setPerPage(Number(e.target.value));
+                  setPage(1);
+                }}
+              >
+                {PAGE_SIZES.map((n) => (
+                  <option key={n} value={n}>{n}</option>
+                ))}
+              </select>
+            </label>
           </span>
           <div className="flex items-center gap-1.5">
             <button disabled={current === 1} onClick={() => setPage(current - 1)}
@@ -205,6 +218,10 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
         <AddContactModal onClose={() => setAddOpen(false)}
           onCreated={() => { setAddOpen(false); router.refresh(); showToast("Contact saved."); }} />
       )}
+      {editing && (
+        <AddContactModal existing={editing} onClose={() => setEditing(null)}
+          onCreated={() => { setEditing(null); router.refresh(); showToast("Contact updated."); }} />
+      )}
       {importOpen && (
         <ImportModal onClose={() => setImportOpen(false)}
           onImported={(n) => { setImportOpen(false); router.refresh(); showToast(`${n} contacts imported successfully.`); }} />
@@ -220,15 +237,26 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   );
 }
 
-function AddContactModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+function AddContactModal({
+  existing,
+  onClose,
+  onCreated,
+}: {
+  existing?: Contact;
+  onClose: () => void;
+  onCreated: () => void;
+}) {
+  const nameParts = (existing?.name ?? "").split(" ");
+  const [firstName, setFirstName] = useState(nameParts[0] ?? "");
+  const [lastName, setLastName] = useState(nameParts.slice(1).join(" "));
   const [code, setCode] = useState("+1");
-  const [customFormat, setCustomFormat] = useState(false);
-  const [phone, setPhone] = useState("");
-  const [category, setCategory] = useState("Lead");
-  const [tag, setTag] = useState("");
-  const [meta, setMeta] = useState<{ key: string; value: string }[]>([]);
+  const [customFormat, setCustomFormat] = useState(Boolean(existing));
+  const [phone, setPhone] = useState(existing?.phone ?? "");
+  const [category, setCategory] = useState(existing?.category ?? "Lead");
+  const [tag, setTag] = useState(existing?.tag ?? "");
+  const [meta, setMeta] = useState<{ key: string; value: string }[]>(
+    existing?.metadata ? Object.entries(existing.metadata).map(([key, value]) => ({ key, value })) : []
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -237,18 +265,30 @@ function AddContactModal({ onClose, onCreated }: { onClose: () => void; onCreate
     setError(null);
     const metadata: Record<string, string> = {};
     for (const m of meta) if (m.key.trim()) metadata[m.key] = m.value;
-    const res = await fetch("/api/contacts", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        phone: customFormat ? phone : `${code} ${phone}`.trim(),
-        category,
-        tag: tag || "lead",
-        metadata,
-      }),
-    });
+    const res = existing
+      ? await fetch(`/api/contacts/${existing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${firstName} ${lastName}`.trim(),
+            phone: customFormat ? phone : `${code} ${phone}`.trim(),
+            category,
+            tag: tag || "lead",
+            metadata,
+          }),
+        })
+      : await fetch("/api/contacts", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            firstName,
+            lastName,
+            phone: customFormat ? phone : `${code} ${phone}`.trim(),
+            category,
+            tag: tag || "lead",
+            metadata,
+          }),
+        });
     if (res.ok) onCreated();
     else {
       const data = await res.json().catch(() => ({}));
@@ -258,8 +298,8 @@ function AddContactModal({ onClose, onCreated }: { onClose: () => void; onCreate
   }
 
   return (
-    <Modal open onClose={onClose} title="Add New Contact"
-      subtitle="Create a new contact to use in your calling campaigns." wide>
+    <Modal open onClose={onClose} title={existing ? "Edit Contact" : "Add New Contact"}
+      subtitle={existing ? "Update this contact's details." : "Create a new contact to use in your calling campaigns."} wide>
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -323,7 +363,7 @@ function AddContactModal({ onClose, onCreated }: { onClose: () => void; onCreate
         )}
         <div className="flex justify-end">
           <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
-            {busy ? "Saving…" : "Save Contact"}
+            {busy ? "Saving…" : existing ? "Save Changes" : "Save Contact"}
           </button>
         </div>
       </div>

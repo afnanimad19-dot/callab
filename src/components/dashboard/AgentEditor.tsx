@@ -7,9 +7,23 @@
 import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Agent } from "@/lib/db";
-import type { AgentAdvanced, AgentOutcome } from "@/lib/agent-defaults";
-import { DEFAULT_ADVANCED } from "@/lib/agent-defaults";
+import {
+  Sparkles,
+  Wrench,
+  History,
+  Share2,
+  X,
+  Plus,
+  Trash2,
+  Globe,
+  Lock,
+  Copy,
+  Check,
+  Settings,
+} from "lucide-react";
+import type { Agent, AgentRevision } from "@/lib/db";
+import type { AgentAdvanced, AgentOutcome, AgentTool } from "@/lib/agent-defaults";
+import { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "@/lib/agent-defaults";
 
 const VOICES = [
   "Nova (female, warm)",
@@ -33,6 +47,7 @@ type Draft = {
   status: Agent["status"];
   outcomes: AgentOutcome[];
   advanced: AgentAdvanced;
+  tools: AgentTool[];
 };
 
 function draftFrom(agent: Partial<Agent>): Draft {
@@ -49,6 +64,7 @@ function draftFrom(agent: Partial<Agent>): Draft {
     status: agent.status ?? "draft",
     outcomes: agent.outcomes ?? [],
     advanced: { ...DEFAULT_ADVANCED, ...agent.advanced },
+    tools: agent.tools ?? DEFAULT_TOOLS,
   };
 }
 
@@ -164,6 +180,10 @@ export default function AgentEditor({
   const [error, setError] = useState<string | null>(null);
   const [chat, setChat] = useState<{ from: "you" | "agent"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [generateOpen, setGenerateOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(initial.current),
@@ -241,15 +261,24 @@ export default function AgentEditor({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              className="btn-secondary !py-2"
-              title="Connect a phone number to run live test calls"
-              onClick={() =>
-                alert("Test calls need a phone number connected via Vapi — see Phone Numbers.")
-              }
-            >
-              📞 Test Call
-            </button>
+            {agent.id && (
+              <>
+                <button
+                  className="btn-secondary flex items-center gap-1.5 !py-2"
+                  title="Revision history"
+                  onClick={() => setHistoryOpen(true)}
+                >
+                  <History className="h-4 w-4" /> History
+                </button>
+                <button
+                  className="btn-secondary flex items-center gap-1.5 !py-2"
+                  title="Share & embed this agent"
+                  onClick={() => setShareOpen(true)}
+                >
+                  <Share2 className="h-4 w-4" /> Share
+                </button>
+              </>
+            )}
             <button onClick={publish} disabled={busy} className="btn-primary !py-2 disabled:opacity-60">
               {busy ? "Publishing…" : "💾 Publish"}
             </button>
@@ -292,7 +321,22 @@ export default function AgentEditor({
 
         {/* Prompt Configuration OR Flow Designer */}
         {agentType === "single_prompt" ? (
-          <Section icon="🎛" title="Prompt Configuration" subtitle="Define the AI's identity, tasks, and style guardrails.">
+          <Section
+            icon="🎛"
+            title="Prompt Configuration"
+            subtitle="Define the AI's identity, tasks, and style guardrails."
+            action={
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setGenerateOpen(true);
+                }}
+                className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> Generate With AI
+              </button>
+            }
+          >
             <div className="space-y-4">
               <div>
                 <p className="text-sm font-semibold">👤 Agent Identity</p>
@@ -303,12 +347,30 @@ export default function AgentEditor({
                   value={draft.identity} onChange={(e) => set("identity", e.target.value)} />
               </div>
               <div>
-                <p className="text-sm font-semibold">☑️ Tasks</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">☑️ Tasks</p>
+                  <button
+                    onClick={() => setToolsOpen(true)}
+                    className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
+                  >
+                    <Wrench className="h-3.5 w-3.5" /> Add Tools
+                  </button>
+                </div>
                 <p className="mb-2 text-xs text-ink-400">
                   The specific tasks, goals, or actions the AI should be capable of performing.
                 </p>
                 <textarea rows={7} className="field font-mono !text-[13px] leading-relaxed"
                   value={draft.tasks} onChange={(e) => set("tasks", e.target.value)} />
+                {draft.tools.length > 0 && (
+                  <p className="mt-2 flex flex-wrap items-center gap-1.5 text-xs text-ink-400">
+                    Enabled Tools:
+                    {draft.tools.map((t) => (
+                      <code key={t.id} className="rounded bg-ink-800 px-2 py-0.5 text-accent-300">
+                        {t.name}
+                      </code>
+                    ))}
+                  </p>
+                )}
               </div>
               <div>
                 <p className="text-sm font-semibold">🛡 Style Guardrails</p>
@@ -383,34 +445,79 @@ export default function AgentEditor({
           ) : (
             <div className="space-y-3">
               {draft.outcomes.map((o, i) => (
-                <div key={i} className="flex gap-3">
-                  <input
-                    className="field w-48"
-                    placeholder="field_name"
-                    value={o.name}
-                    onChange={(e) => {
-                      const next = [...draft.outcomes];
-                      next[i] = { ...next[i], name: e.target.value };
-                      set("outcomes", next);
-                    }}
-                  />
-                  <input
-                    className="field flex-1"
-                    placeholder="What should the AI extract?"
-                    value={o.description}
-                    onChange={(e) => {
-                      const next = [...draft.outcomes];
-                      next[i] = { ...next[i], description: e.target.value };
-                      set("outcomes", next);
-                    }}
-                  />
-                  <button
-                    onClick={() => set("outcomes", draft.outcomes.filter((_, j) => j !== i))}
-                    className="text-ink-400 hover:text-signal-red"
-                    aria-label="Remove outcome"
-                  >
-                    🗑
-                  </button>
+                <div key={i} className="rounded-xl border border-ink-700 p-4">
+                  <div className="flex gap-3">
+                    <input
+                      className="field w-48"
+                      placeholder="field_name"
+                      value={o.name}
+                      onChange={(e) => {
+                        const next = [...draft.outcomes];
+                        next[i] = { ...next[i], name: e.target.value };
+                        set("outcomes", next);
+                      }}
+                    />
+                    <input
+                      className="field flex-1"
+                      placeholder="What should the AI extract?"
+                      value={o.description}
+                      onChange={(e) => {
+                        const next = [...draft.outcomes];
+                        next[i] = { ...next[i], description: e.target.value };
+                        set("outcomes", next);
+                      }}
+                    />
+                    <button
+                      onClick={() => set("outcomes", draft.outcomes.filter((_, j) => j !== i))}
+                      className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"
+                      aria-label="Remove outcome"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="mt-3">
+                    <p className="text-xs font-medium text-ink-400">Possible Values (optional)</p>
+                    <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                      {(o.possibleValues ?? []).map((v, vi) => (
+                        <span
+                          key={vi}
+                          className="flex items-center gap-1 rounded-full bg-[#301C3F]/10 px-2.5 py-1 text-xs font-medium text-[#301C3F]"
+                        >
+                          {v}
+                          <button
+                            onClick={() => {
+                              const next = [...draft.outcomes];
+                              next[i] = {
+                                ...next[i],
+                                possibleValues: (next[i].possibleValues ?? []).filter((_, j) => j !== vi),
+                              };
+                              set("outcomes", next);
+                            }}
+                            aria-label={`Remove ${v}`}
+                            className="text-[#301C3F]/60 hover:text-[#301C3F]"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </span>
+                      ))}
+                      <input
+                        className="field !w-40 !px-2.5 !py-1 !text-xs"
+                        placeholder="Add value ⏎"
+                        onKeyDown={(e) => {
+                          if (e.key !== "Enter") return;
+                          const value = e.currentTarget.value.trim();
+                          if (!value) return;
+                          const next = [...draft.outcomes];
+                          next[i] = {
+                            ...next[i],
+                            possibleValues: [...(next[i].possibleValues ?? []), value],
+                          };
+                          set("outcomes", next);
+                          e.currentTarget.value = "";
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
@@ -728,6 +835,475 @@ export default function AgentEditor({
           </div>
         </div>
       )}
+
+      {generateOpen && (
+        <GeneratePromptModal
+          onClose={() => setGenerateOpen(false)}
+          onGenerated={(g) => {
+            setGenerateOpen(false);
+            setDraft((d) => ({
+              ...d,
+              identity: g.identity || d.identity,
+              tasks: g.tasks || d.tasks,
+              guardrails: g.guardrails || d.guardrails,
+              greeting: g.greeting || d.greeting,
+            }));
+          }}
+        />
+      )}
+      {toolsOpen && (
+        <ManageToolsModal
+          tools={draft.tools}
+          onChange={(tools) => set("tools", tools)}
+          onClose={() => setToolsOpen(false)}
+        />
+      )}
+      {historyOpen && agent.id && (
+        <RevisionsPanel
+          currentVersion={agent.version ?? 1}
+          revisions={agent.revisions ?? []}
+          onRestore={(snapshot) => {
+            setHistoryOpen(false);
+            setDraft(draftFrom({ ...agent, ...snapshot } as Partial<Agent>));
+          }}
+          onClose={() => setHistoryOpen(false)}
+        />
+      )}
+      {shareOpen && agent.id && (
+        <ShareAgentModal
+          agentId={agent.id}
+          initialVisibility={agent.visibility ?? "private"}
+          onClose={() => setShareOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Generate Prompt Sections (Callab parity) -------------------------------
+
+function GeneratePromptModal({
+  onClose,
+  onGenerated,
+}: {
+  onClose: () => void;
+  onGenerated: (g: { identity: string; tasks: string; guardrails: string; greeting: string }) => void;
+}) {
+  const [description, setDescription] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function generate() {
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/ai/generate-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      onGenerated(data);
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Generate Prompt Sections</h2>
+            <p className="mt-0.5 text-sm text-ink-400">Describe what kind of prompt you want to generate or change…</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <textarea
+          rows={5}
+          className="field mt-4"
+          placeholder="e.g., 'Create a friendly customer support agent for a clothing store that can handle returns and answer questions about sizing.'"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+        />
+        {error && <p className="mt-2 text-sm text-signal-red">{error}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button
+            onClick={generate}
+            disabled={busy || description.trim().length < 10}
+            className="btn-primary flex items-center gap-1.5 disabled:opacity-50"
+          >
+            <Sparkles className="h-3.5 w-3.5" /> {busy ? "Generating…" : "Generate"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Manage Agent Tools (Callab parity) -------------------------------------
+
+function ManageToolsModal({
+  tools,
+  onChange,
+  onClose,
+}: {
+  tools: AgentTool[];
+  onChange: (tools: AgentTool[]) => void;
+  onClose: () => void;
+}) {
+  const [editing, setEditing] = useState<AgentTool | null>(null);
+  const [adding, setAdding] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Manage Agent Tools</h2>
+            <p className="mt-0.5 text-sm text-ink-400">
+              Add and configure tools to enhance your agent&apos;s capabilities during conversations.
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <button onClick={() => setAdding(true)} className="btn-secondary flex items-center gap-1.5 !text-sm">
+            <Plus className="h-3.5 w-3.5" /> Add Tool
+          </button>
+        </div>
+
+        <div className="mt-3 space-y-2">
+          {tools.length === 0 && (
+            <p className="rounded-xl border border-ink-700 px-4 py-8 text-center text-sm text-ink-400">
+              No tools yet — add one to give your agent capabilities like ending the call.
+            </p>
+          )}
+          {tools.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 px-4 py-3">
+              <div className="min-w-0">
+                <p className="flex items-center gap-2 text-sm font-semibold">
+                  {t.title}
+                  <code className="rounded bg-[#301C3F]/10 px-2 py-0.5 text-[11px] font-medium text-[#301C3F]">{t.name}</code>
+                </p>
+                <p className="truncate text-xs text-ink-400">{t.description}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  onClick={() => setEditing(t)}
+                  title="Tool settings"
+                  className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
+                >
+                  <Settings className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => onChange(tools.filter((x) => x.id !== t.id))}
+                  title="Remove tool"
+                  className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {(editing || adding) && (
+          <EditToolModal
+            tool={editing ?? undefined}
+            onClose={() => {
+              setEditing(null);
+              setAdding(false);
+            }}
+            onSave={(tool) => {
+              onChange(
+                editing
+                  ? tools.map((x) => (x.id === tool.id ? tool : x))
+                  : [...tools, tool]
+              );
+              setEditing(null);
+              setAdding(false);
+            }}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditToolModal({
+  tool,
+  onClose,
+  onSave,
+}: {
+  tool?: AgentTool;
+  onClose: () => void;
+  onSave: (tool: AgentTool) => void;
+}) {
+  const [title, setTitle] = useState(tool?.title ?? "");
+  const [name, setName] = useState(tool?.name ?? "");
+  const [description, setDescription] = useState(tool?.description ?? "");
+  const [aiResponse, setAiResponse] = useState(tool?.aiResponse ?? "");
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">{tool ? "Edit Tool" : "Add Tool"}</h2>
+            <p className="mt-0.5 text-sm text-ink-400">
+              {tool ? "Modify the tool settings." : "Define a new capability for your agent."}
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="label">Tool Title</label>
+            <input className="field" placeholder="End Call" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">Tool Name (ID)</label>
+            <input
+              className="field font-mono !text-[13px]"
+              placeholder="end_call"
+              value={name}
+              onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
+            />
+          </div>
+          <div>
+            <label className="label">Description</label>
+            <textarea rows={3} className="field" placeholder="Allows the AI agent to end the current call"
+              value={description} onChange={(e) => setDescription(e.target.value)} />
+          </div>
+          <div>
+            <label className="label">AI Response</label>
+            <textarea rows={3} className="field" placeholder="Say goodbye and wish the caller a great day."
+              value={aiResponse} onChange={(e) => setAiResponse(e.target.value)} />
+            <p className="mt-1 text-xs text-ink-400">What the agent should say when it uses this tool.</p>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button
+              onClick={() =>
+                onSave({
+                  id: tool?.id ?? `tool_${Math.random().toString(36).slice(2, 10)}`,
+                  title,
+                  name,
+                  description,
+                  aiResponse,
+                })
+              }
+              disabled={!title.trim() || !name.trim()}
+              className="btn-primary disabled:opacity-50"
+            >
+              {tool ? "Update" : "Add"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --- Revision history (Callab parity) ---------------------------------------
+
+function RevisionsPanel({
+  currentVersion,
+  revisions,
+  onRestore,
+  onClose,
+}: {
+  currentVersion: number;
+  revisions: AgentRevision[];
+  onRestore: (snapshot: Record<string, unknown>) => void;
+  onClose: () => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+      <div
+        className="flex h-full w-full max-w-sm flex-col border-l border-ink-700 bg-ink-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-ink-700 px-5 py-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold">
+              <History className="h-4 w-4 text-ink-400" /> Revision History
+            </h2>
+            <p className="text-xs text-ink-400">Restore any previously published version</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
+          <div className="rounded-xl border border-[#301C3F]/40 bg-[#301C3F]/5 px-4 py-3">
+            <p className="text-sm font-semibold">v{currentVersion} — Current</p>
+            <p className="text-xs text-ink-400">This is the live published version.</p>
+          </div>
+          {revisions.length === 0 && (
+            <p className="px-1 py-6 text-center text-sm text-ink-400">
+              No previous revisions yet — publish a change to start the history.
+            </p>
+          )}
+          {revisions.map((r) => (
+            <div key={`${r.version}-${r.savedAt}`} className="rounded-xl border border-ink-700 px-4 py-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold">v{r.version}</p>
+                <button
+                  onClick={() => onRestore(r.snapshot)}
+                  className="btn-secondary !px-3 !py-1 !text-xs"
+                >
+                  Restore
+                </button>
+              </div>
+              <p className="mt-0.5 text-xs text-ink-400">
+                Updated {new Date(r.savedAt).toLocaleString()}
+              </p>
+              {typeof r.snapshot.identity === "string" && r.snapshot.identity && (
+                <p className="mt-1.5 line-clamp-2 text-xs text-ink-500">{r.snapshot.identity as string}</p>
+              )}
+            </div>
+          ))}
+        </div>
+        <p className="border-t border-ink-700 px-5 py-3 text-xs text-ink-500">
+          Restoring loads that version into the editor — hit Publish to make it live.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// --- Share & embed (Callab parity) ------------------------------------------
+
+function ShareAgentModal({
+  agentId,
+  initialVisibility,
+  onClose,
+}: {
+  agentId: string;
+  initialVisibility: "private" | "public";
+  onClose: () => void;
+}) {
+  const [visibility, setVisibility] = useState(initialVisibility);
+  const [busy, setBusy] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
+
+  const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const embedUrl = `${origin}/embed/${agentId}`;
+  const embedCode = `<iframe\n  src="${embedUrl}"\n  width="340"\n  height="260"\n  style="border:none;border-radius:16px"\n  allow="microphone"\n></iframe>`;
+
+  async function setPublic(next: "private" | "public") {
+    setBusy(true);
+    const res = await fetch(`/api/agents/${agentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visibility: next }),
+    });
+    if (res.ok) setVisibility(next);
+    setBusy(false);
+  }
+
+  async function copy(text: string, which: string) {
+    await navigator.clipboard.writeText(text);
+    setCopied(which);
+    setTimeout(() => setCopied(null), 2000);
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-lg rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold">
+              <Share2 className="h-4 w-4 text-ink-400" /> Share Agent
+            </h2>
+            <p className="mt-0.5 text-sm text-ink-400">
+              Make this agent public and embed a web-call widget on any website.
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Visibility */}
+        <div className="mt-5 flex items-center justify-between rounded-xl border border-ink-700 px-4 py-3.5">
+          <div className="flex items-center gap-3">
+            {visibility === "public" ? (
+              <Globe className="h-5 w-5 text-emerald-600" />
+            ) : (
+              <Lock className="h-5 w-5 text-ink-400" />
+            )}
+            <div>
+              <p className="text-sm font-semibold">Agent visibility</p>
+              <p className="text-xs text-ink-400">
+                {visibility === "public"
+                  ? "Public — anyone with the link or embed can talk to this agent."
+                  : "Private — only your workspace can access this agent."}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setPublic(visibility === "public" ? "private" : "public")}
+            disabled={busy}
+            className={`rounded-lg px-3.5 py-2 text-xs font-semibold transition disabled:opacity-50 ${
+              visibility === "public"
+                ? "bg-ink-800 text-ink-200 hover:bg-ink-700"
+                : "bg-[#301C3F] text-white hover:opacity-90"
+            }`}
+          >
+            {busy ? "…" : visibility === "public" ? "Make private" : "Make public"}
+          </button>
+        </div>
+
+        {visibility === "public" ? (
+          <>
+            <div className="mt-4">
+              <p className="text-xs font-medium text-ink-400">Share link</p>
+              <div className="mt-1.5 flex gap-2">
+                <input readOnly className="field font-mono !text-[12px]" value={embedUrl} />
+                <button onClick={() => copy(embedUrl, "link")} className="btn-secondary flex items-center gap-1.5 !px-3">
+                  {copied === "link" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-xs font-medium text-ink-400">Embed code — paste into any website</p>
+              <div className="relative mt-1.5">
+                <pre className="overflow-x-auto rounded-xl bg-[#0D1526] p-4 font-mono text-[12px] leading-relaxed text-emerald-300">
+                  {embedCode}
+                </pre>
+                <button
+                  onClick={() => copy(embedCode, "embed")}
+                  className="absolute right-2.5 top-2.5 flex items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1.5 text-xs text-white transition hover:bg-white/20"
+                >
+                  {copied === "embed" ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                  {copied === "embed" ? "Copied" : "Copy"}
+                </button>
+              </div>
+              <p className="mt-2 text-xs text-ink-500">
+                The widget uses your VAPI_PUBLIC_KEY and this agent&apos;s Vapi assistant, so callers talk to the
+                real model straight from the browser.
+              </p>
+            </div>
+          </>
+        ) : (
+          <p className="mt-4 rounded-xl border border-ink-700 px-4 py-6 text-center text-sm text-ink-400">
+            Make the agent public to get a share link and embed code.
+          </p>
+        )}
+      </div>
     </div>
   );
 }

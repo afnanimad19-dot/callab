@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { deleteAgent, findAgent, updateAgent, Agent } from "@/lib/db";
-import { sanitizeAdvanced, sanitizeOutcomes } from "@/lib/agent-sanitize";
+import { deleteAgent, findAgent, updateAgent, Agent, AgentRevision } from "@/lib/db";
+import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
 
 type Params = { params: Promise<{ id: string }> };
@@ -55,14 +55,54 @@ export async function PATCH(request: Request, { params }: Params) {
   if (body?.advanced !== undefined) {
     patch.advanced = sanitizeAdvanced(body.advanced);
   }
+  if (body?.tools !== undefined) {
+    patch.tools = sanitizeTools(body.tools);
+  }
+  if (["private", "public"].includes(body?.visibility)) {
+    patch.visibility = body.visibility;
+  }
+  // A visibility-only change (Share dialog toggle) isn't a new revision.
+  const visibilityOnly =
+    Object.keys(patch).length === 1 && patch.visibility !== undefined;
+  if (visibilityOnly) {
+    const agent = await updateAgent(session.userId, id, patch);
+    if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
+    return NextResponse.json({ agent });
+  }
+
   // Publishing bumps the version so the badge reflects revisions.
   patch.version = (existing.version ?? 1) + 1;
+
+  // Snapshot the outgoing version so the editor can restore it later.
+  const snapshot: AgentRevision = {
+    version: existing.version ?? 1,
+    savedAt: new Date().toISOString(),
+    snapshot: {
+      name: existing.name,
+      language: existing.language,
+      voice: existing.voice,
+      backgroundAudio: existing.backgroundAudio,
+      identity: existing.identity,
+      tasks: existing.tasks,
+      guardrails: existing.guardrails,
+      whoSpeaksFirst: existing.whoSpeaksFirst,
+      greeting: existing.greeting,
+      outcomes: existing.outcomes,
+      advanced: existing.advanced,
+      tools: existing.tools,
+    },
+  };
+  patch.revisions = [snapshot, ...(existing.revisions ?? [])].slice(0, 15);
 
   const agent = await updateAgent(session.userId, id, patch);
   if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    await syncAgentToVapi(agent);
+    const vapiId = await syncAgentToVapi(agent);
+    if (vapiId && vapiId !== agent.vapiAssistantId) {
+      agent.vapiAssistantId = vapiId;
+      await updateAgent(session.userId, id, { vapiAssistantId: vapiId });
+    }
   } catch (e) {
     console.error("Vapi sync failed:", e);
   }

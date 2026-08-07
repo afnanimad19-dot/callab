@@ -50,6 +50,10 @@ export async function syncAgentToVapi(agent: Agent): Promise<string | null> {
     .filter(Boolean);
 
   const payload = {
+    // Conversation tools: End Call lets the model hang up on its own.
+    ...(agent.tools?.some((t) => t.name === "end_call")
+      ? { endCallFunctionEnabled: true }
+      : {}),
     // Vapi-parity advanced settings from the editor's Advanced section.
     ...(adv
       ? {

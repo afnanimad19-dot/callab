@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw, MoreVertical, Pencil, FlaskConical, Trash2 } from "lucide-react";
+import { Search, RefreshCw, Pencil, FlaskConical, Trash2 } from "lucide-react";
 
 // Agents list: search, filter-by-status, refresh, and per-row actions menu.
 
@@ -7,6 +7,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Agent } from "@/lib/db";
 import TestAgentPanel from "./TestAgentPanel";
+import RowMenu from "./RowMenu";
 
 const TYPE_LABEL: Record<string, string> = {
   single_prompt: "Single Prompt",
@@ -17,7 +18,6 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
-  const [menuFor, setMenuFor] = useState<string | null>(null);
   const [testAgentId, setTestAgentId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
@@ -31,14 +31,13 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
   }, [agents, query, status]);
 
   async function remove(agent: Agent) {
-    setMenuFor(null);
     if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
     await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
     router.refresh();
   }
 
   return (
-    <div className="space-y-5" onClick={() => menuFor && setMenuFor(null)}>
+    <div className="space-y-5">
       {/* Search / filter bar */}
       <div className="card flex flex-wrap items-center gap-3 !p-4">
         <div className="relative min-w-[220px] flex-1">
@@ -124,42 +123,14 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
                     {a.status}
                   </span>
                 </td>
-                <td
-                  className="relative px-5 py-3.5 text-right"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <button
-                    onClick={() => setMenuFor(menuFor === a.id ? null : a.id)}
-                    aria-label="Actions"
-                    className="rounded-lg px-2.5 py-1 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
-                  >
-                    <MoreVertical className="h-4 w-4" />
-                  </button>
-                  {menuFor === a.id && (
-                    <div className="absolute right-4 top-11 z-20 w-40 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 text-left shadow-xl shadow-black/30">
-                      <button
-                        onClick={() => router.push(`/dashboard/agents/${a.id}`)}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-ink-200 transition hover:bg-ink-800"
-                      >
-                        <Pencil className="h-3.5 w-3.5" /> Edit
-                      </button>
-                      <button
-                        onClick={() => {
-                          setMenuFor(null);
-                          setTestAgentId(a.id);
-                        }}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-ink-200 transition hover:bg-ink-800"
-                      >
-                        <FlaskConical className="h-3.5 w-3.5" /> Test agent
-                      </button>
-                      <button
-                        onClick={() => remove(a)}
-                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-signal-red transition hover:bg-ink-800"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" /> Delete
-                      </button>
-                    </div>
-                  )}
+                <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                  <RowMenu
+                    items={[
+                      { label: "Edit", icon: Pencil, onClick: () => router.push(`/dashboard/agents/${a.id}`) },
+                      { label: "Test agent", icon: FlaskConical, onClick: () => setTestAgentId(a.id) },
+                      { label: "Delete", icon: Trash2, danger: true, onClick: () => remove(a) },
+                    ]}
+                  />
                 </td>
               </tr>
             ))}

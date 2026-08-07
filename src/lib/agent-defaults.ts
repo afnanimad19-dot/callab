@@ -4,7 +4,27 @@
 export interface AgentOutcome {
   name: string;
   description: string;
+  possibleValues?: string[]; // e.g. ["General Practitioner", "Physiotherapy"]
 }
+
+// Conversation tools the agent can call mid-call (Vapi parity — e.g. End Call).
+export interface AgentTool {
+  id: string;
+  title: string; // display name, e.g. "End Call"
+  name: string; // tool id the model calls, e.g. "end_call"
+  description: string;
+  aiResponse: string; // what the agent says when using the tool
+}
+
+export const DEFAULT_TOOLS: AgentTool[] = [
+  {
+    id: "tool_end_call",
+    title: "End Call",
+    name: "end_call",
+    description: "Allows the AI agent to end the current call",
+    aiResponse: "Say goodbye and wish the caller a great day.",
+  },
+];
 
 export interface AgentAdvanced {
   // Agent Speaking (voice activity detection)

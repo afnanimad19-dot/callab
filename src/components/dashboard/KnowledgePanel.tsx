@@ -1,5 +1,6 @@
 "use client";
-import { Search, RefreshCw, MoreVertical } from "lucide-react";
+import { Search, RefreshCw, FlaskConical, Pencil, Copy, Trash2 } from "lucide-react";
+import RowMenu from "./RowMenu";
 
 // Knowledge Base: searchable grid of resources, "+ Add Resource" dropdown
 // (Text Content / URL / Upload File / Google Doc) opening the type-specific
@@ -25,8 +26,9 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
   const [query, setQuery] = useState("");
   const [addMenu, setAddMenu] = useState(false);
   const [addType, setAddType] = useState<ResourceType | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [editing, setEditing] = useState<KnowledgeBase | null>(null);
   const [testOpen, setTestOpen] = useState(false);
+  const [testPreselect, setTestPreselect] = useState<string[]>([]);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -36,14 +38,30 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
   }, [items, query]);
 
   async function remove(kb: KnowledgeBase) {
-    setMenuFor(null);
     if (!confirm(`Delete "${kb.name}"?`)) return;
     await fetch(`/api/knowledge/${kb.id}`, { method: "DELETE" });
     router.refresh();
   }
 
+  async function duplicate(kb: KnowledgeBase) {
+    await fetch("/api/knowledge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: `${kb.name} (Copy)`,
+        type: kb.type ?? "text",
+        url: kb.url ?? "",
+        content: kb.content ?? "",
+        autoUpdate: kb.autoUpdate ?? false,
+        crawl: kb.crawl ?? false,
+        multipleUrls: kb.multipleUrls ?? false,
+      }),
+    });
+    router.refresh();
+  }
+
   return (
-    <div className="space-y-5" onClick={() => { setMenuFor(null); setAddMenu(false); }}>
+    <div className="space-y-5" onClick={() => setAddMenu(false)}>
       {/* Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
@@ -98,19 +116,21 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
                     </div>
                   </div>
                 </div>
-                <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === kb.id ? null : kb.id); }}
-                  aria-label="Actions"
-                  className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
-                  <MoreVertical className="h-4 w-4" />
-                </button>
-                {menuFor === kb.id && (
-                  <div className="absolute right-4 top-12 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30"
-                    onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => remove(kb)} className="block w-full px-4 py-2 text-left text-sm text-signal-red transition hover:bg-ink-800">
-                      🗑 Delete
-                    </button>
-                  </div>
-                )}
+                <RowMenu
+                  items={[
+                    {
+                      label: "Test",
+                      icon: FlaskConical,
+                      onClick: () => {
+                        setTestPreselect([kb.id]);
+                        setTestOpen(true);
+                      },
+                    },
+                    { label: "Edit", icon: Pencil, onClick: () => setEditing(kb) },
+                    { label: "Copy", icon: Copy, onClick: () => duplicate(kb) },
+                    { label: "Delete", icon: Trash2, danger: true, onClick: () => remove(kb) },
+                  ]}
+                />
               </div>
               <p className="mt-3 flex-1 text-sm text-ink-400">{kb.description}</p>
               <p className="mt-4 border-t border-ink-700/60 pt-3 text-xs text-ink-500">
@@ -129,26 +149,42 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
       {addType && (
         <AddResourceModal type={addType} onClose={() => setAddType(null)} onCreated={() => { setAddType(null); router.refresh(); }} />
       )}
-      {testOpen && <TestPanel items={items} onClose={() => setTestOpen(false)} />}
+      {editing && (
+        <AddResourceModal
+          type={(editing.type ?? "text") as ResourceType}
+          existing={editing}
+          onClose={() => setEditing(null)}
+          onCreated={() => { setEditing(null); router.refresh(); }}
+        />
+      )}
+      {testOpen && (
+        <TestPanel
+          items={items}
+          initialSelected={testPreselect}
+          onClose={() => { setTestOpen(false); setTestPreselect([]); }}
+        />
+      )}
     </div>
   );
 }
 
 function AddResourceModal({
   type,
+  existing,
   onClose,
   onCreated,
 }: {
   type: ResourceType;
+  existing?: KnowledgeBase;
   onClose: () => void;
   onCreated: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const [content, setContent] = useState("");
-  const [multipleUrls, setMultipleUrls] = useState(false);
-  const [crawl, setCrawl] = useState(false);
-  const [autoUpdate, setAutoUpdate] = useState(false);
+  const [name, setName] = useState(existing?.name ?? "");
+  const [url, setUrl] = useState(existing?.url ?? "");
+  const [content, setContent] = useState(existing?.content ?? "");
+  const [multipleUrls, setMultipleUrls] = useState(existing?.multipleUrls ?? false);
+  const [crawl, setCrawl] = useState(existing?.crawl ?? false);
+  const [autoUpdate, setAutoUpdate] = useState(existing?.autoUpdate ?? false);
   const [fileName, setFileName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -157,11 +193,17 @@ function AddResourceModal({
   async function create() {
     setBusy(true);
     setError(null);
-    const res = await fetch("/api/knowledge", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, type, url, content, multipleUrls, crawl, autoUpdate }),
-    });
+    const res = existing
+      ? await fetch(`/api/knowledge/${existing.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, url, content, multipleUrls, crawl, autoUpdate }),
+        })
+      : await fetch("/api/knowledge", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name, type, url, content, multipleUrls, crawl, autoUpdate }),
+        });
     if (res.ok) onCreated();
     else {
       const data = await res.json().catch(() => ({}));
@@ -171,7 +213,7 @@ function AddResourceModal({
   }
 
   return (
-    <Modal open onClose={onClose} title="Add Resource" wide>
+    <Modal open onClose={onClose} title={existing ? "Edit Resource" : "Add Resource"} wide>
       <div className="space-y-4">
         <div>
           <label className="label">Name</label>
@@ -250,7 +292,7 @@ function AddResourceModal({
         <div className="flex justify-end gap-2 pt-1">
           <button onClick={onClose} className="btn-secondary">Cancel</button>
           <button onClick={create} disabled={busy} className="btn-primary disabled:opacity-60">
-            {busy ? "Creating…" : "Create"}
+            {busy ? "Saving…" : existing ? "Save changes" : "Create"}
           </button>
         </div>
       </div>
@@ -258,9 +300,17 @@ function AddResourceModal({
   );
 }
 
-function TestPanel({ items, onClose }: { items: KnowledgeBase[]; onClose: () => void }) {
+function TestPanel({
+  items,
+  initialSelected = [],
+  onClose,
+}: {
+  items: KnowledgeBase[];
+  initialSelected?: string[];
+  onClose: () => void;
+}) {
   const [searchAll, setSearchAll] = useState(false);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(initialSelected);
   const [chat, setChat] = useState<{ from: "you" | "kb"; text: string; sources?: string[] }[]>([]);
   const [input, setInput] = useState("");
   const [busy, setBusy] = useState(false);

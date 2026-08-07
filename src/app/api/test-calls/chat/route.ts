@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { findAgent } from "@/lib/db";
-import { chatWithAssistant, vapiConfigured } from "@/lib/vapi";
+import { findAgent, updateAgent } from "@/lib/db";
+import { chatWithAssistant, syncAgentToVapi, vapiConfigured } from "@/lib/vapi";
 
 // One turn of a text test with an agent. Uses Vapi's Chat API when the agent
 // is synced to a Vapi assistant; otherwise falls back to a local simulated
@@ -18,6 +18,19 @@ export async function POST(request: Request) {
 
   const agent = await findAgent(session.userId, agentId);
   if (!agent) return NextResponse.json({ error: "Agent not found." }, { status: 404 });
+
+  // Auto-sync agents that were created before Vapi was configured.
+  if (vapiConfigured() && !agent.vapiAssistantId) {
+    try {
+      const assistantId = await syncAgentToVapi(agent);
+      if (assistantId) {
+        agent.vapiAssistantId = assistantId;
+        await updateAgent(session.userId, agent.id, { vapiAssistantId: assistantId });
+      }
+    } catch (e) {
+      console.error("Auto-sync before chat failed:", e);
+    }
+  }
 
   if (vapiConfigured() && agent.vapiAssistantId) {
     try {

@@ -1,12 +1,14 @@
 "use client";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Eye, Pencil, Play, Pause, Archive } from "lucide-react";
 
 // Campaigns list: stat cards, search/filter, and rich campaign cards with
 // schedule / contacts / agent / phone-number panels and lifecycle actions.
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import type { Campaign } from "@/lib/db";
+import type { Agent, Campaign, PhoneNumber } from "@/lib/db";
+import Modal from "@/components/Modal";
+import RowMenu from "./RowMenu";
 
 const STATUS_BADGE: Record<Campaign["status"], string> = {
   running: "badge-ok",
@@ -29,10 +31,20 @@ function InfoBox({ icon, title, children }: { icon: string; title: string; child
   );
 }
 
-export default function CampaignsPanel({ campaigns }: { campaigns: Campaign[] }) {
+export default function CampaignsPanel({
+  campaigns,
+  agents = [],
+  phoneNumbers = [],
+}: {
+  campaigns: Campaign[];
+  agents?: Agent[];
+  phoneNumbers?: PhoneNumber[];
+}) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [editing, setEditing] = useState<Campaign | null>(null);
+  const [details, setDetails] = useState<Campaign | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -112,6 +124,16 @@ export default function CampaignsPanel({ campaigns }: { campaigns: Campaign[] })
                 <button onClick={() => setStatus(c.id, "archived")} className="btn-secondary !px-3.5 !py-1.5 !text-xs">
                   🗄 Archive
                 </button>
+                <RowMenu
+                  items={[
+                    { label: "View details", icon: Eye, onClick: () => setDetails(c) },
+                    { label: "Edit", icon: Pencil, onClick: () => setEditing(c) },
+                    ...(c.status === "running"
+                      ? [{ label: "Pause", icon: Pause, onClick: () => setStatus(c.id, "paused") }]
+                      : [{ label: "Resume", icon: Play, onClick: () => setStatus(c.id, "running") }]),
+                    { label: "Archive", icon: Archive, danger: true, onClick: () => setStatus(c.id, "archived") },
+                  ]}
+                />
                 {c.status === "running" && (
                   <button onClick={() => setStatus(c.id, "paused")} className="btn-secondary !px-3.5 !py-1.5 !text-xs !text-signal-amber">
                     ⏸ Pause
@@ -196,6 +218,162 @@ export default function CampaignsPanel({ campaigns }: { campaigns: Campaign[] })
       {visible.length > 0 && (
         <p className="pb-2 text-center text-xs text-ink-500">You&apos;ve reached the end of the list.</p>
       )}
+
+      {editing && (
+        <EditCampaignModal
+          campaign={editing}
+          agents={agents}
+          phoneNumbers={phoneNumbers}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            router.refresh();
+          }}
+        />
+      )}
+      {details && <CampaignDetailsModal campaign={details} onClose={() => setDetails(null)} />}
     </div>
+  );
+}
+
+function EditCampaignModal({
+  campaign,
+  agents,
+  phoneNumbers,
+  onClose,
+  onSaved,
+}: {
+  campaign: Campaign;
+  agents: Agent[];
+  phoneNumbers: PhoneNumber[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [name, setName] = useState(campaign.name);
+  const [description, setDescription] = useState(campaign.goal ?? "");
+  const [agentId, setAgentId] = useState(campaign.agentId);
+  const [phoneNumber, setPhoneNumber] = useState(campaign.phoneNumber ?? "");
+  const [startDate, setStartDate] = useState(campaign.schedule?.startDate ?? "");
+  const [endDate, setEndDate] = useState(campaign.schedule?.endDate ?? "");
+  const [from, setFrom] = useState(campaign.schedule?.from ?? "09:00");
+  const [to, setTo] = useState(campaign.schedule?.to ?? "17:00");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    await fetch(`/api/campaigns/${campaign.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        description,
+        agentId,
+        phoneNumber,
+        schedule: { ...(campaign.schedule ?? {}), startDate, endDate, from, to },
+      }),
+    });
+    onSaved();
+  }
+
+  return (
+    <Modal open onClose={onClose} title="Edit Campaign" wide>
+      <div className="space-y-4">
+        <div>
+          <label className="label">Campaign name</label>
+          <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
+        </div>
+        <div>
+          <label className="label">Description</label>
+          <textarea rows={2} className="field" value={description} onChange={(e) => setDescription(e.target.value)} />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">AI Agent</label>
+            <select className="field" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+              {agents.map((a) => (
+                <option key={a.id} value={a.id}>{a.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="label">Phone number</label>
+            <select className="field" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)}>
+              <option value="">No number assigned</option>
+              {phoneNumbers.map((p) => (
+                <option key={p.id} value={p.number}>{p.number}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        {(campaign.direction ?? "outbound") === "outbound" && (
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="label">Start date</label>
+              <input type="date" className="field" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">End date (empty = ongoing)</label>
+              <input type="date" className="field" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Calling from</label>
+              <input type="time" className="field" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Calling until</label>
+              <input type="time" className="field" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          </div>
+        )}
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={save} disabled={busy || !name.trim()} className="btn-primary disabled:opacity-60">
+            {busy ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function CampaignDetailsModal({ campaign, onClose }: { campaign: Campaign; onClose: () => void }) {
+  const rows: [string, string][] = [
+    ["Status", campaign.status],
+    ["Direction", campaign.direction ?? "outbound"],
+    ["AI Agent", campaign.agentName],
+    ["Phone number", campaign.phoneNumber || "No number assigned"],
+    ["Contacts", `${campaign.contactsCalled} of ${campaign.contactsTotal} called`],
+    ["Tags filter", campaign.filters?.tags?.length ? campaign.filters.tags.join(", ") : "All contacts"],
+    [
+      "Schedule",
+      campaign.schedule
+        ? `${campaign.schedule.startDate} — ${campaign.schedule.endDate || "Ongoing"} · ${campaign.schedule.from}–${campaign.schedule.to} (${campaign.schedule.timezone}) · ${campaign.schedule.days.join(", ")}`
+        : "—",
+    ],
+    ["Webhook", campaign.webhookId || "None"],
+    [
+      "Variable mapping",
+      campaign.variableMapping && Object.keys(campaign.variableMapping).length
+        ? Object.entries(campaign.variableMapping).map(([k, v]) => `{{${k}}} → ${v}`).join(", ")
+        : "None",
+    ],
+    ["Created", new Date(campaign.createdAt).toLocaleString()],
+    ["Updated", new Date(campaign.updatedAt ?? campaign.createdAt).toLocaleString()],
+  ];
+  return (
+    <Modal open onClose={onClose} title={campaign.name} wide>
+      {campaign.goal && <p className="mb-4 text-sm text-ink-300">{campaign.goal}</p>}
+      <div className="divide-y divide-ink-700/70 rounded-xl border border-ink-700">
+        {rows.map(([label, value]) => (
+          <div key={label} className="flex items-start justify-between gap-6 px-4 py-2.5 text-sm">
+            <span className="shrink-0 text-ink-400">{label}</span>
+            <span className="text-right font-medium capitalize">{value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-4 flex justify-end">
+        <button onClick={onClose} className="btn-secondary">Close</button>
+      </div>
+    </Modal>
   );
 }

@@ -27,9 +27,17 @@ export interface User {
   mustResetPassword?: boolean;
 }
 
-import type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
-export { DEFAULT_ADVANCED } from "./agent-defaults";
-export type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
+import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
+export { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "./agent-defaults";
+export type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
+
+// Snapshot of the editable fields, kept per save so the editor can show a
+// revision history and restore any previous version.
+export interface AgentRevision {
+  version: number;
+  savedAt: string;
+  snapshot: Record<string, unknown>;
+}
 
 export interface Agent {
   id: string;
@@ -54,6 +62,9 @@ export interface Agent {
   whoSpeaksFirst?: "agent" | "caller";
   outcomes?: AgentOutcome[];
   advanced?: AgentAdvanced;
+  tools?: AgentTool[];
+  visibility?: "private" | "public"; // public = embeddable web-call widget
+  revisions?: AgentRevision[]; // most recent first, capped
 }
 
 export interface TranscriptTurn {
@@ -456,6 +467,11 @@ export const createAgent = (a: Agent) => store.insert("agents", a);
 export const insertAgents = (rows: Agent[]) => store.insertMany("agents", rows);
 // Used by the Vapi webhook to route an incoming call to the right workspace,
 // since the webhook only knows the Vapi assistant id (across all users).
+// Cross-workspace lookup used ONLY by the public embed endpoint, which
+// checks agent.visibility === "public" before returning anything.
+export async function findAgentAnyUser(id: string): Promise<Agent | undefined> {
+  return (await store.list<Agent>("agents")).find((a) => a.id === id);
+}
 export async function findAgentByVapiAssistantId(
   assistantId: string
 ): Promise<Agent | undefined> {
@@ -493,6 +509,11 @@ export const listContacts = (userId: string) => store.list<Contact>("contacts", 
 export const createContact = (c: Contact) => store.insert("contacts", c);
 export const insertContacts = (rows: Contact[]) => store.insertMany("contacts", rows);
 export const deleteContact = (id: string) => store.remove("contacts", id);
+export async function updateContact(userId: string, id: string, patch: Partial<Contact>) {
+  const exists = (await listContacts(userId)).some((c) => c.id === id);
+  if (!exists) return undefined;
+  return store.update<Contact>("contacts", id, patch);
+}
 
 export const listPhoneNumbers = (userId: string) => store.list<PhoneNumber>("phoneNumbers", userId);
 export const createPhoneNumber = (p: PhoneNumber) => store.insert("phoneNumbers", p);
@@ -533,6 +554,15 @@ export async function deleteIntegration(userId: string, id: string) {
 export const listKnowledgeBases = (userId: string) => store.list<KnowledgeBase>("knowledgeBases", userId);
 export const createKnowledgeBase = (k: KnowledgeBase) => store.insert("knowledgeBases", k);
 export const insertKnowledgeBases = (rows: KnowledgeBase[]) => store.insertMany("knowledgeBases", rows);
+export async function updateKnowledgeBase(
+  userId: string,
+  id: string,
+  patch: Partial<KnowledgeBase>
+) {
+  const exists = (await listKnowledgeBases(userId)).some((k) => k.id === id);
+  if (!exists) return undefined;
+  return store.update<KnowledgeBase>("knowledgeBases", id, patch);
+}
 export async function deleteKnowledgeBase(userId: string, id: string) {
   const exists = (await listKnowledgeBases(userId)).some((k) => k.id === id);
   if (!exists) return false;

@@ -40,7 +40,7 @@ export default async function LaunchPage() {
           contacts={contacts}
         />
       </div>
-      <CampaignsPanel campaigns={campaigns} />
+      <CampaignsPanel campaigns={campaigns} agents={agents} phoneNumbers={phoneNumbers} />
     </div>
   );
 }
