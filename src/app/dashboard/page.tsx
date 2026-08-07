@@ -123,7 +123,7 @@ export default async function OverviewPage({
   for (const c of calls) {
     reasonCounts.set(c.endReason, (reasonCounts.get(c.endReason) ?? 0) + 1);
   }
-  const reasonPalette = [CHART_COLORS.purple, CHART_COLORS.lilac, CHART_COLORS.purpleSoft, "#ddd6fe", "#ede9fe"];
+  const reasonPalette = ["#301C3F", CHART_COLORS.purple, CHART_COLORS.fuchsia, CHART_COLORS.lilac, "#64748B"];
   const reasons = [...reasonCounts.entries()].map(([label, value], i) => ({
     label,
     value,

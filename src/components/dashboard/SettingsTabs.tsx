@@ -203,23 +203,10 @@ function PreferencesTab() {
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifEscalation, setNotifEscalation] = useState(true);
 
-  function setTheme(theme: "light" | "dark") {
-    if (theme === "light") document.documentElement.setAttribute("data-theme", "light");
-    else document.documentElement.removeAttribute("data-theme");
-    try { localStorage.setItem("theme", theme); } catch {}
-  }
-
   return (
     <div className="card max-w-xl !p-7">
       <h2 className="text-base font-semibold">Preferences</h2>
       <div className="mt-5 space-y-5">
-        <div>
-          <label className="label">Theme</label>
-          <div className="flex gap-2">
-            <button onClick={() => setTheme("light")} className="btn-secondary">☀️ Light</button>
-            <button onClick={() => setTheme("dark")} className="btn-secondary">🌙 Dark</button>
-          </div>
-        </div>
         <label className="flex items-center justify-between rounded-xl border border-ink-700 px-4 py-3 text-sm">
           <span>Email me a daily call summary</span>
           <input type="checkbox" className="h-4 w-4 accent-accent-500"

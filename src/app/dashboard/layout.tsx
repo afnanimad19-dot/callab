@@ -2,7 +2,6 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import NavLink from "@/components/dashboard/NavLink";
-import ThemeToggle from "@/components/ThemeToggle";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
 
 export const metadata = { title: "Dashboard — VoiceLine AI" };
@@ -58,7 +57,7 @@ export default async function DashboardLayout({
 
   return (
     <div className="flex min-h-screen bg-ink-950">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-ink-700 bg-ink-900 lg:flex">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-ink-700 bg-[#FBF9FE] lg:flex">
         <Link href="/" className="flex h-16 items-center gap-2.5 px-5">
           <span className="orb inline-block h-8 w-8" aria-hidden />
           <span className="text-[17px] font-semibold tracking-tight">
@@ -119,7 +118,6 @@ export default async function DashboardLayout({
             VoiceLine AI
           </Link>
           <div className="flex items-center gap-3">
-            <ThemeToggle />
             <span className="hidden text-sm text-ink-400 sm:block">{session.email}</span>
             <ProfileMenu
               name={session.name}

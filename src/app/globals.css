@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Theme variables. The "ink" scale is ordered by surface depth
-   (950 = page background … 100 = primary text). Dark is the default;
-   [data-theme="light"] flips every surface to white/lavender while the
-   accent gradient (violet → fuchsia → orange) stays identical. */
 @keyframes marquee {
   from { transform: translateX(0); }
   to { transform: translateX(-50%); }
@@ -16,54 +12,39 @@
   to { background-position: 100% 100%; }
 }
 
+/* Light-only design system matched to the reference palette:
+   white surfaces, #020817 ink, #E8E8E8 borders, #64748B muted text,
+   deep-purple #301C3F primary actions, violet accents.
+   The "ink" scale is ordered by surface depth
+   (950 = page background … 100 = primary text). */
 :root {
-  color-scheme: dark;
-  --ink-950: 7 7 9;
-  --ink-900: 13 13 17;
-  --ink-850: 17 17 22;
-  --ink-800: 25 25 32;
-  --ink-700: 36 36 46;
-  --ink-600: 50 50 62;
-  --ink-500: 88 88 102;
-  --ink-400: 139 139 154;
-  --ink-300: 180 180 192;
-  --ink-200: 220 220 228;
-  --ink-100: 245 245 248;
-
-  --chart-grid: #24242e;
-  --chart-label: #8b8b9a;
-  --chart-text: #f5f5f8;
-  --chart-bar-label: #b4b4c0;
-  --chart-track: #191920;
-}
-
-[data-theme="light"] {
   color-scheme: light;
-  --ink-950: 246 245 250;
-  --ink-900: 255 255 255;
-  --ink-850: 255 255 255;
-  --ink-800: 243 241 250;
-  --ink-700: 232 229 243;
-  --ink-600: 217 212 234;
-  --ink-500: 164 159 189;
-  --ink-400: 124 118 145;
-  --ink-300: 91 85 112;
-  --ink-200: 56 51 77;
-  --ink-100: 25 21 39;
+  --ink-950: 255 255 255; /* page background */
+  --ink-900: 255 255 255; /* raised surface */
+  --ink-850: 255 255 255; /* card background */
+  --ink-800: 241 245 249; /* subtle fill / hover (#F1F5F9) */
+  --ink-700: 232 232 232; /* borders (#E8E8E8) */
+  --ink-600: 217 217 222; /* strong borders */
+  --ink-500: 148 163 184; /* placeholders */
+  --ink-400: 100 116 139; /* muted text (#64748B) */
+  --ink-300: 71 85 105;   /* secondary text */
+  --ink-200: 30 41 59;    /* strong text */
+  --ink-100: 2 8 23;      /* primary text (#020817) */
 
-  --chart-grid: #e8e5f3;
-  --chart-label: #7c7691;
-  --chart-text: #191527;
-  --chart-bar-label: #5b5570;
-  --chart-track: #f3f1fa;
+  --chart-grid: #e8e8e8;
+  --chart-label: #64748b;
+  --chart-text: #020817;
+  --chart-bar-label: #475569;
+  --chart-track: #f1f5f9;
 }
 
 body {
   @apply bg-ink-950 text-ink-100 antialiased;
+  font-family: "Helvetica Neue", Inter, ui-sans-serif, system-ui, Helvetica, Arial, sans-serif;
 }
 
 ::selection {
-  @apply bg-accent-500/40;
+  @apply bg-accent-500/25;
 }
 
 @layer components {
@@ -71,73 +52,53 @@ body {
     @apply mx-auto w-full max-w-6xl px-5 sm:px-8;
   }
 
-  /* Gradient signature of the theme: violet → fuchsia → orange */
+  /* Violet gradient signature — used sparingly (brand mark, avatars). */
   .grad-text {
-    @apply bg-gradient-to-r from-accent-400 via-glow-pink to-glow-orange bg-clip-text text-transparent;
-  }
-  [data-theme="light"] .grad-text {
-    @apply from-accent-600 via-glow-pink to-glow-orange;
+    @apply bg-gradient-to-r from-accent-600 via-glow-pink to-glow-orange bg-clip-text text-transparent;
   }
   .grad-bg {
     @apply bg-gradient-to-br from-accent-600 via-glow-pink to-glow-orange;
   }
 
+  /* Primary action: deep-purple solid, compact radius. */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-accent-600 to-glow-pink px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-accent-600/25 transition duration-200 hover:shadow-accent-500/40 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-accent-400/60;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[#301C3F] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors duration-200 hover:bg-[#3f2853] focus:outline-none focus:ring-2 focus:ring-accent-500/40;
   }
   .btn-dark {
-    @apply inline-flex items-center justify-center gap-2 rounded-full bg-ink-100 px-5 py-2.5 text-sm font-semibold text-ink-950 transition duration-200 hover:brightness-110 focus:outline-none focus:ring-2 focus:ring-ink-400/50;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg bg-[#020817] px-4 py-2 text-sm font-medium text-white transition-colors duration-200 hover:bg-[#1e293b] focus:outline-none focus:ring-2 focus:ring-ink-400/40;
   }
   .btn-secondary {
-    @apply inline-flex items-center justify-center gap-2 rounded-full border border-ink-600 bg-ink-850 px-5 py-2.5 text-sm font-semibold text-ink-200 transition duration-200 hover:border-accent-500/50 hover:bg-ink-800 hover:text-ink-100;
+    @apply inline-flex items-center justify-center gap-2 rounded-lg border border-ink-700 bg-white px-4 py-2 text-sm font-medium text-ink-200 transition-colors duration-200 hover:bg-ink-800 hover:text-ink-100 focus:outline-none focus:ring-2 focus:ring-ink-400/30;
   }
 
-  /* Boxes: card with subtle border; on hover the border lights up with the
-     accent, the card lifts, and a soft glow appears underneath. */
   .card {
-    @apply rounded-2xl border border-ink-700 bg-ink-850 p-5 transition duration-200;
-  }
-  [data-theme="light"] .card {
-    @apply shadow-sm shadow-ink-700/40;
+    @apply rounded-xl border border-ink-700 bg-white p-5 shadow-sm transition duration-200;
   }
   .card-hover {
-    @apply hover:-translate-y-0.5 hover:border-accent-500/40 hover:bg-ink-800 hover:shadow-xl hover:shadow-accent-600/10;
-  }
-  [data-theme="light"] .card-hover {
-    @apply hover:bg-ink-900 hover:shadow-accent-600/15;
+    @apply hover:-translate-y-0.5 hover:border-ink-600 hover:shadow-md;
   }
 
   .field {
-    @apply w-full rounded-lg border border-ink-600 bg-ink-900 px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 transition focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500/50;
+    @apply w-full rounded-lg border border-ink-700 bg-white px-3.5 py-2.5 text-sm text-ink-100 placeholder:text-ink-500 transition focus:border-accent-500 focus:outline-none focus:ring-1 focus:ring-accent-500/40;
   }
   .label {
     @apply mb-1.5 block text-xs font-medium uppercase tracking-wide text-ink-400;
   }
 
   .badge-ok {
-    @apply rounded-full bg-accent-500/15 px-2.5 py-1 text-xs font-medium text-accent-300;
-  }
-  [data-theme="light"] .badge-ok {
-    @apply text-accent-600;
+    @apply rounded-full bg-violet-100 px-2.5 py-1 text-xs font-medium text-violet-700;
   }
   .badge-warn {
-    @apply rounded-full bg-signal-amber/15 px-2.5 py-1 text-xs font-medium text-signal-amber;
-  }
-  [data-theme="light"] .badge-warn {
-    @apply text-amber-600;
+    @apply rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700;
   }
   .badge-bad {
-    @apply rounded-full bg-signal-red/15 px-2.5 py-1 text-xs font-medium text-signal-red;
-  }
-  [data-theme="light"] .badge-bad {
-    @apply text-red-600;
+    @apply rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-600;
   }
   .badge-muted {
     @apply rounded-full bg-ink-800 px-2.5 py-1 text-xs font-medium text-ink-300;
   }
 
-  /* Landing page marquees: duplicated track sliding 0 → -50% for a
-     seamless infinite loop. */
+  /* Landing page marquees. */
   .marquee-track {
     display: flex;
     width: max-content;
@@ -168,16 +129,11 @@ body {
     animation: aurora-drift 18s ease-in-out infinite alternate;
   }
 
-  /* The glowing gradient orb used across the site (hero, about, brand). */
+  /* Gradient orb brand mark. */
   .orb {
     @apply rounded-full bg-gradient-to-tr from-accent-600 via-glow-pink to-glow-orange;
     box-shadow:
-      0 0 40px rgba(139, 92, 246, 0.45),
-      0 0 90px rgba(217, 70, 239, 0.25);
-  }
-  [data-theme="light"] .orb {
-    box-shadow:
-      0 0 30px rgba(139, 92, 246, 0.3),
-      0 0 70px rgba(217, 70, 239, 0.18);
+      0 0 24px rgba(139, 92, 246, 0.25),
+      0 0 50px rgba(217, 70, 239, 0.12);
   }
 }

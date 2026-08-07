@@ -49,7 +49,7 @@ export default function NavLink({
       href={href}
       className={`flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition ${
         active
-          ? "bg-accent-500/12 text-accent-400"
+          ? "bg-[#F0EAF7] font-semibold text-[#301C3F]"
           : "text-ink-300 hover:bg-ink-800 hover:text-ink-100"
       }`}
     >
