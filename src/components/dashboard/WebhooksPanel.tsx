@@ -56,7 +56,8 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
 
       {visible.length === 0 ? (
         <div className="card flex flex-col items-center border-dashed py-14 text-center">
-          <span className="flex h-12 w-12 items-center justify-center rounded-full bg-ink-800 text-xl">+</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/media/empty-state.webp" alt="" className="h-28 w-28" />
           <p className="mt-4 text-sm font-semibold">No webhooks found</p>
           <p className="mt-1 text-sm text-ink-400">Get started by adding your first webhook</p>
           <button onClick={() => setChooser(true)} className="btn-primary mt-5">+ Add Webhook</button>

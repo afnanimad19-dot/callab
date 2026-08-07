@@ -6,17 +6,6 @@ import { ArrowRight } from "lucide-react";
 // has one designed look. Media panels use animated aurora gradients; swap
 // the .aurora divs for <video> elements when you have brand footage.
 
-function LogoIcon({ className = "" }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 256 256" className={className} fill="currentColor" aria-hidden>
-      <path
-        fillRule="evenodd"
-        d="M64 0h128c35.3 0 64 28.7 64 64v128c0 35.3-28.7 64-64 64H64c-35.3 0-64-28.7-64-64V64C0 28.7 28.7 0 64 0Zm64 72a56 56 0 1 0 0 112 56 56 0 0 0 0-112Zm0 30a26 26 0 1 1 0 52 26 26 0 0 1 0-52Z"
-      />
-    </svg>
-  );
-}
-
 function PillButton({
   href,
   children,
@@ -72,7 +61,8 @@ export default function LandingPage() {
         <nav className="absolute left-0 right-0 top-0 z-20 px-6 py-5">
           <div className="mx-auto flex max-w-[88rem] items-center justify-between">
             <Link href="/" className="flex items-center gap-2.5">
-              <LogoIcon className="h-7 w-7 text-black" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/media/logo.webp" alt="" className="h-8 w-8" />
               <span className="text-2xl font-medium tracking-tight text-black">VoiceLine</span>
             </Link>
             <div className="hidden items-center gap-8 md:flex">
@@ -99,11 +89,19 @@ export default function LandingPage() {
         <section className="flex flex-1 items-end px-6 pb-6 pt-20">
           <div className="relative mx-auto w-full max-w-[88rem] overflow-hidden rounded-2xl"
             style={{ height: "calc(100vh - 96px)" }}>
-            {/* Media backdrop — generated brand visual over the aurora base */}
+            {/* Media backdrop — generated brand video over the aurora base,
+                with the still image as its poster while it loads */}
             <div className="aurora absolute inset-0" />
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/media/hero.webp" alt=""
-              className="absolute inset-0 h-full w-full object-cover" />
+            <video
+              autoPlay
+              muted
+              loop
+              playsInline
+              poster="/media/hero.webp"
+              className="absolute inset-0 h-full w-full object-cover"
+            >
+              <source src="/media/hero-loop.mp4" type="video/mp4" />
+            </video>
             {/* Legibility wash behind the headline */}
             <div className="absolute inset-0"
               style={{ background: "linear-gradient(105deg, rgba(245,245,245,0.82) 0%, rgba(245,245,245,0.45) 38%, rgba(245,245,245,0) 62%)" }} />
@@ -186,30 +184,40 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Card 2 — solid */}
-            <div className="flex min-h-80 flex-col justify-between rounded-2xl bg-[#2B2644] p-7">
-              <h3 className="text-2xl font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>
-                Always live,
-                <br />
-                always supervised.
-              </h3>
-              <p className="text-base text-white/60">
-                Watch streaming transcripts with sentiment scores, and take over
-                any call in one click — the caller never notices the switch.
-              </p>
+            {/* Card 2 — dark with wave artwork */}
+            <div className="relative overflow-hidden rounded-2xl bg-[#2B2644]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/media/dark-wave.webp" alt=""
+                className="absolute inset-0 h-full w-full object-cover" />
+              <div className="relative flex min-h-80 flex-col justify-between p-7">
+                <h3 className="text-2xl font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>
+                  Always live,
+                  <br />
+                  always supervised.
+                </h3>
+                <p className="text-base text-white/60">
+                  Watch streaming transcripts with sentiment scores, and take over
+                  any call in one click — the caller never notices the switch.
+                </p>
+              </div>
             </div>
 
-            {/* Card 3 — solid */}
-            <div className="flex min-h-80 flex-col justify-between rounded-2xl bg-[#2B2644] p-7">
-              <h3 className="text-2xl font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>
-                Fully
-                <br />
-                automated
-              </h3>
-              <p className="text-base text-white/60">
-                Skip staffing the phone line yourself. VoiceLine answers,
-                summarizes and syncs outcomes in the background for you.
-              </p>
+            {/* Card 3 — dark with orb artwork */}
+            <div className="relative overflow-hidden rounded-2xl bg-[#2B2644]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/media/dark-orb.webp" alt=""
+                className="absolute inset-0 h-full w-full object-cover" />
+              <div className="relative flex min-h-80 flex-col justify-between p-7">
+                <h3 className="text-2xl font-medium leading-snug text-white" style={{ letterSpacing: "-0.02em" }}>
+                  Fully
+                  <br />
+                  automated
+                </h3>
+                <p className="text-base text-white/60">
+                  Skip staffing the phone line yourself. VoiceLine answers,
+                  summarizes and syncs outcomes in the background for you.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -281,7 +289,8 @@ export default function LandingPage() {
       <footer className="bg-[#F5F5F5] px-6 pb-10">
         <div className="mx-auto flex max-w-[88rem] flex-col items-center justify-between gap-4 border-t border-black/10 pt-8 sm:flex-row">
           <div className="flex items-center gap-2">
-            <LogoIcon className="h-5 w-5 text-black" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/media/logo.webp" alt="" className="h-5 w-5" />
             <span className="text-sm font-medium text-black">VoiceLine AI</span>
           </div>
           <p className="text-xs text-black/50">

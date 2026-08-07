@@ -185,7 +185,9 @@ export default function CampaignsPanel({ campaigns }: { campaigns: Campaign[] })
       })}
 
       {visible.length === 0 && (
-        <div className="card py-12 text-center text-sm text-ink-400">
+        <div className="card flex flex-col items-center py-12 text-center text-sm text-ink-400">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/media/empty-state.webp" alt="" className="mb-4 h-28 w-28" />
           {campaigns.length === 0
             ? "No campaigns yet — create one to start calling."
             : "No campaigns match your search."}

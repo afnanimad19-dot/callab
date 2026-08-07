@@ -59,7 +59,8 @@ export default async function DashboardLayout({
     <div className="flex min-h-screen bg-ink-950">
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r border-ink-700 bg-[#FBF9FE] lg:flex">
         <Link href="/" className="flex h-16 items-center gap-2.5 px-5">
-          <span className="orb inline-block h-8 w-8" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/media/logo.webp" alt="" className="h-8 w-8" />
           <span className="text-[17px] font-semibold tracking-tight">
             <span className="font-bold">Voice</span>Line AI
           </span>

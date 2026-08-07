@@ -47,7 +47,8 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
       />
       <div className="relative w-full max-w-md">
         <Link href="/" className="flex items-center justify-center gap-2.5">
-          <span className="orb inline-block h-10 w-10" aria-hidden />
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/media/logo.webp" alt="" className="h-10 w-10" />
           <span className="text-2xl tracking-tight">
             <span className="font-bold">Voice</span>
             <span className="font-light text-ink-300">Line AI</span>
