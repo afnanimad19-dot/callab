@@ -31,6 +31,21 @@ export interface AgentAdvanced {
   maxCallDuration: number; // minutes
   // Privacy
   dataStorage: "store" | "transcripts_only" | "none";
+  // Stop speaking plan (how user speech interrupts the assistant) — Vapi parity
+  stopSpeakingNumWords: number; // 0–10 words before assistant stops
+  stopSpeakingVoiceSeconds: number; // 0–0.5s of user voice that counts as interruption
+  stopSpeakingBackoffSeconds: number; // 0–10s before assistant may speak again
+  // Messaging — Vapi parity
+  voicemailMessage: string; // spoken when voicemail is detected ("" = hang up)
+  endCallMessage: string; // spoken right before ending the call
+  endCallPhrases: string; // comma-separated phrases that end the call
+  idleMessage: string; // spoken when the caller goes idle
+  idleTimeout: number; // 5–60s of silence before the idle message
+  idleMaxCount: number; // 1–10 idle messages before hanging up
+  // Keypad input (DTMF) — Vapi parity
+  keypadInputEnabled: boolean;
+  keypadInputTimeout: number; // 0.5–10s to wait for more digits
+  keypadInputDelimiter: "#" | "*" | "both";
 }
 
 export const DEFAULT_ADVANCED: AgentAdvanced = {
@@ -52,4 +67,16 @@ export const DEFAULT_ADVANCED: AgentAdvanced = {
   maxSilenceDuration: 120,
   maxCallDuration: 60,
   dataStorage: "store",
+  stopSpeakingNumWords: 0,
+  stopSpeakingVoiceSeconds: 0.2,
+  stopSpeakingBackoffSeconds: 1,
+  voicemailMessage: "",
+  endCallMessage: "Thank you for your time. Goodbye!",
+  endCallPhrases: "goodbye, bye for now",
+  idleMessage: "Are you still there?",
+  idleTimeout: 10,
+  idleMaxCount: 3,
+  keypadInputEnabled: false,
+  keypadInputTimeout: 2,
+  keypadInputDelimiter: "#",
 };

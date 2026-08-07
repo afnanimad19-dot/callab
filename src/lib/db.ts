@@ -18,6 +18,13 @@ export interface User {
   name: string;
   createdAt: string;
   apiKey?: string;
+  // Team members: ownerId points at the workspace owner's user id.
+  ownerId?: string;
+  role?: "owner" | "supervisor" | "viewer";
+  status?: "active" | "invited" | "blocked";
+  verifyToken?: string;
+  emailVerified?: boolean;
+  mustResetPassword?: boolean;
 }
 
 import type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
@@ -71,6 +78,8 @@ export interface Call {
   summary: string;
   campaignId?: string;
   transcript: TranscriptTurn[];
+  isTest?: boolean; // logged from the Test Agent panel
+  recordingUrl?: string; // audio recording (from the voice pipeline)
 }
 
 export interface CampaignSchedule {
@@ -429,6 +438,14 @@ export const updateUser = (id: string, patch: Partial<User>) =>
   store.update<User>("users", id, patch);
 export async function findUserById(id: string): Promise<User | undefined> {
   return (await store.list<User>("users")).find((u) => u.id === id);
+}
+// Owner + everyone invited into the owner's workspace.
+export async function listWorkspaceMembers(ownerId: string): Promise<User[]> {
+  const all = await store.list<User>("users");
+  return all.filter((u) => u.id === ownerId || u.ownerId === ownerId);
+}
+export async function findUserByVerifyToken(token: string): Promise<User | undefined> {
+  return (await store.list<User>("users")).find((u) => u.verifyToken === token);
 }
 
 export const listAgents = (userId: string) => store.list<Agent>("agents", userId);

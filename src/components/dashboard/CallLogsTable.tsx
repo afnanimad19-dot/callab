@@ -132,7 +132,10 @@ export default function CallLogsTable({
                 <tr key={c.id} className="cursor-pointer transition hover:bg-ink-800/60"
                   onClick={() => router.push(`/dashboard/calls/${c.id}`)}>
                   <td className="px-4 py-3 text-ink-300">
-                    {new Date(c.startedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                    <span className="flex items-center gap-2">
+                      {new Date(c.startedAt).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+                      {c.isTest && <span className="badge-warn !text-[10px]">test</span>}
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-mono text-[13px]">{inbound ? c.callerNumber : agentNum}</td>
                   <td className="px-4 py-3 font-mono text-[13px]">{inbound ? agentNum : c.callerNumber}</td>
@@ -141,7 +144,7 @@ export default function CallLogsTable({
                   <td className="px-4 py-3"><span className={s.cls}>{s.label}</span></td>
                   <td className="px-4 py-3 text-ink-300">{campaignName(c.campaignId)}</td>
                   <td className="px-4 py-3">{c.agentName}</td>
-                  <td className="px-4 py-3 text-ink-400">▶</td>
+                  <td className="px-4 py-3 text-ink-400">{c.recordingUrl ? "▶ audio" : "—"}</td>
                 </tr>
               );
             })}

@@ -27,7 +27,14 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
     });
 
     if (res.ok) {
-      router.push(searchParams.get("next") ?? "/dashboard");
+      const data = await res.json().catch(() => ({}));
+      // Invited members who logged in with a temporary password go straight
+      // to Settings to set their own.
+      router.push(
+        data.mustResetPassword
+          ? "/dashboard/settings?reset=1"
+          : (searchParams.get("next") ?? "/dashboard")
+      );
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));
@@ -71,6 +78,17 @@ export default function AuthForm({ mode }: { mode: "login" | "signup" }) {
               ? "Enter your credentials to access your account"
               : "Your business gets its own dashboard, agents, and call logs"}
           </p>
+
+          {mode === "login" && searchParams.get("verified") === "1" && (
+            <p className="mt-4 rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-sm text-emerald-800">
+              Email verified! Log in with the temporary password from your invitation email.
+            </p>
+          )}
+          {mode === "login" && searchParams.get("verified") === "invalid" && (
+            <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2.5 text-sm text-amber-800">
+              That verification link is invalid or was already used. You can still log in normally.
+            </p>
+          )}
 
           <form onSubmit={onSubmit} className="mt-6 space-y-4">
             {mode === "signup" && (

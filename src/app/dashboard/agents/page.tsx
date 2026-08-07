@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { listAgents } from "@/lib/db";
 import AgentsTable from "@/components/dashboard/AgentsTable";
 import CreateAgentFlow from "@/components/dashboard/CreateAgentFlow";
+import TestAgentButton from "@/components/dashboard/TestAgentButton";
 
 export const metadata = { title: "AI Agents — VoiceLine AI" };
 
@@ -20,7 +21,10 @@ export default async function AgentsPage() {
             Manage your AI voice agents for calls and campaigns
           </p>
         </div>
-        <CreateAgentFlow />
+        <div className="flex items-center gap-3">
+          <TestAgentButton agents={agents} />
+          <CreateAgentFlow />
+        </div>
       </div>
       <AgentsTable agents={agents} />
     </div>

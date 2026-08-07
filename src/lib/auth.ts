@@ -14,10 +14,12 @@ export const SESSION_COOKIE = "vl_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {
-  userId: string;
+  userId: string; // workspace data owner id (owner's id for members)
   email: string;
   company: string;
   name: string;
+  memberId?: string; // the logged-in user's own record id
+  role?: "owner" | "supervisor" | "viewer";
 }
 
 export async function createSessionToken(
@@ -40,6 +42,8 @@ export async function verifySessionToken(
       email: payload.email as string,
       company: payload.company as string,
       name: payload.name as string,
+      memberId: (payload.memberId as string) ?? (payload.userId as string),
+      role: (payload.role as SessionPayload["role"]) ?? "owner",
     };
   } catch {
     return null;

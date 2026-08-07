@@ -528,6 +528,100 @@ export default function AgentEditor({
               )}
             </div>
 
+            {/* Stop Speaking Plan (Vapi parity) */}
+            <div className="rounded-xl border border-ink-700 p-5">
+              <p className="text-sm font-semibold">✋ Stop Speaking Plan</p>
+              <p className="text-xs text-ink-400">How caller speech interrupts the agent mid-sentence.</p>
+              <div className="mt-4 grid gap-5 sm:grid-cols-3">
+                <Slider label="Number of Words" unit="" min={0} max={10} step={1}
+                  value={draft.advanced.stopSpeakingNumWords}
+                  hint="Words the caller must say before the agent stops. 0 = stop on any voice."
+                  onChange={(v) => setAdv("stopSpeakingNumWords", v)} />
+                <Slider label="Voice Seconds" unit="s" min={0} max={0.5} step={0.1}
+                  value={draft.advanced.stopSpeakingVoiceSeconds}
+                  hint="Seconds of caller audio that counts as an interruption."
+                  onChange={(v) => setAdv("stopSpeakingVoiceSeconds", v)} />
+                <Slider label="Back Off Seconds" unit="s" min={0} max={10} step={0.5}
+                  value={draft.advanced.stopSpeakingBackoffSeconds}
+                  hint="How long the agent waits before speaking again after being interrupted."
+                  onChange={(v) => setAdv("stopSpeakingBackoffSeconds", v)} />
+              </div>
+            </div>
+
+            {/* Messaging (Vapi parity) */}
+            <div className="rounded-xl border border-ink-700 p-5">
+              <p className="text-sm font-semibold">💬 Call Messages</p>
+              <p className="text-xs text-ink-400">What the agent says on voicemail, when idle, and when ending the call.</p>
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">Voicemail Message</label>
+                  <input className="field" value={draft.advanced.voicemailMessage}
+                    placeholder="Leave empty to hang up on voicemail"
+                    onChange={(e) => setAdv("voicemailMessage", e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">End Call Message</label>
+                  <input className="field" value={draft.advanced.endCallMessage}
+                    onChange={(e) => setAdv("endCallMessage", e.target.value)} />
+                </div>
+                <div className="sm:col-span-2">
+                  <label className="label">End Call Phrases</label>
+                  <input className="field" value={draft.advanced.endCallPhrases}
+                    placeholder="goodbye, bye for now"
+                    onChange={(e) => setAdv("endCallPhrases", e.target.value)} />
+                  <p className="mt-1 text-xs text-ink-400">Comma-separated. If the caller says one of these, the call ends.</p>
+                </div>
+                <div>
+                  <label className="label">Idle Message</label>
+                  <input className="field" value={draft.advanced.idleMessage}
+                    onChange={(e) => setAdv("idleMessage", e.target.value)} />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="label">Idle Timeout (s)</label>
+                    <input type="number" min={5} max={60} className="field" value={draft.advanced.idleTimeout}
+                      onChange={(e) => setAdv("idleTimeout", Number(e.target.value))} />
+                  </div>
+                  <div>
+                    <label className="label">Max Idle Messages</label>
+                    <input type="number" min={1} max={10} className="field" value={draft.advanced.idleMaxCount}
+                      onChange={(e) => setAdv("idleMaxCount", Number(e.target.value))} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Keypad Input (Vapi parity) */}
+            <div className="rounded-xl border border-ink-700 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-semibold">🔢 Keypad Input</p>
+                  <p className="text-xs text-ink-400">Let callers enter digits (DTMF) — for menus, account numbers, PINs.</p>
+                </div>
+                <Toggle on={draft.advanced.keypadInputEnabled} onChange={(v) => setAdv("keypadInputEnabled", v)} />
+              </div>
+              {draft.advanced.keypadInputEnabled && (
+                <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="label">Timeout (seconds)</label>
+                    <input type="number" min={0.5} max={10} step={0.5} className="field"
+                      value={draft.advanced.keypadInputTimeout}
+                      onChange={(e) => setAdv("keypadInputTimeout", Number(e.target.value))} />
+                    <p className="mt-1 text-xs text-ink-400">How long to wait for more digits before submitting.</p>
+                  </div>
+                  <div>
+                    <label className="label">Delimiter</label>
+                    <select className="field" value={draft.advanced.keypadInputDelimiter}
+                      onChange={(e) => setAdv("keypadInputDelimiter", e.target.value as "#" | "*" | "both")}>
+                      <option value="#"># — pound key submits</option>
+                      <option value="*">* — star key submits</option>
+                      <option value="both"># or * — either submits</option>
+                    </select>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Reminder & Call Duration */}
             <div className="rounded-xl border border-ink-700 p-5">
               <p className="text-sm font-semibold">⏱ Reminder &amp; Call Duration Settings</p>

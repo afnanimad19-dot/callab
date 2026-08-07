@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import { Phone, CheckCircle2, Info, MessageSquare, Download } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { findAgent, findCall, listCampaigns } from "@/lib/db";
 
@@ -79,6 +80,7 @@ export default async function CallDetailPage({
         <div className="mt-2 flex items-center gap-3">
           <h1 className="text-2xl font-bold tracking-tight">Call Details</h1>
           <span className="badge-ok">Ended</span>
+          {call.isTest && <span className="badge-warn">Test call</span>}
         </div>
         <p className="mt-1 font-mono text-sm text-ink-300">
           {from} → {to}
@@ -89,7 +91,7 @@ export default async function CallDetailPage({
       <div className="grid gap-5 lg:grid-cols-2">
         {/* Call Details */}
         <div className="card !p-6">
-          <h2 className="text-base font-semibold">📞 Call Details</h2>
+          <h2 className="flex items-center gap-2 text-base font-semibold"><Phone className="h-4 w-4 text-ink-400" /> Call Details</h2>
           <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">
             <Field label="From"><span className="font-mono">{from}</span></Field>
             <Field label="To"><span className="font-mono">{to}</span></Field>
@@ -126,7 +128,7 @@ export default async function CallDetailPage({
         <div className="space-y-5">
           {/* Call Outcome */}
           <div className="card !p-6">
-            <h2 className="text-base font-semibold">✅ Call Outcome</h2>
+            <h2 className="flex items-center gap-2 text-base font-semibold"><CheckCircle2 className="h-4 w-4 text-ink-400" /> Call Outcome</h2>
             {agent?.outcomes?.length ? (
               <div className="mt-4 space-y-2">
                 {agent.outcomes.map((o) => (
@@ -145,7 +147,7 @@ export default async function CallDetailPage({
 
           {/* Call Summary */}
           <div className="card !p-6">
-            <h2 className="text-base font-semibold">ℹ️ Call Summary</h2>
+            <h2 className="flex items-center gap-2 text-base font-semibold"><Info className="h-4 w-4 text-ink-400" /> Call Summary</h2>
             <p className="mt-3 text-sm leading-relaxed text-ink-300">{call.summary}</p>
             <p className="mt-4 flex items-center gap-2 text-sm">
               <span className="text-ink-400">Rating:</span>
@@ -160,23 +162,41 @@ export default async function CallDetailPage({
 
       {/* Transcript */}
       <div className="card !p-6">
-        <h2 className="text-base font-semibold">💬 Call Transcript</h2>
+        <h2 className="flex items-center gap-2 text-base font-semibold"><MessageSquare className="h-4 w-4 text-ink-400" /> Call Transcript</h2>
 
-        {/* Recording bar */}
-        <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
-          <button
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300"
-            title="Audio recordings become available once call storage is connected"
-          >
-            ▶
-          </button>
-          <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden>
-            {bars.map((h, i) => (
-              <span key={i} className="w-[3px] rounded-full bg-ink-500" style={{ height: `${h}%` }} />
-            ))}
+        {/* Recording player */}
+        {call.recordingUrl ? (
+          <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
+            <audio controls preload="none" src={call.recordingUrl} className="h-10 w-full" />
+            <a
+              href={call.recordingUrl}
+              download
+              className="shrink-0 text-ink-400 transition hover:text-ink-100"
+              title="Download recording"
+            >
+              <Download className="h-4 w-4" />
+            </a>
           </div>
-          <span className="shrink-0 text-ink-400" title="Download recording">⇩</span>
-        </div>
+        ) : (
+          <div
+            className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
+            title={
+              call.isTest
+                ? "Test sessions don't produce a phone recording"
+                : "The recording appears here once Vapi sends the end-of-call report"
+            }
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300">
+              ▶
+            </span>
+            <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden>
+              {bars.map((h, i) => (
+                <span key={i} className="w-[3px] rounded-full bg-ink-500/40" style={{ height: `${h}%` }} />
+              ))}
+            </div>
+            <span className="shrink-0 text-xs text-ink-500">No recording</span>
+          </div>
+        )}
 
         <div className="mt-5 flex items-center justify-between text-sm text-ink-400">
           <span>Conversation Timeline</span>

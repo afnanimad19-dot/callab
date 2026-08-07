@@ -1,11 +1,12 @@
 "use client";
-import { Search, RefreshCw, MoreVertical } from "lucide-react";
+import { Search, RefreshCw, MoreVertical, Pencil, FlaskConical, Trash2 } from "lucide-react";
 
 // Agents list: search, filter-by-status, refresh, and per-row actions menu.
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Agent } from "@/lib/db";
+import TestAgentPanel from "./TestAgentPanel";
 
 const TYPE_LABEL: Record<string, string> = {
   single_prompt: "Single Prompt",
@@ -17,6 +18,7 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("all");
   const [menuFor, setMenuFor] = useState<string | null>(null);
+  const [testAgentId, setTestAgentId] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -137,15 +139,24 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
                     <div className="absolute right-4 top-11 z-20 w-40 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 text-left shadow-xl shadow-black/30">
                       <button
                         onClick={() => router.push(`/dashboard/agents/${a.id}`)}
-                        className="block w-full px-4 py-2 text-sm text-ink-200 transition hover:bg-ink-800"
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-ink-200 transition hover:bg-ink-800"
                       >
-                        ✏️ Edit
+                        <Pencil className="h-3.5 w-3.5" /> Edit
+                      </button>
+                      <button
+                        onClick={() => {
+                          setMenuFor(null);
+                          setTestAgentId(a.id);
+                        }}
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-ink-200 transition hover:bg-ink-800"
+                      >
+                        <FlaskConical className="h-3.5 w-3.5" /> Test agent
                       </button>
                       <button
                         onClick={() => remove(a)}
-                        className="block w-full px-4 py-2 text-sm text-signal-red transition hover:bg-ink-800"
+                        className="flex w-full items-center gap-2.5 px-4 py-2 text-sm text-signal-red transition hover:bg-ink-800"
                       >
-                        🗑 Delete
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
                       </button>
                     </div>
                   )}
@@ -162,6 +173,14 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
           </p>
         )}
       </div>
+
+      {testAgentId && (
+        <TestAgentPanel
+          agents={agents}
+          initialAgentId={testAgentId}
+          onClose={() => setTestAgentId(null)}
+        />
+      )}
     </div>
   );
 }

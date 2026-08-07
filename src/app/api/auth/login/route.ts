@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { findUserByEmail } from "@/lib/db";
+import { findUserByEmail, findUserById, updateUser } from "@/lib/db";
 import {
   createSessionToken,
   sessionCookieOptions,
@@ -16,8 +16,6 @@ export async function POST(request: Request) {
   try {
     user = await findUserByEmail(email);
   } catch (e) {
-    // Surface a real backend error (e.g. database unreachable) rather than
-    // masking it as "invalid credentials".
     console.error("Login lookup failed:", e);
     return NextResponse.json(
       { error: `Sign-in is temporarily unavailable: ${(e as Error).message}` },
@@ -31,15 +29,35 @@ export async function POST(request: Request) {
       { status: 401 }
     );
   }
+  if (user.status === "blocked") {
+    return NextResponse.json(
+      { error: "This account has been blocked by the workspace owner." },
+      { status: 403 }
+    );
+  }
+
+  // First login of an invited member activates the account.
+  if (user.status === "invited") {
+    await updateUser(user.id, { status: "active" });
+  }
+
+  // Members log into the OWNER's workspace: data is keyed by the owner id.
+  const ownerId = user.ownerId ?? user.id;
+  const owner = user.ownerId ? await findUserById(user.ownerId) : user;
 
   const token = await createSessionToken({
-    userId: user.id,
+    userId: ownerId,
     email: user.email,
-    company: user.company,
+    company: owner?.company ?? user.company,
     name: user.name,
+    memberId: user.id,
+    role: user.role ?? "owner",
   });
 
-  const response = NextResponse.json({ ok: true });
+  const response = NextResponse.json({
+    ok: true,
+    mustResetPassword: Boolean(user.mustResetPassword),
+  });
   response.cookies.set(SESSION_COOKIE, token, sessionCookieOptions());
   return response;
 }

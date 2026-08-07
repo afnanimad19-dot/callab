@@ -43,7 +43,63 @@ async function vapi(path: string, init?: RequestInit) {
 export async function syncAgentToVapi(agent: Agent): Promise<string | null> {
   if (!vapiConfigured()) return null;
 
+  const adv = agent.advanced;
+  const endCallPhrases = (adv?.endCallPhrases ?? "")
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
   const payload = {
+    // Vapi-parity advanced settings from the editor's Advanced section.
+    ...(adv
+      ? {
+          silenceTimeoutSeconds: Math.min(600, Math.max(10, adv.maxSilenceDuration)),
+          maxDurationSeconds: Math.min(43200, Math.max(10, adv.maxCallDuration * 60)),
+          stopSpeakingPlan: {
+            numWords: adv.stopSpeakingNumWords,
+            voiceSeconds: adv.stopSpeakingVoiceSeconds,
+            backoffSeconds: adv.stopSpeakingBackoffSeconds,
+          },
+          startSpeakingPlan: {
+            waitSeconds: adv.endOfSpeechTimeout,
+            smartEndpointingEnabled: adv.turnDetection && adv.turnDetectionMode === "smart",
+          },
+          ...(adv.voicemailMessage ? { voicemailMessage: adv.voicemailMessage } : {}),
+          ...(adv.endCallMessage ? { endCallMessage: adv.endCallMessage } : {}),
+          ...(endCallPhrases.length ? { endCallPhrases } : {}),
+          ...(adv.idleMessage
+            ? {
+                messagePlan: {
+                  idleMessages: [adv.idleMessage],
+                  idleTimeoutSeconds: adv.idleTimeout,
+                  idleMessageMaxSpokenCount: adv.idleMaxCount,
+                },
+              }
+            : {}),
+          ...(adv.keypadInputEnabled
+            ? {
+                keypadInputPlan: {
+                  enabled: true,
+                  timeoutSeconds: adv.keypadInputTimeout,
+                  delimiters: adv.keypadInputDelimiter === "both" ? ["#", "*"] : [adv.keypadInputDelimiter],
+                },
+              }
+            : {}),
+          ...(adv.amd
+            ? {
+                voicemailDetection: {
+                  provider: "twilio",
+                  machineDetectionTimeout: adv.amdTimeout,
+                },
+              }
+            : {}),
+          artifactPlan: {
+            recordingEnabled: adv.dataStorage !== "none",
+            transcriptPlan: { enabled: adv.dataStorage !== "none" },
+          },
+          backgroundDenoisingEnabled: adv.noiseReduction,
+        }
+      : {}),
     name: agent.name,
     firstMessage: agent.greeting,
     model: {
@@ -96,6 +152,34 @@ export async function startOutboundCall(options: {
       customer: { number: options.customerNumber },
     }),
   });
+}
+
+// Text-test an assistant via Vapi's Chat API. Returns the assistant's reply
+// and a chat id to continue the same conversation on the next turn.
+export async function chatWithAssistant(options: {
+  assistantId: string;
+  input: string;
+  previousChatId?: string;
+}): Promise<{ reply: string; chatId?: string } | null> {
+  if (!vapiConfigured()) return null;
+  const res = (await vapi("/chat", {
+    method: "POST",
+    body: JSON.stringify({
+      assistantId: options.assistantId,
+      input: options.input,
+      ...(options.previousChatId ? { previousChatId: options.previousChatId } : {}),
+    }),
+  })) as {
+    id?: string;
+    output?: { role?: string; content?: string }[];
+  };
+  const reply =
+    (res.output ?? [])
+      .filter((m) => m.role === "assistant" && m.content)
+      .map((m) => m.content)
+      .join("\n")
+      .trim() || "(no reply)";
+  return { reply, chatId: res.id };
 }
 
 // --- Webhook mapping --------------------------------------------------------
@@ -190,5 +274,6 @@ export function mapEndOfCallReport(
       message.summary ??
       "Call completed. (No summary provided by the voice pipeline.)",
     transcript: mapTranscript(message),
+    recordingUrl: message.recordingUrl ?? message.artifact?.recordingUrl,
   };
 }

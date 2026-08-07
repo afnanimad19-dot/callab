@@ -6,8 +6,11 @@ import {
   createCampaign,
   findAgent,
   listContacts,
+  listPhoneNumbers,
+  updateCampaign,
   newId,
 } from "@/lib/db";
+import { startOutboundCall, vapiConfigured } from "@/lib/vapi";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -96,9 +99,45 @@ export async function POST(request: Request) {
     syncWithContact: Boolean(body?.syncWithContact),
   } as Campaign);
 
-  // NOTE: when Vapi phone-number IDs are linked (Phone Numbers section),
-  // launching a running outbound campaign is where startOutboundCall()
-  // fans out over the matching contacts (src/lib/vapi.ts).
+  // Launch: a running outbound campaign fans out real Vapi calls when the
+  // agent is synced and a Vapi-linked phone number is available. Best-effort —
+  // a failed dial never fails the campaign creation.
+  let launched = 0;
+  if (
+    campaign.status === "running" &&
+    direction === "outbound" &&
+    vapiConfigured() &&
+    agent.vapiAssistantId
+  ) {
+    const numbers = await listPhoneNumbers(session.userId);
+    const fromNumber =
+      numbers.find((n) => n.number === campaign.phoneNumber && n.vapiPhoneNumberId) ??
+      numbers.find((n) => n.vapiPhoneNumberId);
+    if (fromNumber?.vapiPhoneNumberId) {
+      const contacts = await listContacts(session.userId);
+      const targets = (
+        filters.tags.length ? contacts.filter((c) => filters.tags.includes(c.tag)) : contacts
+      )
+        .filter((c) => /^\+?[0-9 ()-]{7,}$/.test(c.phone ?? ""))
+        .slice(0, 10); // first batch; the rest dial as the campaign progresses
+      const results = await Promise.allSettled(
+        targets.map((c) =>
+          startOutboundCall({
+            assistantId: agent.vapiAssistantId!,
+            phoneNumberId: fromNumber.vapiPhoneNumberId!,
+            customerNumber: c.phone.replace(/[^+0-9]/g, ""),
+          })
+        )
+      );
+      launched = results.filter((r) => r.status === "fulfilled").length;
+      results
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .forEach((r) => console.error("Outbound dial failed:", r.reason));
+      if (launched > 0) {
+        await updateCampaign(session.userId, campaign.id, { contactsCalled: launched });
+      }
+    }
+  }
 
-  return NextResponse.json({ campaign }, { status: 201 });
+  return NextResponse.json({ campaign, launched }, { status: 201 });
 }
