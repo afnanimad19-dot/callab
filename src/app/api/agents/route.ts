@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createAgent, listAgents, newId } from "@/lib/db";
+import { createAgent, listAgents, newId, Agent } from "@/lib/db";
+import { sanitizeAdvanced, sanitizeOutcomes } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
 
 export async function GET() {
@@ -19,6 +20,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Agent name is required." }, { status: 400 });
   }
 
+  const status = ["active", "paused", "draft"].includes(body?.status)
+    ? (body.status as Agent["status"])
+    : "draft";
+
   const agent = await createAgent({
     id: newId("agt"),
     userId: session.userId,
@@ -31,8 +36,18 @@ export async function POST(request: Request) {
       "Thanks for calling — how can I help you today?",
     systemPrompt: String(body?.systemPrompt ?? "").trim(),
     phoneNumber: String(body?.phoneNumber ?? "").trim() || "Not assigned",
-    status: "draft",
+    status,
     createdAt: new Date().toISOString(),
+    agentType:
+      body?.agentType === "conversation_flow" ? "conversation_flow" : "single_prompt",
+    version: 1,
+    backgroundAudio: String(body?.backgroundAudio ?? "None"),
+    identity: String(body?.identity ?? ""),
+    tasks: String(body?.tasks ?? ""),
+    guardrails: String(body?.guardrails ?? ""),
+    whoSpeaksFirst: body?.whoSpeaksFirst === "caller" ? "caller" : "agent",
+    outcomes: sanitizeOutcomes(body?.outcomes),
+    advanced: sanitizeAdvanced(body?.advanced),
   });
 
   // Best-effort Vapi sync; the agent still saves if Vapi isn't configured.

@@ -19,6 +19,10 @@ export interface User {
   createdAt: string;
 }
 
+import type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
+export { DEFAULT_ADVANCED } from "./agent-defaults";
+export type { AgentAdvanced, AgentOutcome } from "./agent-defaults";
+
 export interface Agent {
   id: string;
   userId: string;
@@ -26,12 +30,22 @@ export interface Agent {
   role: string;
   voice: string;
   language: string;
-  greeting: string;
-  systemPrompt: string;
+  greeting: string; // opening message
+  systemPrompt: string; // compiled identity + tasks + guardrails (Vapi sync)
   phoneNumber: string;
   status: "active" | "paused" | "draft";
   vapiAssistantId?: string;
   createdAt: string;
+  // Editor fields (optional so older rows stay valid)
+  agentType?: "single_prompt" | "conversation_flow";
+  version?: number;
+  backgroundAudio?: string;
+  identity?: string;
+  tasks?: string;
+  guardrails?: string;
+  whoSpeaksFirst?: "agent" | "caller";
+  outcomes?: AgentOutcome[];
+  advanced?: AgentAdvanced;
 }
 
 export interface TranscriptTurn {
