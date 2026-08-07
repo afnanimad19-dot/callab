@@ -128,6 +128,11 @@ export interface PhoneNumber {
   agentName: string;
   status: "active" | "unassigned";
   createdAt: string;
+  nickname?: string;
+  numberType?: "national" | "local" | "toll-free";
+  scope?: string; // e.g. "Global"
+  vapiPhoneNumberId?: string;
+  updatedAt?: string;
 }
 
 export interface Webhook {
@@ -146,6 +151,13 @@ export interface KnowledgeBase {
   description: string;
   docsCount: number;
   createdAt: string;
+  type?: "file" | "url" | "text" | "gdoc";
+  url?: string;
+  content?: string; // for text resources; also used by the KB test chat
+  autoUpdate?: boolean;
+  crawl?: boolean;
+  multipleUrls?: boolean;
+  updatedAt?: string;
 }
 
 interface Database {
@@ -426,6 +438,11 @@ export const deleteContact = (id: string) => store.remove("contacts", id);
 export const listPhoneNumbers = (userId: string) => store.list<PhoneNumber>("phoneNumbers", userId);
 export const createPhoneNumber = (p: PhoneNumber) => store.insert("phoneNumbers", p);
 export const insertPhoneNumbers = (rows: PhoneNumber[]) => store.insertMany("phoneNumbers", rows);
+export async function deletePhoneNumber(userId: string, id: string) {
+  const exists = (await listPhoneNumbers(userId)).some((p) => p.id === id);
+  if (!exists) return false;
+  return store.remove("phoneNumbers", id);
+}
 
 export const listWebhooks = (userId: string) => store.list<Webhook>("webhooks", userId);
 export const createWebhook = (w: Webhook) => store.insert("webhooks", w);
@@ -434,3 +451,8 @@ export const insertWebhooks = (rows: Webhook[]) => store.insertMany("webhooks", 
 export const listKnowledgeBases = (userId: string) => store.list<KnowledgeBase>("knowledgeBases", userId);
 export const createKnowledgeBase = (k: KnowledgeBase) => store.insert("knowledgeBases", k);
 export const insertKnowledgeBases = (rows: KnowledgeBase[]) => store.insertMany("knowledgeBases", rows);
+export async function deleteKnowledgeBase(userId: string, id: string) {
+  const exists = (await listKnowledgeBases(userId)).some((k) => k.id === id);
+  if (!exists) return false;
+  return store.remove("knowledgeBases", id);
+}

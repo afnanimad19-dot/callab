@@ -281,9 +281,9 @@ export function seedDemoData(userId: string): DemoData {
   }));
 
   const phoneNumbers: PhoneNumber[] = [
-    { id: newId("num"), userId, number: "+1 (415) 555-0132", provider: "Vapi", agentName: "Front Desk", status: "active", createdAt: at(24 * 14) },
-    { id: newId("num"), userId, number: "+1 (415) 555-0198", provider: "Vapi", agentName: "Support Line", status: "active", createdAt: at(24 * 14) },
-    { id: newId("num"), userId, number: "+1 (415) 555-0177", provider: "Vapi", agentName: "Outbound SDR", status: "unassigned", createdAt: at(24 * 7) },
+    { id: newId("num"), userId, number: "+1 (415) 555-0132", provider: "Vapi", agentName: "Front Desk", status: "active", createdAt: at(24 * 14), updatedAt: at(24 * 14), nickname: "Main reception line", numberType: "national", scope: "Global" },
+    { id: newId("num"), userId, number: "+1 (415) 555-0198", provider: "Custom SIP Trunk", agentName: "Support Line", status: "active", createdAt: at(24 * 14), updatedAt: at(24 * 10), nickname: "Support line", numberType: "national", scope: "Global" },
+    { id: newId("num"), userId, number: "+1 (415) 555-0177", provider: "Twilio (BYOT)", agentName: "Outbound SDR", status: "unassigned", createdAt: at(24 * 7), updatedAt: at(24 * 7), nickname: "Outbound campaigns", numberType: "local", scope: "Global" },
   ];
 
   const webhooks: Webhook[] = [
@@ -302,17 +302,35 @@ export function seedDemoData(userId: string): DemoData {
       id: newId("kb"),
       userId,
       name: "Company FAQ",
-      description: "Hours, location, pricing, and policies the agents answer from.",
+      description: "Text content",
       docsCount: 12,
       createdAt: at(24 * 12),
+      updatedAt: at(24 * 3),
+      type: "text",
+      content:
+        "We are open Monday to Friday 9 AM to 6 PM, and Saturdays until 6 PM. Free parking is available in the lot behind the building on Oak Street. Appointments can be booked, moved, or cancelled by phone at any time. Standard consultations cost $80; follow-up visits are $50. We accept all major insurance plans.",
     },
     {
       id: newId("kb"),
       userId,
-      name: "Product catalog",
-      description: "Service descriptions and plan details for sales conversations.",
-      docsCount: 7,
+      name: "Website — services & pricing",
+      description: "Website/URL content",
+      docsCount: 1,
       createdAt: at(24 * 9),
+      updatedAt: at(24 * 1),
+      type: "url",
+      url: "https://example.com/services",
+      autoUpdate: true,
+    },
+    {
+      id: newId("kb"),
+      userId,
+      name: "Product catalog (PDF)",
+      description: "Uploaded file(s)",
+      docsCount: 7,
+      createdAt: at(24 * 8),
+      updatedAt: at(24 * 8),
+      type: "file",
     },
   ];
 
