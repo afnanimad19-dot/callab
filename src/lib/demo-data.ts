@@ -277,6 +277,8 @@ export function seedDemoData(userId: string): DemoData {
     name,
     phone: phone(i + 40),
     tag: i % 3 === 0 ? "lead" : i % 3 === 1 ? "customer" : "quote-request",
+    category: i % 3 === 0 ? "Lead" : i % 3 === 1 ? "Customer" : "Quote request",
+    source: i % 2 === 0 ? "Manual" : "Import",
     createdAt: at(24 * (10 - i)),
   }));
 

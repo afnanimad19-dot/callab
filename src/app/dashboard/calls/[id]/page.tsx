@@ -1,7 +1,33 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { findCall } from "@/lib/db";
+import { findAgent, findCall, listCampaigns } from "@/lib/db";
+
+export const metadata = { title: "Call Details — VoiceLine AI" };
+
+function fmtDuration(sec: number) {
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+}
+
+function fmtWhen(iso: string) {
+  return new Date(iso).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="text-xs text-ink-400">{label}</p>
+      <div className="mt-0.5 text-sm font-semibold">{children}</div>
+    </div>
+  );
+}
 
 export default async function CallDetailPage({
   params,
@@ -14,72 +40,172 @@ export default async function CallDetailPage({
   const call = await findCall(session.userId, id);
   if (!call) notFound();
 
+  const [agent, campaigns] = await Promise.all([
+    findAgent(session.userId, call.agentId),
+    listCampaigns(session.userId),
+  ]);
+  const campaign = campaigns.find((c) => c.id === call.campaignId);
+
+  const inbound = call.direction === "inbound";
+  const agentNum = agent?.phoneNumber ?? "—";
+  const from = inbound ? call.callerNumber : agentNum;
+  const to = inbound ? agentNum : call.callerNumber;
+  const endedAt = new Date(
+    Date.parse(call.startedAt) + call.durationSec * 1000
+  ).toISOString();
+
+  const sentimentBadge =
+    call.sentiment === "positive"
+      ? { label: "Satisfied", cls: "badge-ok" }
+      : call.sentiment === "negative"
+        ? { label: "Frustrated", cls: "badge-bad" }
+        : { label: "Neutral", cls: "badge-muted" };
+  const rating =
+    call.sentiment === "positive" ? 5 : call.sentiment === "neutral" ? 3 : 2;
+
+  // Static waveform bars (deterministic per call id so it's stable).
+  const bars = Array.from({ length: 90 }, (_, i) => {
+    const seed = (call.id.charCodeAt(i % call.id.length) * (i + 7)) % 100;
+    return 20 + (seed % 70);
+  });
+
   return (
-    <div className="space-y-6">
-      <div>
-        <Link href="/dashboard/calls" className="text-xs font-medium text-ink-400 hover:text-ink-200">
-          ← Back to call history
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="card !p-5">
+        <Link href="/dashboard/calls" className="text-sm text-ink-400 hover:text-ink-100">
+          ← Back
         </Link>
-        <h1 className="mt-2 text-2xl font-bold tracking-tight">
-          {call.agentName} · {call.callerNumber}
-        </h1>
-        <p className="mt-1 text-sm text-ink-400">
-          {new Date(call.startedAt).toLocaleString()} · {call.direction} ·{" "}
-          {Math.floor(call.durationSec / 60)}m {call.durationSec % 60}s
+        <div className="mt-2 flex items-center gap-3">
+          <h1 className="text-2xl font-bold tracking-tight">Call Details</h1>
+          <span className="badge-ok">Ended</span>
+        </div>
+        <p className="mt-1 font-mono text-sm text-ink-300">
+          {from} → {to}
+          <span className="ml-2 font-sans text-ink-400">• {fmtWhen(call.startedAt)}</span>
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div className="card">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Outcome</p>
-          <p className="mt-1.5 text-lg font-semibold capitalize">
-            {call.outcome.replace("_", " ")}
-          </p>
-        </div>
-        <div className="card">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-400">Sentiment</p>
-          <p
-            className={`mt-1.5 text-lg font-semibold capitalize ${
-              call.sentiment === "positive"
-                ? "text-accent-400"
-                : call.sentiment === "negative"
-                  ? "text-signal-red"
-                  : ""
-            }`}
-          >
-            {call.sentiment}
-          </p>
-        </div>
-        <div className="card">
-          <p className="text-xs font-medium uppercase tracking-wide text-ink-400">AI confidence</p>
-          <p className="mt-1.5 text-lg font-semibold">{Math.round(call.confidence * 100)}%</p>
-        </div>
-      </div>
-
-      <div className="card">
-        <h2 className="text-sm font-semibold">AI summary</h2>
-        <p className="mt-2 text-sm leading-relaxed text-ink-300">{call.summary}</p>
-      </div>
-
-      <div className="card !p-0">
-        <h2 className="border-b border-ink-700 px-5 py-3.5 text-sm font-semibold">
-          Transcript
-        </h2>
-        <div className="space-y-4 px-5 py-5">
-          {call.transcript.map((t, i) => (
-            <div key={i} className="flex gap-3">
-              <span
-                className={`mt-0.5 w-24 shrink-0 text-xs font-semibold uppercase tracking-wide ${
-                  t.speaker === "agent"
-                    ? "text-accent-400"
-                    : t.speaker === "supervisor"
-                      ? "text-signal-amber"
-                      : "text-signal-blue"
-                }`}
-              >
-                {t.speaker}
+      <div className="grid gap-5 lg:grid-cols-2">
+        {/* Call Details */}
+        <div className="card !p-6">
+          <h2 className="text-base font-semibold">📞 Call Details</h2>
+          <div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5">
+            <Field label="From"><span className="font-mono">{from}</span></Field>
+            <Field label="To"><span className="font-mono">{to}</span></Field>
+            <Field label="Started">{fmtWhen(call.startedAt)}</Field>
+            <Field label="Ended">{fmtWhen(endedAt)}</Field>
+            <Field label="Status"><span className="text-accent-300">Ended</span></Field>
+            <Field label="Direction">{inbound ? "Incoming" : "Outgoing"}</Field>
+            <Field label="Connection Duration">{fmtDuration(call.durationSec)}</Field>
+            <Field label="Reason">{call.endReason}</Field>
+            <Field label="Sentiment">
+              <span className={sentimentBadge.cls}>{sentimentBadge.label}</span>
+            </Field>
+            <Field label="Task Status">
+              <span className={call.outcome === "resolved" ? "badge-ok" : "badge-warn"}>
+                {call.outcome === "resolved" ? "Completed" : call.outcome.replace("_", " ")}
               </span>
-              <p className="text-sm leading-relaxed text-ink-200">{t.text}</p>
+            </Field>
+            <Field label="AI Confidence">{Math.round(call.confidence * 100)}%</Field>
+            <Field label="Agent">
+              <Link href={`/dashboard/agents/${call.agentId}`} className="text-accent-300 hover:text-accent-400">
+                {call.agentName} ↗
+              </Link>
+            </Field>
+            {campaign && (
+              <Field label="Campaign">
+                <Link href="/dashboard/launch" className="text-accent-300 hover:text-accent-400">
+                  {campaign.name} ↗
+                </Link>
+              </Field>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          {/* Call Outcome */}
+          <div className="card !p-6">
+            <h2 className="text-base font-semibold">✅ Call Outcome</h2>
+            {agent?.outcomes?.length ? (
+              <div className="mt-4 space-y-2">
+                {agent.outcomes.map((o) => (
+                  <div key={o.name} className="flex items-center justify-between rounded-lg bg-ink-800 px-3.5 py-2.5 text-sm">
+                    <code className="text-xs text-accent-300">{o.name}</code>
+                    <span className="text-xs text-ink-400">extracts after real calls</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="py-8 text-center text-sm text-ink-400">
+                No outcomes recorded for this call
+              </p>
+            )}
+          </div>
+
+          {/* Call Summary */}
+          <div className="card !p-6">
+            <h2 className="text-base font-semibold">ℹ️ Call Summary</h2>
+            <p className="mt-3 text-sm leading-relaxed text-ink-300">{call.summary}</p>
+            <p className="mt-4 flex items-center gap-2 text-sm">
+              <span className="text-ink-400">Rating:</span>
+              <span className="tracking-wide text-signal-amber" aria-label={`${rating} out of 5`}>
+                {"★".repeat(rating)}
+                <span className="text-ink-600">{"★".repeat(5 - rating)}</span>
+              </span>
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Transcript */}
+      <div className="card !p-6">
+        <h2 className="text-base font-semibold">💬 Call Transcript</h2>
+
+        {/* Recording bar */}
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
+          <button
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300"
+            title="Audio recordings become available once call storage is connected"
+          >
+            ▶
+          </button>
+          <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden>
+            {bars.map((h, i) => (
+              <span key={i} className="w-[3px] rounded-full bg-ink-500" style={{ height: `${h}%` }} />
+            ))}
+          </div>
+          <span className="shrink-0 text-ink-400" title="Download recording">⇩</span>
+        </div>
+
+        <div className="mt-5 flex items-center justify-between text-sm text-ink-400">
+          <span>Conversation Timeline</span>
+          <span>{call.transcript.length} messages</span>
+        </div>
+
+        <div className="mt-4 space-y-4">
+          {call.transcript.map((t, i) => (
+            <div key={i} className={`flex ${t.speaker === "caller" ? "justify-end" : "justify-start"}`}>
+              <div className={`max-w-[75%] ${t.speaker === "caller" ? "text-right" : ""}`}>
+                {t.speaker !== "caller" && (
+                  <p className="mb-1 flex items-center gap-2 text-xs text-ink-400">
+                    <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold text-white ${t.speaker === "supervisor" ? "bg-signal-amber" : "grad-bg"}`}>
+                      {t.speaker === "supervisor" ? "SV" : "AI"}
+                    </span>
+                    {t.speaker === "supervisor" ? "Supervisor" : "AI Agent"}
+                  </p>
+                )}
+                <div className={`rounded-2xl border px-4 py-2.5 text-sm leading-relaxed ${
+                  t.speaker === "caller"
+                    ? "border-accent-500/30 bg-accent-500/10 text-ink-100"
+                    : "border-ink-700 bg-ink-900 text-ink-200"
+                }`}>
+                  {t.text}
+                </div>
+                <p className="mt-1 font-mono text-[11px] text-ink-500">
+                  {fmtDuration(t.at)}
+                </p>
+              </div>
             </div>
           ))}
         </div>

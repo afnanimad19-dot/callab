@@ -118,6 +118,9 @@ export interface Contact {
   phone: string;
   tag: string;
   createdAt: string;
+  source?: string; // "Manual" | "Import" | integration name
+  category?: string;
+  metadata?: Record<string, string>;
 }
 
 export interface PhoneNumber {
