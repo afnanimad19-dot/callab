@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Phone, CheckCircle2, Info, MessageSquare, Download } from "lucide-react";
+import { Phone, CheckCircle2, Info, MessageSquare } from "lucide-react";
 import { getSession } from "@/lib/auth";
-import { findAgent, findCall, listCampaigns } from "@/lib/db";
+import { findAgent, findCall, listCampaigns, updateCall } from "@/lib/db";
+import { getCallRecording } from "@/lib/vapi";
+import AudioPlayer from "@/components/dashboard/AudioPlayer";
 
 export const metadata = { title: "Call Details — VoiceLine AI" };
 
@@ -40,6 +42,17 @@ export default async function CallDetailPage({
   const { id } = await params;
   const call = await findCall(session.userId, id);
   if (!call) notFound();
+
+  // Recording backfill: Vapi's recording becomes available shortly after a
+  // call ends, sometimes after our log entry was written. Fetch it on view
+  // and persist so the player works from then on.
+  if (!call.recordingUrl && call.vapiCallId) {
+    const url = await getCallRecording(call.vapiCallId);
+    if (url) {
+      call.recordingUrl = url;
+      await updateCall(session.userId, call.id, { recordingUrl: url });
+    }
+  }
 
   const [agent, campaigns] = await Promise.all([
     findAgent(session.userId, call.agentId),
@@ -166,24 +179,16 @@ export default async function CallDetailPage({
 
         {/* Recording player */}
         {call.recordingUrl ? (
-          <div className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3">
-            <audio controls preload="none" src={call.recordingUrl} className="h-10 w-full" />
-            <a
-              href={call.recordingUrl}
-              download
-              className="shrink-0 text-ink-400 transition hover:text-ink-100"
-              title="Download recording"
-            >
-              <Download className="h-4 w-4" />
-            </a>
+          <div className="mt-4">
+            <AudioPlayer src={call.recordingUrl} seedKey={call.id} />
           </div>
         ) : (
           <div
             className="mt-4 flex items-center gap-3 rounded-xl border border-ink-700 bg-ink-900 px-4 py-3"
             title={
-              call.isTest
-                ? "Test sessions don't produce a phone recording"
-                : "The recording appears here once Vapi sends the end-of-call report"
+              call.isTest && !call.vapiCallId
+                ? "Text test sessions don't produce an audio recording"
+                : "The recording appears here once the voice provider finishes processing it — refresh in a moment"
             }
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300">

@@ -93,6 +93,7 @@ export interface Call {
   transcript: TranscriptTurn[];
   isTest?: boolean; // logged from the Test Agent panel
   recordingUrl?: string; // audio recording (from the voice pipeline)
+  vapiCallId?: string; // Vapi call id — used to fetch the recording lazily
 }
 
 export interface CampaignSchedule {
@@ -497,6 +498,10 @@ export async function findCall(userId: string, id: string) {
   return (await store.list<Call>("calls", userId)).find((c) => c.id === id);
 }
 export const insertCalls = (calls: Call[]) => store.insertMany("calls", calls);
+export async function updateCall(userId: string, id: string, patch: Partial<Call>) {
+  if (!(await findCall(userId, id))) return undefined;
+  return store.update<Call>("calls", id, patch);
+}
 
 export const listCampaigns = (userId: string) => store.list<Campaign>("campaigns", userId);
 export const createCampaign = (c: Campaign) => store.insert("campaigns", c);

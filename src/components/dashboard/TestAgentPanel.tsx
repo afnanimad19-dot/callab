@@ -53,6 +53,7 @@ export default function TestAgentPanel({
 
   const startedAtRef = useRef<string | null>(null);
   const chatIdRef = useRef<string | undefined>(undefined);
+  const vapiCallIdRef = useRef<string | null>(null);
   const turnsRef = useRef<Turn[]>([]);
   const vapiRef = useRef<{ stop: () => void; setMuted?: (m: boolean) => void } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -100,6 +101,7 @@ export default function TestAgentPanel({
     turnsRef.current = [];
     startedAtRef.current = null;
     chatIdRef.current = undefined;
+    vapiCallIdRef.current = null;
     loggedRef.current = false;
     setNotice(null);
   }
@@ -195,7 +197,8 @@ export default function TestAgentPanel({
           pushTurn(m.role === "assistant" ? "agent" : "caller", m.transcript);
         }
       });
-      await vapi.start(assistantId);
+      const call = (await vapi.start(assistantId)) as { id?: string } | null;
+      if (call?.id) vapiCallIdRef.current = call.id;
     } catch (e) {
       console.error(e);
       setVoiceState("idle");
@@ -239,6 +242,7 @@ export default function TestAgentPanel({
           startedAt: startedAtRef.current ?? new Date().toISOString(),
           durationSec,
           transcript,
+          vapiCallId: vapiCallIdRef.current,
         }),
       });
       if (!res.ok) throw new Error();

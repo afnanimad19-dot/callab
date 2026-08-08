@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findAgent, insertCalls, newId, Call, TranscriptTurn } from "@/lib/db";
+import { getCallRecording } from "@/lib/vapi";
 
 // Log a Test Agent session into Call Logs. Marked isTest so the table can
 // badge it, with the real date/time and transcript of the test.
@@ -19,6 +20,16 @@ export async function POST(request: Request) {
       : new Date().toISOString();
   const durationSec = Math.max(0, Math.round(Number(body?.durationSec) || 0));
   const mode = body?.mode === "voice" ? "voice" : "text";
+  const vapiCallId =
+    typeof body?.vapiCallId === "string" && body.vapiCallId ? body.vapiCallId.slice(0, 60) : undefined;
+
+  // Voice tests run through Vapi, which records them. The recording is often
+  // ready right after the call ends — try once now; if it's still processing,
+  // the call-detail page backfills it on view.
+  let recordingUrl: string | undefined;
+  if (vapiCallId) {
+    recordingUrl = (await getCallRecording(vapiCallId)) ?? undefined;
+  }
 
   const transcript: TranscriptTurn[] = Array.isArray(body?.transcript)
     ? body.transcript
@@ -47,6 +58,8 @@ export async function POST(request: Request) {
     summary: `Test ${mode} session with ${agent.name} run by ${session.name}.`,
     transcript,
     isTest: true,
+    vapiCallId,
+    recordingUrl,
   };
   await insertCalls([call]);
   return NextResponse.json({ ok: true, callId: call.id }, { status: 201 });

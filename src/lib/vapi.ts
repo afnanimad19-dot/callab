@@ -195,6 +195,32 @@ export async function chatWithAssistant(options: {
   return { reply, chatId: res.id };
 }
 
+// Fetch a call's recording URL from Vapi by call id. Recordings become
+// available shortly after a call ends, so the call-detail page uses this to
+// backfill test calls (and any webhook payload that arrived without one).
+export async function getCallRecording(callId: string): Promise<string | null> {
+  if (!vapiConfigured()) return null;
+  try {
+    const call = (await vapi(`/call/${callId}`)) as {
+      artifact?: { recordingUrl?: string; stereoRecordingUrl?: string; recording?: { url?: string; stereoUrl?: string } };
+      recordingUrl?: string;
+      stereoRecordingUrl?: string;
+    };
+    return (
+      call.artifact?.recordingUrl ??
+      call.artifact?.stereoRecordingUrl ??
+      call.artifact?.recording?.url ??
+      call.artifact?.recording?.stereoUrl ??
+      call.recordingUrl ??
+      call.stereoRecordingUrl ??
+      null
+    );
+  } catch (e) {
+    console.error("Recording fetch failed:", e);
+    return null;
+  }
+}
+
 // --- Webhook mapping --------------------------------------------------------
 // Convert a Vapi "end-of-call-report" message into our Call shape. Vapi's
 // payload is deeply nested and can vary by version, so every field is read
@@ -209,6 +235,7 @@ interface VapiMessage {
   summary?: string;
   transcript?: string;
   recordingUrl?: string;
+  stereoRecordingUrl?: string;
   call?: {
     id?: string;
     assistantId?: string;
@@ -220,6 +247,8 @@ interface VapiMessage {
   artifact?: {
     messages?: { role?: string; message?: string; secondsFromStart?: number }[];
     recordingUrl?: string;
+    stereoRecordingUrl?: string;
+    recording?: { url?: string; stereoUrl?: string };
   };
 }
 
@@ -287,6 +316,15 @@ export function mapEndOfCallReport(
       message.summary ??
       "Call completed. (No summary provided by the voice pipeline.)",
     transcript: mapTranscript(message),
-    recordingUrl: message.recordingUrl ?? message.artifact?.recordingUrl,
+    // Vapi has moved the recording URL between fields across versions — check
+    // every known location.
+    recordingUrl:
+      message.recordingUrl ??
+      message.stereoRecordingUrl ??
+      message.artifact?.recordingUrl ??
+      message.artifact?.stereoRecordingUrl ??
+      message.artifact?.recording?.url ??
+      message.artifact?.recording?.stereoUrl,
+    vapiCallId: message.call?.id,
   };
 }
