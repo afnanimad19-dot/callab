@@ -22,6 +22,7 @@ import {
   Check,
 } from "lucide-react";
 import type { Agent } from "@/lib/db";
+import { toast } from "@/components/Toast";
 
 interface Turn {
   speaker: "agent" | "caller";
@@ -235,6 +236,7 @@ export default function TestAgentPanel({
           transcript,
         }),
       });
+      toast("Test session logged to Call Logs.");
       router.refresh();
     } finally {
       setBusy(false);

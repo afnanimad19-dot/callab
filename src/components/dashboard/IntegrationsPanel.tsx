@@ -1,5 +1,6 @@
 "use client";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Trash2, Tag, FolderOpen, Zap, Clock, Play, Pause } from "lucide-react";
+import { toast } from "@/components/Toast";
 
 // Integrations: platform connections (env-based status) + custom
 // integration workflows (name, tags, N-step workflow, interval,
@@ -48,12 +49,14 @@ export default function IntegrationsPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    toast(body.run ? "Integration executed." : body.status === "running" ? "Integration started." : "Integration stopped.");
     router.refresh();
   }
 
   async function remove(i: Integration) {
     if (!confirm(`Delete integration "${i.name}"?`)) return;
     await fetch(`/api/integrations/${i.id}`, { method: "DELETE" });
+    toast(`Integration "${i.name}" deleted.`);
     router.refresh();
   }
 
@@ -92,32 +95,35 @@ export default function IntegrationsPanel({
                   </span>
                 </div>
               </div>
-              <button onClick={() => remove(i)} aria-label="Delete" className="text-ink-400 hover:text-signal-red">🗑</button>
+              <button onClick={() => remove(i)} aria-label="Delete"
+                className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red">
+                <Trash2 className="h-4 w-4" />
+              </button>
             </div>
             <div className="mt-3 flex flex-wrap gap-1.5 text-xs">
-              {i.tag && <span className="badge-muted">🏷 {i.tag}</span>}
-              {i.category && <span className="badge-muted">🗂 {i.category}</span>}
+              {i.tag && <span className="badge-muted inline-flex items-center gap-1"><Tag className="h-3 w-3" /> {i.tag}</span>}
+              {i.category && <span className="badge-muted inline-flex items-center gap-1"><FolderOpen className="h-3 w-3" /> {i.category}</span>}
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 rounded-xl border border-ink-700 p-3 text-center">
               <div>
-                <p className="text-sm font-bold">⚡ {i.steps.length} step{i.steps.length === 1 ? "" : "s"}</p>
+                <p className="flex items-center justify-center gap-1 text-sm font-bold"><Zap className="h-3.5 w-3.5 text-ink-400" /> {i.steps.length} step{i.steps.length === 1 ? "" : "s"}</p>
                 <p className="text-xs text-ink-400">workflow</p>
               </div>
               <div>
-                <p className="text-sm font-bold">🕐 {i.intervalSeconds}s</p>
+                <p className="flex items-center justify-center gap-1 text-sm font-bold"><Clock className="h-3.5 w-3.5 text-ink-400" /> {i.intervalSeconds}s</p>
                 <p className="text-xs text-ink-400">interval</p>
               </div>
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2">
               {i.status === "running" ? (
                 <button onClick={() => setStatus(i.id, { status: "idle" })}
-                  className="btn-secondary !py-2 !text-xs !text-signal-amber">⏸ Stop</button>
+                  className="btn-secondary flex items-center justify-center gap-1.5 !py-2 !text-xs !text-signal-amber"><Pause className="h-3 w-3" /> Stop</button>
               ) : (
                 <button onClick={() => setStatus(i.id, { status: "running" })}
-                  className="btn-secondary !py-2 !text-xs !text-accent-300">▶ Start</button>
+                  className="btn-secondary flex items-center justify-center gap-1.5 !py-2 !text-xs !text-accent-300"><Play className="h-3 w-3" /> Start</button>
               )}
               <button onClick={() => setStatus(i.id, { run: true })}
-                className="btn-secondary !py-2 !text-xs">⚡ Execute</button>
+                className="btn-secondary flex items-center justify-center gap-1.5 !py-2 !text-xs"><Zap className="h-3 w-3" /> Execute</button>
             </div>
             {i.lastRunAt && (
               <p className="mt-2 text-xs text-ink-500">Last run {new Date(i.lastRunAt).toLocaleString()}</p>
@@ -155,7 +161,7 @@ export default function IntegrationsPanel({
 
       {createOpen && (
         <CreateIntegrationModal onClose={() => setCreateOpen(false)}
-          onCreated={() => { setCreateOpen(false); router.refresh(); }} />
+          onCreated={() => { setCreateOpen(false); toast("Integration created."); router.refresh(); }} />
       )}
     </div>
   );

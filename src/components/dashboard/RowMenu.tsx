@@ -22,7 +22,19 @@ export default function RowMenu({
   align?: "right" | "left";
 }) {
   const [open, setOpen] = useState(false);
+  const [dropUp, setDropUp] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+
+  // Open upward when the row is near the bottom of the viewport, so the
+  // menu never gets clipped or forces the page to scroll.
+  function toggle() {
+    if (!open && ref.current) {
+      const rect = ref.current.getBoundingClientRect();
+      const menuHeight = items.length * 36 + 16;
+      setDropUp(window.innerHeight - rect.bottom < menuHeight + 12);
+    }
+    setOpen((v) => !v);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -43,7 +55,7 @@ export default function RowMenu({
   return (
     <div ref={ref} className="relative inline-block" onClick={(e) => e.stopPropagation()}>
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={toggle}
         aria-label="Actions"
         className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
       >
@@ -51,9 +63,9 @@ export default function RowMenu({
       </button>
       {open && (
         <div
-          className={`absolute top-9 z-30 w-44 overflow-hidden rounded-xl border border-ink-700 bg-ink-950 py-1 text-left shadow-xl shadow-black/20 ${
-            align === "right" ? "right-0" : "left-0"
-          }`}
+          className={`absolute z-30 w-44 overflow-hidden rounded-xl border border-ink-700 bg-ink-950 py-1 text-left shadow-xl shadow-black/20 ${
+            dropUp ? "bottom-9" : "top-9"
+          } ${align === "right" ? "right-0" : "left-0"}`}
         >
           {items.map((item) => (
             <button

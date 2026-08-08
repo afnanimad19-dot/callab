@@ -9,6 +9,7 @@ import { useRouter } from "next/navigation";
 import type { Agent, Campaign, PhoneNumber } from "@/lib/db";
 import Modal from "@/components/Modal";
 import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 const STATUS_BADGE: Record<Campaign["status"], string> = {
   running: "badge-ok",
@@ -71,6 +72,7 @@ export default function CampaignsPanel({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    toast(`Campaign ${status === "running" ? "resumed" : status}.`);
     router.refresh();
   }
 
@@ -227,6 +229,7 @@ export default function CampaignsPanel({
           onClose={() => setEditing(null)}
           onSaved={() => {
             setEditing(null);
+            toast("Campaign updated.");
             router.refresh();
           }}
         />

@@ -24,6 +24,7 @@ import {
 import type { Agent, AgentRevision } from "@/lib/db";
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "@/lib/agent-defaults";
 import { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "@/lib/agent-defaults";
+import { toast } from "@/components/Toast";
 
 const VOICES = [
   "Nova (female, warm)",
@@ -221,14 +222,18 @@ export default function AgentEditor({
     });
     if (res.ok) {
       const data = await res.json();
+      // Sync local state FIRST so the unsaved-changes bar doesn't reappear,
+      // then return to the agents list where the (new) agent is visible.
       initial.current = draftFrom(data.agent);
       setDraft(initial.current);
-      if (!agent.id) router.replace(`/dashboard/agents/${data.agent.id}`);
+      toast(agent.id ? `Agent "${data.agent.name}" updated.` : `Agent "${data.agent.name}" created.`);
+      router.push("/dashboard/agents");
       router.refresh();
-    } else {
-      const data = await res.json().catch(() => ({}));
-      setError(data.error ?? "Something went wrong while publishing.");
+      return;
     }
+    const data = await res.json().catch(() => ({}));
+    setError(data.error ?? "Something went wrong while publishing.");
+    toast("Publishing failed — see the error at the top of the editor.");
     setBusy(false);
   }
 

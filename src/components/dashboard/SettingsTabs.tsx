@@ -27,6 +27,7 @@ import {
   Eye,
   EyeOff,
 } from "lucide-react";
+import { toast } from "@/components/Toast";
 
 const TABS = ["Profile", "Users", "API Keys", "Preferences", "Billing", "Workspaces"] as const;
 type Tab = (typeof TABS)[number];
@@ -93,7 +94,10 @@ function ProfileTab({ session }: { session: SessionInfo }) {
       body: JSON.stringify({ name, company }),
     });
     setMsg(res.ok ? "Profile updated." : "Could not save changes.");
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      toast("Profile updated.");
+      router.refresh();
+    }
     setBusy(false);
   }
 
@@ -239,6 +243,7 @@ function UsersTab({ session }: { session: SessionInfo }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ memberId: m.id, role }),
     });
+    toast(`${m.name} is now a ${role}.`);
     load();
   }
   async function setStatus(m: Member, status: string) {
@@ -247,6 +252,7 @@ function UsersTab({ session }: { session: SessionInfo }) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ memberId: m.id, status }),
     });
+    toast(status === "blocked" ? `${m.name} blocked.` : `${m.name} unblocked.`);
     load();
   }
 

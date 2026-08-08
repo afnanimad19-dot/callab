@@ -1,6 +1,7 @@
 "use client";
 import { Search, RefreshCw, Pencil, Trash2 } from "lucide-react";
 import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 // Contacts: Import / Export / Add Contact toolbar, searchable paginated
 // table with select checkboxes, source/category/tag badges, per-row menu,
@@ -49,7 +50,6 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [toast, setToast] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -62,14 +62,10 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   const current = Math.min(page, pages);
   const rows = filtered.slice((current - 1) * perPage, current * perPage);
 
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
-  }
-
   async function remove(c: Contact) {
     if (!confirm(`Delete contact "${c.name}"?`)) return;
     await fetch(`/api/contacts/${c.id}`, { method: "DELETE" });
+    toast(`Contact "${c.name}" deleted.`);
     router.refresh();
   }
 
@@ -89,7 +85,7 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
         <div className="flex items-center gap-2">
           <button onClick={() => setImportOpen(true)} className="btn-secondary">⇪ Import</button>
           <button
-            onClick={() => { downloadCsv(filtered); showToast("Contacts exported successfully."); }}
+            onClick={() => { downloadCsv(filtered); toast("Contacts exported successfully."); }}
             className="btn-secondary"
           >
             ⇩ Export
@@ -216,23 +212,17 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
 
       {addOpen && (
         <AddContactModal onClose={() => setAddOpen(false)}
-          onCreated={() => { setAddOpen(false); router.refresh(); showToast("Contact saved."); }} />
+          onCreated={() => { setAddOpen(false); router.refresh(); toast("Contact saved."); }} />
       )}
       {editing && (
         <AddContactModal existing={editing} onClose={() => setEditing(null)}
-          onCreated={() => { setEditing(null); router.refresh(); showToast("Contact updated."); }} />
+          onCreated={() => { setEditing(null); router.refresh(); toast("Contact updated."); }} />
       )}
       {importOpen && (
         <ImportModal onClose={() => setImportOpen(false)}
-          onImported={(n) => { setImportOpen(false); router.refresh(); showToast(`${n} contacts imported successfully.`); }} />
+          onImported={(n) => { setImportOpen(false); router.refresh(); toast(`${n} contacts imported successfully.`); }} />
       )}
 
-      {toast && (
-        <div className="fixed bottom-6 left-6 z-50 rounded-xl border border-ink-700 bg-ink-900 px-5 py-3.5 shadow-2xl shadow-black/40">
-          <p className="text-sm font-semibold">Success</p>
-          <p className="text-sm text-ink-300">{toast}</p>
-        </div>
-      )}
     </div>
   );
 }

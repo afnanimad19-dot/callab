@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import NavLink from "@/components/dashboard/NavLink";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
+import ToastHost from "@/components/Toast";
 
 export const metadata = { title: "Dashboard — VoiceLine AI" };
 
@@ -142,6 +143,7 @@ export default async function DashboardLayout({
             SaaS console; no artificial center column. */}
         <main className="w-full px-6 py-8 lg:px-10">{children}</main>
       </div>
+      <ToastHost />
     </div>
   );
 }

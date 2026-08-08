@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import type { Agent } from "@/lib/db";
 import TestAgentPanel from "./TestAgentPanel";
 import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 const TYPE_LABEL: Record<string, string> = {
   single_prompt: "Single Prompt",
@@ -33,6 +34,7 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
   async function remove(agent: Agent) {
     if (!confirm(`Delete agent "${agent.name}"? This cannot be undone.`)) return;
     await fetch(`/api/agents/${agent.id}`, { method: "DELETE" });
+    toast(`Agent "${agent.name}" deleted.`);
     router.refresh();
   }
 

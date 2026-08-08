@@ -1,6 +1,7 @@
 "use client";
 import { Search, RefreshCw, FlaskConical, Pencil, Copy, Trash2 } from "lucide-react";
 import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 // Knowledge Base: searchable grid of resources, "+ Add Resource" dropdown
 // (Text Content / URL / Upload File / Google Doc) opening the type-specific
@@ -40,6 +41,7 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
   async function remove(kb: KnowledgeBase) {
     if (!confirm(`Delete "${kb.name}"?`)) return;
     await fetch(`/api/knowledge/${kb.id}`, { method: "DELETE" });
+    toast(`"${kb.name}" deleted.`);
     router.refresh();
   }
 
@@ -57,6 +59,7 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
         multipleUrls: kb.multipleUrls ?? false,
       }),
     });
+    toast(`"${kb.name}" copied.`);
     router.refresh();
   }
 
@@ -147,14 +150,14 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
       )}
 
       {addType && (
-        <AddResourceModal type={addType} onClose={() => setAddType(null)} onCreated={() => { setAddType(null); router.refresh(); }} />
+        <AddResourceModal type={addType} onClose={() => setAddType(null)} onCreated={() => { setAddType(null); toast("Resource created."); router.refresh(); }} />
       )}
       {editing && (
         <AddResourceModal
           type={(editing.type ?? "text") as ResourceType}
           existing={editing}
           onClose={() => setEditing(null)}
-          onCreated={() => { setEditing(null); router.refresh(); }}
+          onCreated={() => { setEditing(null); toast("Resource updated."); router.refresh(); }}
         />
       )}
       {testOpen && (

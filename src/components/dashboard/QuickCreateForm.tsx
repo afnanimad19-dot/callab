@@ -5,6 +5,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "@/components/Toast";
 
 interface Field {
   name: string;
@@ -39,6 +40,7 @@ export default function QuickCreateForm({
     });
     if (res.ok) {
       setOpen(false);
+      toast("Saved.");
       router.refresh();
     } else {
       const data = await res.json().catch(() => ({}));

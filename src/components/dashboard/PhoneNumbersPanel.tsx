@@ -1,5 +1,7 @@
 "use client";
-import { Search, RefreshCw, MoreVertical } from "lucide-react";
+import { Search, RefreshCw, Trash2 } from "lucide-react";
+import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 // Phone Numbers: search + provider/status filters, number cards, and the
 // "Add Phone Number" flow (provider picker → provider-specific form).
@@ -38,7 +40,6 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
   const [statusFilter, setStatusFilter] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -52,14 +53,14 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
   const allProviders = useMemo(() => [...new Set(numbers.map((n) => n.provider))], [numbers]);
 
   async function remove(n: PhoneNumber) {
-    setMenuFor(null);
     if (!confirm(`Remove ${n.number}?`)) return;
     await fetch(`/api/phone-numbers/${n.id}`, { method: "DELETE" });
+    toast(`${n.number} removed.`);
     router.refresh();
   }
 
   return (
-    <div className="space-y-5" onClick={() => setMenuFor(null)}>
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Phone Numbers</h1>
@@ -92,19 +93,9 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
           <div key={n.id} className="card card-hover relative !p-5">
             <div className="flex items-start justify-between">
               <p className="text-sm text-ink-400">{n.provider}</p>
-              <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === n.id ? null : n.id); }}
-                aria-label="Actions"
-                className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
-                <MoreVertical className="h-4 w-4" />
-              </button>
-              {menuFor === n.id && (
-                <div className="absolute right-4 top-11 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30"
-                  onClick={(e) => e.stopPropagation()}>
-                  <button onClick={() => remove(n)} className="block w-full px-4 py-2 text-left text-sm text-signal-red transition hover:bg-ink-800">
-                    🗑 Remove
-                  </button>
-                </div>
-              )}
+              <RowMenu
+                items={[{ label: "Remove", icon: Trash2, danger: true, onClick: () => remove(n) }]}
+              />
             </div>
             <p className="mt-2 font-mono text-xl font-bold tracking-wide">{n.number}</p>
             <p className="mt-1 text-sm text-ink-300">{n.nickname || n.agentName || "—"}</p>
@@ -146,7 +137,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
 
       {provider && (
         <AddNumberModal provider={provider} onClose={() => setProvider(null)}
-          onCreated={() => { setProvider(null); router.refresh(); }} />
+          onCreated={() => { setProvider(null); toast("Phone number added."); router.refresh(); }} />
       )}
     </div>
   );

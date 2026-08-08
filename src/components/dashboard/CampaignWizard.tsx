@@ -10,6 +10,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import { toast } from "@/components/Toast";
 import type { Agent, Contact, PhoneNumber, Webhook } from "@/lib/db";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -136,6 +137,12 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
       }),
     });
     if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast(
+        data.launched
+          ? `Campaign launched — dialing ${data.launched} contact${data.launched === 1 ? "" : "s"}.`
+          : "Campaign created."
+      );
       reset();
       router.refresh();
     } else {

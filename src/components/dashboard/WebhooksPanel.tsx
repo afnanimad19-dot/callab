@@ -1,5 +1,7 @@
 "use client";
-import { Search, RefreshCw, MoreVertical } from "lucide-react";
+import { Search, RefreshCw, Trash2 } from "lucide-react";
+import RowMenu from "./RowMenu";
+import { toast } from "@/components/Toast";
 
 // Webhooks: searchable list, "Choose Webhook Template" modal (Start from
 // Scratch + template gallery), and a two-step "Create Custom Webhook"
@@ -17,7 +19,6 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
   const [query, setQuery] = useState("");
   const [chooser, setChooser] = useState(false);
   const [builder, setBuilder] = useState(false);
-  const [menuFor, setMenuFor] = useState<string | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -27,14 +28,14 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
   }, [webhooks, query]);
 
   async function remove(w: Webhook) {
-    setMenuFor(null);
     if (!confirm(`Delete webhook "${w.name ?? w.url}"?`)) return;
     await fetch(`/api/webhooks/${w.id}`, { method: "DELETE" });
+    toast("Webhook deleted.");
     router.refresh();
   }
 
   return (
-    <div className="space-y-5" onClick={() => setMenuFor(null)}>
+    <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Webhooks</h1>
@@ -68,17 +69,9 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
             <div key={w.id} className="card card-hover relative !p-5">
               <div className="flex items-start justify-between">
                 <h2 className="text-sm font-semibold">{w.name ?? "Webhook"}</h2>
-                <button onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === w.id ? null : w.id); }}
-                  aria-label="Actions"
-                  className="rounded-lg px-2 py-0.5 text-lg leading-none text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"><MoreVertical className="h-4 w-4" /></button>
-                {menuFor === w.id && (
-                  <div className="absolute right-4 top-11 z-20 w-36 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30"
-                    onClick={(e) => e.stopPropagation()}>
-                    <button onClick={() => remove(w)} className="block w-full px-4 py-2 text-left text-sm text-signal-red transition hover:bg-ink-800">
-                      🗑 Delete
-                    </button>
-                  </div>
-                )}
+                <RowMenu
+                  items={[{ label: "Delete", icon: Trash2, danger: true, onClick: () => remove(w) }]}
+                />
               </div>
               <p className="mt-1.5 break-all font-mono text-xs text-ink-300">{w.url}</p>
               <div className="mt-3 flex flex-wrap gap-1.5">
@@ -117,7 +110,7 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
 
       {builder && (
         <WebhookBuilder onClose={() => setBuilder(false)}
-          onSaved={() => { setBuilder(false); router.refresh(); }} />
+          onSaved={() => { setBuilder(false); toast("Webhook saved."); router.refresh(); }} />
       )}
     </div>
   );
