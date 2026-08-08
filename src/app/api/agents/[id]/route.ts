@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { deleteAgent, findAgent, updateAgent, Agent, AgentRevision } from "@/lib/db";
 import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
+import { buildKnowledgeText } from "@/lib/knowledge";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -61,6 +62,14 @@ export async function PATCH(request: Request, { params }: Params) {
   if (["private", "public"].includes(body?.visibility)) {
     patch.visibility = body.visibility;
   }
+  if (typeof body?.voiceId === "string") {
+    patch.voiceId = body.voiceId.slice(0, 60);
+  }
+  if (body?.knowledgeBaseIds !== undefined) {
+    patch.knowledgeBaseIds = Array.isArray(body.knowledgeBaseIds)
+      ? body.knowledgeBaseIds.map(String).slice(0, 20)
+      : [];
+  }
   // A visibility-only change (Share dialog toggle) isn't a new revision.
   const visibilityOnly =
     Object.keys(patch).length === 1 && patch.visibility !== undefined;
@@ -98,7 +107,8 @@ export async function PATCH(request: Request, { params }: Params) {
   if (!agent) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   try {
-    const vapiId = await syncAgentToVapi(agent);
+    const knowledge = await buildKnowledgeText(session.userId, agent.knowledgeBaseIds);
+    const vapiId = await syncAgentToVapi(agent, knowledge);
     if (vapiId && vapiId !== agent.vapiAssistantId) {
       agent.vapiAssistantId = vapiId;
       await updateAgent(session.userId, id, { vapiAssistantId: vapiId });

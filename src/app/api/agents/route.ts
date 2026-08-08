@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { createAgent, listAgents, newId, updateAgent, Agent, DEFAULT_TOOLS } from "@/lib/db";
 import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
+import { buildKnowledgeText } from "@/lib/knowledge";
 
 export async function GET() {
   const session = await getSession();
@@ -50,12 +51,17 @@ export async function POST(request: Request) {
     advanced: sanitizeAdvanced(body?.advanced),
     tools: body?.tools !== undefined ? sanitizeTools(body.tools) : DEFAULT_TOOLS,
     visibility: "private",
+    voiceId: typeof body?.voiceId === "string" ? body.voiceId.slice(0, 60) : undefined,
+    knowledgeBaseIds: Array.isArray(body?.knowledgeBaseIds)
+      ? body.knowledgeBaseIds.map(String).slice(0, 20)
+      : [],
   });
 
   // Best-effort Vapi sync; the agent still saves if Vapi isn't configured.
   // The assistant id must be PERSISTED, not just set on the local object.
   try {
-    const vapiId = await syncAgentToVapi(agent);
+    const knowledge = await buildKnowledgeText(session.userId, agent.knowledgeBaseIds);
+    const vapiId = await syncAgentToVapi(agent, knowledge);
     if (vapiId) {
       agent.vapiAssistantId = vapiId;
       await updateAgent(session.userId, agent.id, { vapiAssistantId: vapiId });

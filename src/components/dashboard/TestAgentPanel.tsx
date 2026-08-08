@@ -22,7 +22,7 @@ import {
   Check,
 } from "lucide-react";
 import type { Agent } from "@/lib/db";
-import { toast } from "@/components/Toast";
+import { toast, toastError } from "@/components/Toast";
 
 interface Turn {
   speaker: "agent" | "caller";
@@ -97,8 +97,10 @@ export default function TestAgentPanel({
 
   function resetSession() {
     setTurns([]);
+    turnsRef.current = [];
     startedAtRef.current = null;
     chatIdRef.current = undefined;
+    loggedRef.current = false;
     setNotice(null);
   }
 
@@ -214,38 +216,57 @@ export default function TestAgentPanel({
   }
 
   // --- Logging --------------------------------------------------------------
+  // Every test session that actually happened gets logged — even if the user
+  // closes the panel with X / backdrop instead of the End-test button, and
+  // even a voice call whose transcript events didn't arrive (logged with its
+  // duration). loggedRef prevents double-logging.
+  const loggedRef = useRef(false);
 
-  async function endAndLog() {
-    if (!agent) return;
-    stopVoice();
+  async function logSession() {
+    if (!agent || loggedRef.current) return;
     const transcript = turnsRef.current;
-    if (transcript.length === 0) {
-      onClose();
-      return;
-    }
-    setBusy(true);
+    const durationSec = secondsFromStart();
+    const happened = transcript.length > 0 || (startedAtRef.current !== null && durationSec > 0);
+    if (!happened) return;
+    loggedRef.current = true;
     try {
-      await fetch("/api/test-calls", {
+      const res = await fetch("/api/test-calls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           agentId: agent.id,
           mode,
           startedAt: startedAtRef.current ?? new Date().toISOString(),
-          durationSec: secondsFromStart(),
+          durationSec,
           transcript,
         }),
       });
+      if (!res.ok) throw new Error();
       toast("Test session logged to Call Logs.");
       router.refresh();
-    } finally {
-      setBusy(false);
-      onClose();
+    } catch {
+      loggedRef.current = false;
+      toastError("Couldn't log the test session to Call Logs.");
     }
   }
 
+  async function handleClose() {
+    stopVoice();
+    await logSession();
+    onClose();
+  }
+
+  async function endAndLog() {
+    if (busy) return;
+    setBusy(true);
+    stopVoice();
+    await logSession();
+    setBusy(false);
+    onClose();
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/30" onClick={handleClose}>
       <div
         className="flex h-full w-full max-w-md flex-col border-l border-ink-700 bg-ink-950 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -261,7 +282,7 @@ export default function TestAgentPanel({
               <p className="text-xs text-ink-400">Sessions are logged in Call Logs as tests</p>
             </div>
           </div>
-          <button onClick={onClose} aria-label="Close" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
+          <button onClick={handleClose} aria-label="Close" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-ink-100">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -283,10 +304,11 @@ export default function TestAgentPanel({
                 {agents.map((a) => (
                   <button
                     key={a.id}
-                    onClick={() => {
+                    onClick={async () => {
                       setPickerOpen(false);
                       if (a.id !== agentId) {
                         stopVoice();
+                        await logSession(); // don't lose the previous agent's session
                         setAgentId(a.id);
                         resetSession();
                       }

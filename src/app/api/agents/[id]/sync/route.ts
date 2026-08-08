@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findAgent, updateAgent } from "@/lib/db";
 import { syncAgentToVapi, vapiConfigured } from "@/lib/vapi";
+import { buildKnowledgeText } from "@/lib/knowledge";
 
 // Sync an agent to Vapi on demand (used by the Test Agent panel so agents
 // created before Vapi was configured can still be voice-tested).
@@ -24,7 +25,8 @@ export async function POST(
   }
 
   try {
-    const assistantId = await syncAgentToVapi(agent);
+    const knowledge = await buildKnowledgeText(session.userId, agent.knowledgeBaseIds);
+    const assistantId = await syncAgentToVapi(agent, knowledge);
     if (assistantId && assistantId !== agent.vapiAssistantId) {
       await updateAgent(session.userId, id, { vapiAssistantId: assistantId });
     }

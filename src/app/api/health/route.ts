@@ -23,6 +23,9 @@ export async function GET() {
       publicKeySet: boolean;
       webhookSecretSet: boolean;
     };
+    elevenLabsKeySet: boolean;
+    openRouterKeySet: boolean;
+    resendKeySet: boolean;
     read: { ok: boolean; error?: string };
     write: { ok: boolean; error?: string };
   } = {
@@ -35,6 +38,13 @@ export async function GET() {
       publicKeySet: Boolean(process.env.VAPI_PUBLIC_KEY),
       webhookSecretSet: Boolean(process.env.VAPI_WEBHOOK_SECRET),
     },
+    elevenLabsKeySet: Boolean(
+      process.env.ELEVENLABS_API_KEY ??
+        process.env.ELEVEN_LABS_API_KEY ??
+        process.env.XI_API_KEY
+    ),
+    openRouterKeySet: Boolean(process.env.OPENROUTER_API_KEY),
+    resendKeySet: Boolean(process.env.RESEND_API_KEY),
     read: { ok: false },
     write: { ok: false },
   };

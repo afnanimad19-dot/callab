@@ -65,6 +65,8 @@ export interface Agent {
   tools?: AgentTool[];
   visibility?: "private" | "public"; // public = embeddable web-call widget
   revisions?: AgentRevision[]; // most recent first, capped
+  voiceId?: string; // ElevenLabs voice id (overrides the named VOICE_MAP)
+  knowledgeBaseIds?: string[]; // attached Knowledge Base resources
 }
 
 export interface TranscriptTurn {

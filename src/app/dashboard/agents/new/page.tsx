@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { listKnowledgeBases } from "@/lib/db";
 import AgentEditor from "@/components/dashboard/AgentEditor";
 import { TEMPLATE_CONTENT } from "@/lib/agent-templates";
 
@@ -16,10 +17,16 @@ export default async function NewAgentPage({
   const { type, template } = await searchParams;
   const agentType = type === "conversation_flow" ? "conversation_flow" : "single_prompt";
   const content = TEMPLATE_CONTENT[template ?? "scratch"] ?? TEMPLATE_CONTENT.scratch;
+  const knowledgeBases = await listKnowledgeBases(session.userId);
 
   return (
     <AgentEditor
       agentType={agentType}
+      knowledgeBases={knowledgeBases.map((k) => ({
+        id: k.id,
+        name: k.name,
+        type: k.type ?? "text",
+      }))}
       agent={{
         name:
           template && template !== "scratch"

@@ -20,11 +20,16 @@ import {
   Copy,
   Check,
   Settings,
+  ChevronDown,
+  Play,
+  Square,
+  BookOpen,
 } from "lucide-react";
+import { useEffect } from "react";
 import type { Agent, AgentRevision } from "@/lib/db";
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "@/lib/agent-defaults";
 import { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "@/lib/agent-defaults";
-import { toast } from "@/components/Toast";
+import { toast, toastError } from "@/components/Toast";
 
 const VOICES = [
   "Nova (female, warm)",
@@ -49,6 +54,8 @@ type Draft = {
   outcomes: AgentOutcome[];
   advanced: AgentAdvanced;
   tools: AgentTool[];
+  voiceId: string;
+  knowledgeBaseIds: string[];
 };
 
 function draftFrom(agent: Partial<Agent>): Draft {
@@ -66,6 +73,8 @@ function draftFrom(agent: Partial<Agent>): Draft {
     outcomes: agent.outcomes ?? [],
     advanced: { ...DEFAULT_ADVANCED, ...agent.advanced },
     tools: agent.tools ?? DEFAULT_TOOLS,
+    voiceId: agent.voiceId ?? "",
+    knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
   };
 }
 
@@ -167,12 +176,150 @@ function Slider({
   );
 }
 
+interface KnowledgeOption {
+  id: string;
+  name: string;
+  type: string;
+}
+
+interface VoiceOption {
+  voiceId: string;
+  name: string;
+  labels: string;
+  previewUrl: string | null;
+}
+
+// Voice picker with live ElevenLabs previews: every voice on the account is
+// listed (via /api/voices) with a play button that speaks a sample.
+function VoicePicker({
+  voice,
+  voiceId,
+  onSelect,
+}: {
+  voice: string;
+  voiceId: string;
+  onSelect: (name: string, id: string) => void;
+}) {
+  const [voices, setVoices] = useState<VoiceOption[]>([]);
+  const [live, setLive] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [playingId, setPlayingId] = useState<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/voices")
+      .then((r) => r.json())
+      .then((d) => {
+        setVoices(d.voices ?? []);
+        setLive(Boolean(d.live));
+      })
+      .catch(() => {});
+    return () => audioRef.current?.pause();
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  function preview(v: VoiceOption) {
+    if (!v.previewUrl) return;
+    if (playingId === v.voiceId) {
+      audioRef.current?.pause();
+      setPlayingId(null);
+      return;
+    }
+    audioRef.current?.pause();
+    const audio = new Audio(v.previewUrl);
+    audioRef.current = audio;
+    setPlayingId(v.voiceId);
+    audio.onended = () => setPlayingId(null);
+    audio.play().catch(() => setPlayingId(null));
+  }
+
+  const selected = voices.find((v) => v.voiceId === voiceId);
+  const q = query.trim().toLowerCase();
+  const visible = voices.filter(
+    (v) => !q || `${v.name} ${v.labels}`.toLowerCase().includes(q)
+  );
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="field flex w-full items-center justify-between text-left">
+        <span className="truncate">{selected?.name ?? voice ?? "Pick a voice"}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute inset-x-0 top-12 z-30 overflow-hidden rounded-xl border border-ink-700 bg-ink-950 shadow-xl shadow-black/20">
+          {voices.length > 8 && (
+            <input
+              className="w-full border-b border-ink-700 bg-transparent px-3.5 py-2.5 text-sm outline-none placeholder:text-ink-500"
+              placeholder="Search voices..."
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+          )}
+          <div className="max-h-72 overflow-y-auto py-1">
+            {visible.map((v) => (
+              <div
+                key={v.voiceId}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:bg-ink-800 ${
+                  v.voiceId === voiceId ? "bg-ink-800/60" : ""
+                }`}
+              >
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    preview(v);
+                  }}
+                  disabled={!v.previewUrl}
+                  title={v.previewUrl ? "Preview voice" : "No preview available"}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-ink-700 text-ink-300 transition hover:border-[#301C3F] hover:text-[#301C3F] disabled:opacity-40"
+                >
+                  {playingId === v.voiceId ? <Square className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+                </button>
+                <button
+                  onClick={() => {
+                    onSelect(v.name, v.voiceId);
+                    setOpen(false);
+                  }}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <span className="block truncate font-medium">{v.name}</span>
+                  {v.labels && <span className="block truncate text-xs text-ink-400">{v.labels}</span>}
+                </button>
+                {v.voiceId === voiceId && <Check className="h-4 w-4 shrink-0 text-[#301C3F]" />}
+              </div>
+            ))}
+            {visible.length === 0 && (
+              <p className="px-3 py-4 text-center text-xs text-ink-400">No voices match.</p>
+            )}
+          </div>
+          {!live && (
+            <p className="border-t border-ink-700 px-3.5 py-2 text-[11px] text-amber-700">
+              Add ELEVENLABS_API_KEY to list every ElevenLabs voice with audio previews.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function AgentEditor({
   agent,
   agentType,
+  knowledgeBases = [],
 }: {
   agent: Partial<Agent> & { id?: string };
   agentType: "single_prompt" | "conversation_flow";
+  knowledgeBases?: KnowledgeOption[];
 }) {
   const router = useRouter();
   const initial = useRef(draftFrom(agent));
@@ -182,6 +329,7 @@ export default function AgentEditor({
   const [chat, setChat] = useState<{ from: "you" | "agent"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [generateOpen, setGenerateOpen] = useState(false);
+  const [greetingBusy, setGreetingBusy] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -233,8 +381,32 @@ export default function AgentEditor({
     }
     const data = await res.json().catch(() => ({}));
     setError(data.error ?? "Something went wrong while publishing.");
-    toast("Publishing failed — see the error at the top of the editor.");
+    toastError(data.error ?? "Publishing failed — check the editor for details.");
     setBusy(false);
+  }
+
+  async function generateGreeting() {
+    setGreetingBusy(true);
+    try {
+      const description =
+        draft.identity.trim() ||
+        `An AI voice agent named ${draft.name} working as: ${agent.role ?? "a general assistant"}.`;
+      const res = await fetch("/api/ai/generate-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description, section: "greeting" }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      if (data.greeting) {
+        set("greeting", data.greeting);
+        toast("Opening message generated.");
+      }
+    } catch (e) {
+      toastError((e as Error).message);
+    } finally {
+      setGreetingBusy(false);
+    }
   }
 
   function sendTest() {
@@ -311,9 +483,11 @@ export default function AgentEditor({
             </div>
             <div>
               <label className="label">Agent Voice</label>
-              <select className="field" value={draft.voice} onChange={(e) => set("voice", e.target.value)}>
-                {VOICES.map((v) => <option key={v}>{v}</option>)}
-              </select>
+              <VoicePicker
+                voice={draft.voice}
+                voiceId={draft.voiceId}
+                onSelect={(name, id) => setDraft((d) => ({ ...d, voice: name, voiceId: id }))}
+              />
             </div>
             <div>
               <label className="label">Background Audio</label>
@@ -322,6 +496,63 @@ export default function AgentEditor({
               </select>
             </div>
           </div>
+        </Section>
+
+        {/* Knowledge Base */}
+        <Section
+          icon="📚"
+          title="Knowledge Base"
+          subtitle="Attach knowledge resources — the agent reads them and answers from their content."
+        >
+          {knowledgeBases.length === 0 ? (
+            <p className="py-3 text-sm text-ink-400">
+              No resources yet — add files, text, or URLs under{" "}
+              <Link href="/dashboard/knowledge" className="text-accent-600 hover:text-accent-500">
+                Knowledge Bases
+              </Link>{" "}
+              and they&apos;ll be selectable here.
+            </p>
+          ) : (
+            <>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {knowledgeBases.map((kb) => {
+                  const checked = draft.knowledgeBaseIds.includes(kb.id);
+                  return (
+                    <label
+                      key={kb.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
+                        checked ? "border-[#301C3F] bg-[#301C3F]/5" : "border-ink-700 hover:bg-ink-800/50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 accent-accent-500"
+                        checked={checked}
+                        onChange={() =>
+                          set(
+                            "knowledgeBaseIds",
+                            checked
+                              ? draft.knowledgeBaseIds.filter((id) => id !== kb.id)
+                              : [...draft.knowledgeBaseIds, kb.id]
+                          )
+                        }
+                      />
+                      <BookOpen className="h-4 w-4 shrink-0 text-ink-400" />
+                      <span className="min-w-0">
+                        <span className="block truncate font-medium">{kb.name}</span>
+                        <span className="block text-xs uppercase text-ink-400">{kb.type}</span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              <p className="mt-3 text-xs text-ink-400">
+                {draft.knowledgeBaseIds.length === 0
+                  ? "Select the resources this agent should know — clinic info, FAQs, price lists, anything."
+                  : `${draft.knowledgeBaseIds.length} resource${draft.knowledgeBaseIds.length === 1 ? "" : "s"} attached. Their content is loaded fresh on every publish and test, so editing a resource updates the agent automatically.`}
+              </p>
+            </>
+          )}
         </Section>
 
         {/* Prompt Configuration OR Flow Designer */}
@@ -420,8 +651,18 @@ export default function AgentEditor({
               </select>
             </div>
             <div>
-              <label className="label">Opening Message</label>
-              <p className="mb-2 text-xs text-ink-400">
+              <div className="flex items-center justify-between">
+                <label className="label !mb-0">Opening Message</label>
+                <button
+                  onClick={generateGreeting}
+                  disabled={greetingBusy}
+                  className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs disabled:opacity-50"
+                  title="Write an opening line from the agent's identity"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> {greetingBusy ? "Writing…" : "Generate With AI"}
+                </button>
+              </div>
+              <p className="mb-2 mt-1 text-xs text-ink-400">
                 The first thing your agent will say when the call connects. Keep it friendly and professional.
               </p>
               <textarea rows={3} className="field" value={draft.greeting} onChange={(e) => set("greeting", e.target.value)} />

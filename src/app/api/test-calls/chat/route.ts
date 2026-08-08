@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findAgent, updateAgent } from "@/lib/db";
 import { chatWithAssistant, syncAgentToVapi, vapiConfigured } from "@/lib/vapi";
+import { buildKnowledgeText } from "@/lib/knowledge";
 
 // One turn of a text test with an agent. Uses Vapi's Chat API when the agent
 // is synced to a Vapi assistant; otherwise falls back to a local simulated
@@ -22,7 +23,8 @@ export async function POST(request: Request) {
   // Auto-sync agents that were created before Vapi was configured.
   if (vapiConfigured() && !agent.vapiAssistantId) {
     try {
-      const assistantId = await syncAgentToVapi(agent);
+      const knowledge = await buildKnowledgeText(session.userId, agent.knowledgeBaseIds);
+      const assistantId = await syncAgentToVapi(agent, knowledge);
       if (assistantId) {
         agent.vapiAssistantId = assistantId;
         await updateAgent(session.userId, agent.id, { vapiAssistantId: assistantId });

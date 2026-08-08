@@ -5,19 +5,27 @@
 // bottom-right, stacked when several fire, each with its own dismiss button.
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, XCircle, X } from "lucide-react";
 
 const EVENT = "vl-toast";
 
 export function toast(message: string) {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent(EVENT, { detail: message }));
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: { message, kind: "success" } }));
+  }
+}
+
+// Red variant for failures — same size and stacking, different icon/border.
+export function toastError(message: string) {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(EVENT, { detail: { message, kind: "error" } }));
   }
 }
 
 interface Item {
   id: number;
   message: string;
+  kind: "success" | "error";
 }
 
 export default function ToastHost() {
@@ -25,11 +33,17 @@ export default function ToastHost() {
 
   useEffect(() => {
     function onToast(e: Event) {
-      const message = String((e as CustomEvent).detail ?? "");
+      const detail = (e as CustomEvent).detail;
+      const message = typeof detail === "string" ? detail : String(detail?.message ?? "");
+      const kind: Item["kind"] = detail?.kind === "error" ? "error" : "success";
       if (!message) return;
       const id = Date.now() + Math.random();
-      setItems((list) => [...list, { id, message }].slice(-5));
-      setTimeout(() => setItems((list) => list.filter((t) => t.id !== id)), 4000);
+      setItems((list) => [...list, { id, message, kind }].slice(-5));
+      // Errors stay a bit longer so they can actually be read.
+      setTimeout(
+        () => setItems((list) => list.filter((t) => t.id !== id)),
+        kind === "error" ? 6000 : 4000
+      );
     }
     window.addEventListener(EVENT, onToast);
     return () => window.removeEventListener(EVENT, onToast);
@@ -41,9 +55,15 @@ export default function ToastHost() {
       {items.map((t) => (
         <div
           key={t.id}
-          className="pointer-events-auto flex items-center gap-2.5 rounded-lg border border-ink-700 bg-ink-950 py-2 pl-3 pr-2 text-sm shadow-lg shadow-black/10"
+          className={`pointer-events-auto flex items-center gap-2.5 rounded-lg border py-2 pl-3 pr-2 text-sm shadow-lg shadow-black/10 ${
+            t.kind === "error" ? "border-red-300 bg-red-50 text-red-800" : "border-ink-700 bg-ink-950"
+          }`}
         >
-          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          {t.kind === "error" ? (
+            <XCircle className="h-4 w-4 shrink-0 text-red-500" />
+          ) : (
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+          )}
           <span className="max-w-[260px]">{t.message}</span>
           <button
             onClick={() => setItems((list) => list.filter((x) => x.id !== t.id))}

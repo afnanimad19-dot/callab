@@ -40,8 +40,15 @@ async function vapi(path: string, init?: RequestInit) {
 
 // Create or update the Vapi assistant backing one of our agents.
 // Returns the Vapi assistant id (store it on the agent as vapiAssistantId).
-export async function syncAgentToVapi(agent: Agent): Promise<string | null> {
+export async function syncAgentToVapi(
+  agent: Agent,
+  knowledgeText?: string
+): Promise<string | null> {
   if (!vapiConfigured()) return null;
+
+  const systemPrompt = knowledgeText
+    ? `${agent.systemPrompt}\n\n${knowledgeText}`
+    : agent.systemPrompt;
 
   const adv = agent.advanced;
   const endCallPhrases = (adv?.endCallPhrases ?? "")
@@ -111,11 +118,13 @@ export async function syncAgentToVapi(agent: Agent): Promise<string | null> {
       // accepts for the anthropic provider — the rest of the flow is unchanged.
       provider: "anthropic",
       model: "claude-3-5-sonnet-20241022",
-      messages: [{ role: "system", content: agent.systemPrompt }],
+      messages: [{ role: "system", content: systemPrompt }],
     },
     voice: {
       provider: "11labs",
-      voiceId: VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"],
+      // voiceId is the real ElevenLabs voice picked in the editor; the named
+      // VOICE_MAP is the fallback for agents created before voice previews.
+      voiceId: agent.voiceId || (VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"]),
     },
     transcriber: { provider: "deepgram", model: "nova-2" },
     // Post-call summary/analysis, sent to our webhook (configure Server URL
