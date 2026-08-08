@@ -178,8 +178,18 @@ interface Turn {
   at: number;
 }
 
-export function WebCallModal({ agent, onClose }: { agent: Agent; onClose: () => void }) {
+export function WebCallModal({
+  agent: initialAgent,
+  agents,
+  onClose,
+}: {
+  agent: Agent;
+  agents?: Agent[]; // optional picker: switch which agent answers the web call
+  onClose: () => void;
+}) {
   const router = useRouter();
+  const [agentId, setAgentId] = useState(initialAgent.id);
+  const agent = agents?.find((a) => a.id === agentId) ?? initialAgent;
   const [state, setState] = useState<"idle" | "connecting" | "live">("idle");
   const [muted, setMuted] = useState(false);
   const [talking, setTalking] = useState(false);
@@ -202,6 +212,15 @@ export function WebCallModal({ agent, onClose }: { agent: Agent; onClose: () => 
   const bubbleRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => () => vapiRef.current?.stop(), []);
+
+  // Switching agents (picker, only possible while idle) starts a fresh
+  // session — ended calls were already logged by the call-end handler.
+  useEffect(() => {
+    startedAtRef.current = null;
+    turnsRef.current = [];
+    vapiCallIdRef.current = null;
+    loggedRef.current = false;
+  }, [agentId]);
 
   // Smoothly drive the bubble scale from the SDK's volume-level events.
   useEffect(() => {
@@ -356,7 +375,21 @@ export function WebCallModal({ agent, onClose }: { agent: Agent; onClose: () => 
           <button onClick={handleClose} aria-label="Close" className="text-ink-400 hover:text-ink-100"><X className="h-4 w-4" /></button>
         </div>
 
-        <p className="mt-4 text-center text-lg font-bold">{agent.name}</p>
+        {agents && agents.length > 1 ? (
+          <select
+            className="field mx-auto mt-4 !w-auto min-w-[220px] text-center font-semibold"
+            value={agentId}
+            disabled={state !== "idle"}
+            onChange={(e) => setAgentId(e.target.value)}
+            aria-label="Choose agent to test"
+          >
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        ) : (
+          <p className="mt-4 text-center text-lg font-bold">{agent.name}</p>
+        )}
 
         <div className="flex flex-1 items-center justify-center py-6">
           <div ref={bubbleRef} className={`voice-bubble ${talking ? "talking" : ""}`} aria-hidden />

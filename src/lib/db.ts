@@ -608,6 +608,11 @@ export async function updateContact(userId: string, id: string, patch: Partial<C
 export const listPhoneNumbers = (userId: string) => store.list<PhoneNumber>("phoneNumbers", userId);
 export const createPhoneNumber = (p: PhoneNumber) => store.insert("phoneNumbers", p);
 export const insertPhoneNumbers = (rows: PhoneNumber[]) => store.insertMany("phoneNumbers", rows);
+export async function updatePhoneNumber(userId: string, id: string, patch: Partial<PhoneNumber>) {
+  const exists = (await listPhoneNumbers(userId)).some((p) => p.id === id);
+  if (!exists) return null;
+  return store.update<PhoneNumber>("phoneNumbers", id, patch);
+}
 export async function deletePhoneNumber(userId: string, id: string) {
   const exists = (await listPhoneNumbers(userId)).some((p) => p.id === id);
   if (!exists) return false;

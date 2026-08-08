@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { createKnowledgeBase, KnowledgeBase, newId } from "@/lib/db";
+import { fetchWebsiteText } from "@/lib/web-content";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -16,11 +17,27 @@ export async function POST(request: Request) {
     ? (body.type as KnowledgeBase["type"])
     : "text";
 
+  // URL / Google Doc resources: fetch and index the actual page content so
+  // agents can read it — not just store the link.
+  let fetchedContent = "";
+  let fetchedPages = 0;
   if (type === "url" || type === "gdoc") {
     const url = String(body?.url ?? "").trim();
     if (!/^https?:\/\/.+/.test(url)) {
       return NextResponse.json({ error: "Enter a valid URL." }, { status: 400 });
     }
+    const fetched = await fetchWebsiteText(url, {
+      crawl: Boolean(body?.crawl),
+      gdoc: type === "gdoc",
+    });
+    if (!fetched) {
+      return NextResponse.json(
+        { error: "Couldn't read that URL — check it's public and reachable, then try again." },
+        { status: 400 }
+      );
+    }
+    fetchedContent = fetched.content;
+    fetchedPages = fetched.pages;
   }
 
   const now = new Date().toISOString();
@@ -30,18 +47,18 @@ export async function POST(request: Request) {
     name,
     description:
       type === "url"
-        ? "Website/URL content"
+        ? `Website content (${fetchedPages} page${fetchedPages === 1 ? "" : "s"} indexed)`
         : type === "gdoc"
           ? "Google Doc content"
           : type === "file"
             ? "Uploaded file(s)"
             : "Text content",
-    docsCount: type === "file" ? Number(body?.docsCount ?? 1) || 1 : 1,
+    docsCount: type === "file" ? Number(body?.docsCount ?? 1) || 1 : Math.max(1, fetchedPages),
     createdAt: now,
     updatedAt: now,
     type,
     url: String(body?.url ?? "").slice(0, 500),
-    content: String(body?.content ?? "").slice(0, 20000),
+    content: (fetchedContent || String(body?.content ?? "")).slice(0, 60000),
     fileName: String(body?.fileName ?? "").slice(0, 200) || undefined,
     autoUpdate: Boolean(body?.autoUpdate),
     crawl: Boolean(body?.crawl),

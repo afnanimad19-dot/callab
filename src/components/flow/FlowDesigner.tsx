@@ -638,7 +638,7 @@ export default function FlowDesigner({
             className="flex w-full items-center gap-2.5 border-t border-ink-800 px-3.5 py-2 text-left text-sm transition hover:bg-ink-800">
             <Code2 className="h-4 w-4 text-ink-400" /> Embed
           </button>
-          <button onClick={() => setTestPanel(true)}
+          <button onClick={() => setWebCall(true)}
             className="flex w-full items-center gap-2.5 border-t border-ink-800 px-3.5 py-2 text-left text-sm transition hover:bg-ink-800">
             <MessageSquare className="h-4 w-4 text-ink-400" /> Test
           </button>

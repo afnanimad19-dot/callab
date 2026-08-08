@@ -1,16 +1,16 @@
 "use client";
-import { Search, RefreshCw, Trash2, Zap, Phone, PhoneCall, Lock, type LucideIcon } from "lucide-react";
+import { Search, RefreshCw, Trash2, Zap, Phone, PhoneCall, Lock, Bot, type LucideIcon } from "lucide-react";
 import RowMenu from "./RowMenu";
-import { toast } from "@/components/Toast";
+import { toast, toastError } from "@/components/Toast";
 
 // Phone Numbers: search + provider/status filters, number cards, and the
 // "Add Phone Number" flow (provider picker → provider-specific form).
 // Provider credentials are forwarded to the voice pipeline, never stored.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
-import type { PhoneNumber } from "@/lib/db";
+import type { PhoneNumber, Agent } from "@/lib/db";
 
 const PROVIDERS = [
   {
@@ -40,6 +40,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
   const [statusFilter, setStatusFilter] = useState("all");
   const [pickerOpen, setPickerOpen] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
+  const [assignFor, setAssignFor] = useState<PhoneNumber | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -94,7 +95,10 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
             <div className="flex items-start justify-between">
               <p className="text-sm text-ink-400">{n.provider}</p>
               <RowMenu
-                items={[{ label: "Remove", icon: Trash2, danger: true, onClick: () => remove(n) }]}
+                items={[
+                  { label: "Assign agent", icon: Bot, onClick: () => setAssignFor(n) },
+                  { label: "Remove", icon: Trash2, danger: true, onClick: () => remove(n) },
+                ]}
               />
             </div>
             <p className="mt-2 font-mono text-xl font-bold tracking-wide">{n.number}</p>
@@ -137,7 +141,12 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
 
       {provider && (
         <AddNumberModal provider={provider} onClose={() => setProvider(null)}
-          onCreated={() => { setProvider(null); toast("Phone number added."); router.refresh(); }} />
+          onCreated={() => { setProvider(null); router.refresh(); }} />
+      )}
+
+      {assignFor && (
+        <AssignAgentModal number={assignFor} onClose={() => setAssignFor(null)}
+          onDone={() => { setAssignFor(null); router.refresh(); }} />
       )}
     </div>
   );
@@ -170,11 +179,18 @@ function AddNumberModal({
     const res = await fetch("/api/phone-numbers", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ number, nickname, numberType, provider }),
+      body: JSON.stringify({
+        number, nickname, numberType, provider,
+        twilioAccountSid: sid, twilioAuthToken: token,
+        sipHost, sipUser, sipPass,
+      }),
     });
-    if (res.ok) onCreated();
-    else {
-      const data = await res.json().catch(() => ({}));
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      if (data.linked) toast("Number added and connected to the voice pipeline.");
+      else toastError(data.linkError ?? "Number saved, but not linked to the voice pipeline yet.");
+      onCreated();
+    } else {
       setError(data.error ?? "Something went wrong.");
       setBusy(false);
     }
@@ -252,6 +268,87 @@ function AddNumberModal({
           <button onClick={create} disabled={busy} className="btn-primary disabled:opacity-60">
             {busy ? "Adding…" : "Add Number"}
           </button>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function AssignAgentModal({
+  number,
+  onClose,
+  onDone,
+}: {
+  number: PhoneNumber;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [agents, setAgents] = useState<Agent[]>([]);
+  const [agentId, setAgentId] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/agents")
+      .then((r) => r.json())
+      .then((d) => setAgents(Array.isArray(d.agents) ? d.agents : []))
+      .catch(() => {});
+  }, []);
+
+  async function assign(unassign = false) {
+    setBusy(true);
+    setError(null);
+    const res = await fetch(`/api/phone-numbers/${number.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ agentId: unassign ? null : agentId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      if (unassign) toast(`${number.number} unassigned.`);
+      else if (data.routed) toast(`Inbound calls to ${number.number} now go to this agent.`);
+      else toast("Agent assigned. Link the number to Vapi to route inbound calls.");
+      onDone();
+    } else {
+      setError(data.error ?? "Could not assign the agent.");
+    }
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Assign agent — ${number.number}`}
+      subtitle="Inbound calls to this number will be answered by the selected agent.">
+      <div className="space-y-4">
+        <div>
+          <label className="label">AI Agent</label>
+          <select className="field" value={agentId} onChange={(e) => setAgentId(e.target.value)}>
+            <option value="">Select an agent</option>
+            {agents.map((a) => (
+              <option key={a.id} value={a.id}>{a.name}</option>
+            ))}
+          </select>
+        </div>
+        {!number.vapiPhoneNumberId && (
+          <p className="rounded-lg bg-amber-50 px-3.5 py-2.5 text-xs text-amber-800">
+            This number isn&apos;t linked to the voice pipeline yet — re-add it with its
+            Twilio/SIP credentials so inbound calls can actually route to the agent.
+          </p>
+        )}
+        {error && (
+          <p className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-3.5 py-2.5 text-sm text-signal-red">{error}</p>
+        )}
+        <div className="flex justify-between gap-2 pt-1">
+          {number.agentName ? (
+            <button onClick={() => assign(true)} disabled={busy} className="btn-secondary disabled:opacity-60">
+              Unassign
+            </button>
+          ) : <span />}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="btn-secondary">Cancel</button>
+            <button onClick={() => assign(false)} disabled={busy || !agentId} className="btn-primary disabled:opacity-50">
+              {busy ? "Assigning\u2026" : "Assign Agent"}
+            </button>
+          </div>
         </div>
       </div>
     </Modal>

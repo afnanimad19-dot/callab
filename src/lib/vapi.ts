@@ -447,6 +447,96 @@ export async function syncAgentToVapi(
   }
 }
 
+// --- Phone numbers ----------------------------------------------------------
+
+// Import a Twilio number into Vapi. Vapi links to the Twilio account and
+// configures the number's voice webhook so INBOUND calls are answered by the
+// assigned assistant. Credentials go straight to Vapi — never our database.
+export async function importTwilioNumber(options: {
+  number: string; // E.164
+  accountSid: string;
+  authToken: string;
+  name?: string;
+  assistantId?: string;
+}): Promise<string | null> {
+  if (!vapiConfigured()) return null;
+  const created = (await vapi("/phone-number", {
+    method: "POST",
+    body: JSON.stringify({
+      provider: "twilio",
+      number: options.number,
+      twilioAccountSid: options.accountSid,
+      twilioAuthToken: options.authToken,
+      ...(options.name ? { name: options.name } : {}),
+      ...(options.assistantId ? { assistantId: options.assistantId } : {}),
+    }),
+  })) as { id?: string };
+  return created.id ?? null;
+}
+
+// Connect a number that lives behind the user's own SIP trunk (BYO carrier):
+// first a byo-sip-trunk credential, then the number bound to it.
+export async function importSipNumber(options: {
+  number: string;
+  gateway: string; // SIP host/IP
+  username?: string;
+  password?: string;
+  name?: string;
+}): Promise<string | null> {
+  if (!vapiConfigured()) return null;
+  const credential = (await vapi("/credential", {
+    method: "POST",
+    body: JSON.stringify({
+      provider: "byo-sip-trunk",
+      name: options.name ?? `SIP trunk ${options.gateway}`,
+      gateways: [{ ip: options.gateway }],
+      ...(options.username && options.password
+        ? {
+            outboundAuthenticationPlan: {
+              authUsername: options.username,
+              authPassword: options.password,
+            },
+          }
+        : {}),
+    }),
+  })) as { id?: string };
+  if (!credential.id) return null;
+  const created = (await vapi("/phone-number", {
+    method: "POST",
+    body: JSON.stringify({
+      provider: "byo-phone-number",
+      number: options.number,
+      numberE164CheckEnabled: false,
+      credentialId: credential.id,
+      ...(options.name ? { name: options.name } : {}),
+    }),
+  })) as { id?: string };
+  return created.id ?? null;
+}
+
+// Find an existing number in the connected Vapi account (for "Vapi Number").
+export async function findVapiNumber(number: string): Promise<string | null> {
+  if (!vapiConfigured()) return null;
+  const digits = number.replace(/[^\d]/g, "");
+  const list = (await vapi("/phone-number")) as { id?: string; number?: string }[];
+  const hit = (Array.isArray(list) ? list : []).find(
+    (n) => (n.number ?? "").replace(/[^\d]/g, "").endsWith(digits.slice(-9))
+  );
+  return hit?.id ?? null;
+}
+
+// Route INBOUND calls on a number to an assistant.
+export async function assignNumberToAssistant(
+  vapiPhoneNumberId: string,
+  assistantId: string | null
+): Promise<void> {
+  if (!vapiConfigured()) return;
+  await vapi(`/phone-number/${vapiPhoneNumberId}`, {
+    method: "PATCH",
+    body: JSON.stringify({ assistantId }),
+  });
+}
+
 // Start an outbound call for a campaign ("Launch your AI").
 // phoneNumberId is a Vapi phone number id; customerNumber is E.164.
 export async function startOutboundCall(options: {
@@ -504,19 +594,38 @@ export async function getCallRecording(callId: string): Promise<string | null> {
   if (!vapiConfigured()) return null;
   try {
     const call = (await vapi(`/call/${callId}`)) as {
-      artifact?: { recordingUrl?: string; stereoRecordingUrl?: string; recording?: { url?: string; stereoUrl?: string } };
+      artifact?: {
+        recordingUrl?: string;
+        stereoRecordingUrl?: string;
+        recording?: {
+          url?: string;
+          stereoUrl?: string;
+          mono?: { combinedUrl?: string; assistantUrl?: string; customerUrl?: string };
+        };
+      };
       recordingUrl?: string;
       stereoRecordingUrl?: string;
     };
-    return (
+    const known =
       call.artifact?.recordingUrl ??
       call.artifact?.stereoRecordingUrl ??
-      call.artifact?.recording?.url ??
       call.artifact?.recording?.stereoUrl ??
+      call.artifact?.recording?.url ??
+      call.artifact?.recording?.mono?.combinedUrl ??
       call.recordingUrl ??
       call.stereoRecordingUrl ??
-      null
-    );
+      null;
+    if (known) return known;
+    // Vapi has moved the recording field between versions — as a last resort,
+    // deep-scan the payload for any audio-file URL.
+    const found: string[] = [];
+    (function scan(v: unknown) {
+      if (typeof v === "string") {
+        if (/^https?:\/\/\S+\.(wav|mp3|ogg|m4a|flac)(\?|$)/i.test(v)) found.push(v);
+      } else if (Array.isArray(v)) v.forEach(scan);
+      else if (v && typeof v === "object") Object.values(v).forEach(scan);
+    })(call);
+    return found[0] ?? null;
   } catch (e) {
     console.error("Recording fetch failed:", e);
     return null;

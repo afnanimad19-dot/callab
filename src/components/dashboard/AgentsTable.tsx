@@ -6,7 +6,7 @@ import { Search, RefreshCw, Pencil, FlaskConical, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Agent } from "@/lib/db";
-import TestAgentPanel from "./TestAgentPanel";
+import { WebCallModal } from "./TestCallModals";
 import RowMenu from "./RowMenu";
 import { toast } from "@/components/Toast";
 
@@ -148,9 +148,9 @@ export default function AgentsTable({ agents }: { agents: Agent[] }) {
       </div>
 
       {testAgentId && (
-        <TestAgentPanel
+        <WebCallModal
+          agent={agents.find((a) => a.id === testAgentId) ?? agents[0]}
           agents={agents}
-          initialAgentId={testAgentId}
           onClose={() => setTestAgentId(null)}
         />
       )}
