@@ -182,6 +182,92 @@ interface KnowledgeOption {
   type: string;
 }
 
+// Knowledge Base picker: a dropdown (like the voice picker) listing every
+// resource with its type; selected ones show as removable name tags.
+function KnowledgePicker({
+  options,
+  selectedIds,
+  onChange,
+}: {
+  options: { id: string; name: string; type: string }[];
+  selectedIds: string[];
+  onChange: (ids: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocClick);
+    return () => document.removeEventListener("mousedown", onDocClick);
+  }, [open]);
+
+  const available = options.filter((o) => !selectedIds.includes(o.id));
+  const selected = selectedIds
+    .map((id) => options.find((o) => o.id === id))
+    .filter(Boolean) as { id: string; name: string; type: string }[];
+
+  return (
+    <div>
+      <div ref={wrapRef} className="relative sm:max-w-md">
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="field flex w-full items-center justify-between text-left"
+        >
+          <span className="text-ink-400">
+            {available.length === 0 ? "All resources attached" : "Select knowledge resources…"}
+          </span>
+          <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? "rotate-180" : ""}`} />
+        </button>
+        {open && available.length > 0 && (
+          <div className="absolute inset-x-0 top-12 z-30 max-h-64 overflow-y-auto rounded-xl border border-ink-700 bg-ink-950 py-1 shadow-xl shadow-black/20">
+            {available.map((kb) => (
+              <button
+                key={kb.id}
+                onClick={() => {
+                  onChange([...selectedIds, kb.id]);
+                  if (available.length === 1) setOpen(false);
+                }}
+                className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left text-sm transition hover:bg-ink-800"
+              >
+                <BookOpen className="h-4 w-4 shrink-0 text-ink-400" />
+                <span className="min-w-0 flex-1 truncate font-medium">{kb.name}</span>
+                <span className="shrink-0 rounded bg-ink-800 px-2 py-0.5 text-[10px] uppercase text-ink-400">
+                  {kb.type}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {selected.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {selected.map((kb) => (
+            <span
+              key={kb.id}
+              className="flex items-center gap-1.5 rounded-full bg-[#301C3F]/10 py-1.5 pl-3 pr-1.5 text-xs font-medium text-[#301C3F]"
+            >
+              <BookOpen className="h-3 w-3" />
+              {kb.name}
+              <span className="rounded bg-white/60 px-1.5 py-0.5 text-[9px] uppercase">{kb.type}</span>
+              <button
+                onClick={() => onChange(selectedIds.filter((id) => id !== kb.id))}
+                aria-label={`Remove ${kb.name}`}
+                className="rounded-full p-0.5 text-[#301C3F]/60 transition hover:bg-[#301C3F]/10 hover:text-[#301C3F]"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface VoiceOption {
   voiceId: string;
   name: string;
@@ -328,7 +414,7 @@ export default function AgentEditor({
   const [error, setError] = useState<string | null>(null);
   const [chat, setChat] = useState<{ from: "you" | "agent"; text: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
-  const [generateOpen, setGenerateOpen] = useState(false);
+  const [generateMode, setGenerateMode] = useState<"all" | "tasks" | null>(null);
   const [greetingBusy, setGreetingBusy] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -514,38 +600,11 @@ export default function AgentEditor({
             </p>
           ) : (
             <>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {knowledgeBases.map((kb) => {
-                  const checked = draft.knowledgeBaseIds.includes(kb.id);
-                  return (
-                    <label
-                      key={kb.id}
-                      className={`flex cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-sm transition ${
-                        checked ? "border-[#301C3F] bg-[#301C3F]/5" : "border-ink-700 hover:bg-ink-800/50"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 accent-accent-500"
-                        checked={checked}
-                        onChange={() =>
-                          set(
-                            "knowledgeBaseIds",
-                            checked
-                              ? draft.knowledgeBaseIds.filter((id) => id !== kb.id)
-                              : [...draft.knowledgeBaseIds, kb.id]
-                          )
-                        }
-                      />
-                      <BookOpen className="h-4 w-4 shrink-0 text-ink-400" />
-                      <span className="min-w-0">
-                        <span className="block truncate font-medium">{kb.name}</span>
-                        <span className="block text-xs uppercase text-ink-400">{kb.type}</span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
+              <KnowledgePicker
+                options={knowledgeBases}
+                selectedIds={draft.knowledgeBaseIds}
+                onChange={(ids) => set("knowledgeBaseIds", ids)}
+              />
               <p className="mt-3 text-xs text-ink-400">
                 {draft.knowledgeBaseIds.length === 0
                   ? "Select the resources this agent should know — clinic info, FAQs, price lists, anything."
@@ -565,7 +624,7 @@ export default function AgentEditor({
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setGenerateOpen(true);
+                  setGenerateMode("all");
                 }}
                 className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
               >
@@ -585,12 +644,20 @@ export default function AgentEditor({
               <div>
                 <div className="flex items-center justify-between">
                   <p className="text-sm font-semibold">☑️ Tasks</p>
-                  <button
-                    onClick={() => setToolsOpen(true)}
-                    className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
-                  >
-                    <Wrench className="h-3.5 w-3.5" /> Add Tools
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setGenerateMode("tasks")}
+                      className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
+                    >
+                      <Sparkles className="h-3.5 w-3.5" /> Generate With AI
+                    </button>
+                    <button
+                      onClick={() => setToolsOpen(true)}
+                      className="btn-secondary flex items-center gap-1.5 !px-3 !py-1.5 !text-xs"
+                    >
+                      <Wrench className="h-3.5 w-3.5" /> Add Tools
+                    </button>
+                  </div>
                 </div>
                 <p className="mb-2 text-xs text-ink-400">
                   The specific tasks, goals, or actions the AI should be capable of performing.
@@ -1082,11 +1149,12 @@ export default function AgentEditor({
         </div>
       )}
 
-      {generateOpen && (
-        <GeneratePromptModal
-          onClose={() => setGenerateOpen(false)}
+      {generateMode && (
+        <GenerateWizard
+          mode={generateMode}
+          onClose={() => setGenerateMode(null)}
           onGenerated={(g) => {
-            setGenerateOpen(false);
+            setGenerateMode(null);
             setDraft((d) => ({
               ...d,
               identity: g.identity || d.identity,
@@ -1094,6 +1162,7 @@ export default function AgentEditor({
               guardrails: g.guardrails || d.guardrails,
               greeting: g.greeting || d.greeting,
             }));
+            toast(generateMode === "tasks" ? "Tasks generated." : "Prompt sections generated.");
           }}
         />
       )}
@@ -1126,18 +1195,66 @@ export default function AgentEditor({
   );
 }
 
-// --- Generate Prompt Sections (Callab parity) -------------------------------
+// --- Generate Prompt Sections: step-by-step wizard --------------------------
+// Instead of one free-text box, the wizard asks structured questions so the
+// blueprint can be filled properly. Optional steps can be skipped; whatever
+// is answered flows into the generated prompt.
 
-function GeneratePromptModal({
+const WIZARD_STEPS = [
+  { title: "Business", subtitle: "What is this agent for?" },
+  { title: "Your Agent", subtitle: "Who is the agent?" },
+  { title: "Team", subtitle: "Staff & services (optional)" },
+  { title: "Details", subtitle: "Hours, contact, policies (optional)" },
+] as const;
+
+interface WizardAnswers {
+  businessName: string;
+  businessDescription: string;
+  agentName: string;
+  agentRole: string;
+  team: string;
+  services: string;
+  hours: string;
+  location: string;
+  contact: string;
+  policies: string;
+  extra: string;
+}
+
+const EMPTY_ANSWERS: WizardAnswers = {
+  businessName: "",
+  businessDescription: "",
+  agentName: "",
+  agentRole: "Inbound receptionist",
+  team: "",
+  services: "",
+  hours: "",
+  location: "",
+  contact: "",
+  policies: "",
+  extra: "",
+};
+
+function GenerateWizard({
+  mode,
   onClose,
   onGenerated,
 }: {
+  mode: "all" | "tasks";
   onClose: () => void;
   onGenerated: (g: { identity: string; tasks: string; guardrails: string; greeting: string }) => void;
 }) {
-  const [description, setDescription] = useState("");
+  const [step, setStep] = useState(0);
+  const [answers, setAnswers] = useState<WizardAnswers>(EMPTY_ANSWERS);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  function setA<K extends keyof WizardAnswers>(key: K, value: string) {
+    setAnswers((a) => ({ ...a, [key]: value }));
+  }
+
+  const canNext =
+    step !== 0 || (answers.businessName.trim().length > 1 && answers.businessDescription.trim().length > 9);
 
   async function generate() {
     setBusy(true);
@@ -1146,7 +1263,7 @@ function GeneratePromptModal({
       const res = await fetch("/api/ai/generate-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({ section: mode, answers }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
@@ -1159,33 +1276,174 @@ function GeneratePromptModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between">
+      <div
+        className="flex max-h-[90vh] w-full max-w-lg flex-col rounded-2xl border border-ink-700 bg-ink-950 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between px-6 pt-6">
           <div>
-            <h2 className="text-lg font-bold">Generate Prompt Sections</h2>
-            <p className="mt-0.5 text-sm text-ink-400">Describe what kind of prompt you want to generate or change…</p>
+            <h2 className="text-lg font-bold">
+              {mode === "tasks" ? "Generate Tasks" : "Generate Prompt Sections"}
+            </h2>
+            <p className="mt-0.5 text-sm text-ink-400">
+              Answer a few quick questions — the more you share, the more precise the prompt.
+            </p>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
             <X className="h-4 w-4" />
           </button>
         </div>
-        <textarea
-          rows={5}
-          className="field mt-4"
-          placeholder="e.g., 'Create a friendly customer support agent for a clothing store that can handle returns and answer questions about sizing.'"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-        />
-        {error && <p className="mt-2 text-sm text-signal-red">{error}</p>}
-        <div className="mt-4 flex justify-end gap-2">
-          <button onClick={onClose} className="btn-secondary">Cancel</button>
+
+        {/* Step circles */}
+        <div className="flex items-center gap-0 px-6 pt-5">
+          {WIZARD_STEPS.map((s, i) => (
+            <div key={s.title} className={`flex items-center ${i > 0 ? "flex-1" : ""}`}>
+              {i > 0 && (
+                <span className={`mx-1.5 h-px flex-1 ${i <= step ? "bg-[#301C3F]" : "bg-ink-700"}`} />
+              )}
+              <button
+                onClick={() => i < step && setStep(i)}
+                className="flex flex-col items-center gap-1"
+                title={s.subtitle}
+              >
+                <span
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold transition ${
+                    i < step
+                      ? "bg-[#301C3F] text-white"
+                      : i === step
+                        ? "border-2 border-[#301C3F] text-[#301C3F]"
+                        : "border border-ink-700 text-ink-400"
+                  }`}
+                >
+                  {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
+                </span>
+                <span className={`text-[10px] ${i === step ? "font-semibold text-ink-100" : "text-ink-400"}`}>
+                  {s.title}
+                </span>
+              </button>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
+          {step === 0 && (
+            <>
+              <div>
+                <label className="label">Business name *</label>
+                <input className="field" placeholder="e.g. Bright Smile Dental Clinic"
+                  value={answers.businessName} onChange={(e) => setA("businessName", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">What does the business do? *</label>
+                <textarea rows={5} className="field"
+                  placeholder="Describe the business and what the agent should handle — e.g. 'A dental clinic in Dubai. The agent answers calls, books appointments with our doctors, answers questions about treatments, and transfers complex cases to the front desk.'"
+                  value={answers.businessDescription} onChange={(e) => setA("businessDescription", e.target.value)} />
+              </div>
+            </>
+          )}
+          {step === 1 && (
+            <>
+              <div>
+                <label className="label">Agent name</label>
+                <input className="field" placeholder="e.g. Sarah (leave empty to let AI pick one)"
+                  value={answers.agentName} onChange={(e) => setA("agentName", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">What kind of agent is it?</label>
+                <select className="field" value={answers.agentRole} onChange={(e) => setA("agentRole", e.target.value)}>
+                  <option>Inbound receptionist</option>
+                  <option>Outbound re-engagement caller</option>
+                  <option>Outbound sales agent</option>
+                  <option>Customer support agent</option>
+                  <option>Appointment scheduler</option>
+                  <option>Lead qualification agent</option>
+                </select>
+              </div>
+            </>
+          )}
+          {step === 2 && (
+            <>
+              <div>
+                <label className="label">Team / staff <span className="text-ink-500">(optional)</span></label>
+                <textarea rows={5} className="field"
+                  placeholder={"Who works there, their specialties and schedules — e.g.\nDr. Smith — general dentistry, Mon–Fri\nDr. Lee — orthodontics, Tue & Thu\nOr for a garage: 'Mike — best mechanic for German cars'"}
+                  value={answers.team} onChange={(e) => setA("team", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Services offered <span className="text-ink-500">(optional)</span></label>
+                <textarea rows={3} className="field"
+                  placeholder="e.g. Cleanings, whitening, implants, braces, emergency visits"
+                  value={answers.services} onChange={(e) => setA("services", e.target.value)} />
+              </div>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="label">Working hours <span className="text-ink-500">(optional)</span></label>
+                  <input className="field" placeholder="e.g. Mon–Sat 9 AM – 6 PM"
+                    value={answers.hours} onChange={(e) => setA("hours", e.target.value)} />
+                </div>
+                <div>
+                  <label className="label">Location <span className="text-ink-500">(optional)</span></label>
+                  <input className="field" placeholder="e.g. Al Wasl Road, Dubai"
+                    value={answers.location} onChange={(e) => setA("location", e.target.value)} />
+                </div>
+              </div>
+              <div>
+                <label className="label">Contact details <span className="text-ink-500">(optional)</span></label>
+                <input className="field" placeholder="Phone, WhatsApp, email, website"
+                  value={answers.contact} onChange={(e) => setA("contact", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Policies <span className="text-ink-500">(optional)</span></label>
+                <textarea rows={2} className="field"
+                  placeholder="e.g. Never quote prices; 24h cancellation notice; insurance is pay-and-claim"
+                  value={answers.policies} onChange={(e) => setA("policies", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Anything else? <span className="text-ink-500">(optional)</span></label>
+                <textarea rows={2} className="field"
+                  placeholder="Any other rules, offers, or details the agent should know"
+                  value={answers.extra} onChange={(e) => setA("extra", e.target.value)} />
+              </div>
+            </>
+          )}
+          {error && <p className="text-sm text-signal-red">{error}</p>}
+        </div>
+
+        <div className="flex items-center justify-between border-t border-ink-700 px-6 py-4">
           <button
-            onClick={generate}
-            disabled={busy || description.trim().length < 10}
-            className="btn-primary flex items-center gap-1.5 disabled:opacity-50"
+            onClick={() => (step === 0 ? onClose() : setStep(step - 1))}
+            className="btn-secondary"
           >
-            <Sparkles className="h-3.5 w-3.5" /> {busy ? "Generating…" : "Generate"}
+            {step === 0 ? "Cancel" : "← Back"}
           </button>
+          <div className="flex items-center gap-2">
+            {step >= 2 && step < WIZARD_STEPS.length - 1 && (
+              <button onClick={() => setStep(step + 1)} className="text-sm text-ink-400 hover:text-ink-200">
+                Skip
+              </button>
+            )}
+            {step < WIZARD_STEPS.length - 1 ? (
+              <button
+                onClick={() => setStep(step + 1)}
+                disabled={!canNext}
+                className="btn-primary disabled:opacity-50"
+              >
+                Next →
+              </button>
+            ) : (
+              <button
+                onClick={generate}
+                disabled={busy}
+                className="btn-primary flex items-center gap-1.5 disabled:opacity-50"
+              >
+                <Sparkles className="h-3.5 w-3.5" /> {busy ? "Generating…" : "Generate"}
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
