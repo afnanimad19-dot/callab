@@ -20,7 +20,7 @@ export default function ChannelsTab() {
   const [agents, setAgents] = useState<Agent[]>([]);
   const [defaultAgentId, setDefaultAgentId] = useState("");
   const [aiAutoReply, setAiAutoReply] = useState(true);
-  const [whatsapp, setWhatsapp] = useState<ChannelForm>({ id: "", accessToken: "", connected: false });
+  const [whatsapp, setWhatsapp] = useState({ id: "", accessToken: "", connected: false, displayNumber: "", wabaId: "", pin: "" });
   const [instagram, setInstagram] = useState<ChannelForm>({ id: "", accessToken: "", connected: false });
   const [messenger, setMessenger] = useState<ChannelForm>({ id: "", accessToken: "", connected: false });
   const [verifyToken, setVerifyToken] = useState<"set" | "missing">("missing");
@@ -34,7 +34,10 @@ export default function ChannelsTab() {
       if (!s) return;
       setDefaultAgentId(s.defaultChatAgentId ?? "");
       setAiAutoReply(Boolean(s.aiAutoReply));
-      if (s.whatsapp) setWhatsapp({ id: s.whatsapp.phoneNumberId, accessToken: s.whatsapp.accessToken, connected: s.whatsapp.connected });
+      if (s.whatsapp) setWhatsapp({
+        id: s.whatsapp.phoneNumberId, accessToken: s.whatsapp.accessToken, connected: s.whatsapp.connected,
+        displayNumber: s.whatsapp.displayNumber ?? "", wabaId: s.whatsapp.wabaId ?? "", pin: s.whatsapp.pin ?? "",
+      });
       if (s.instagram) setInstagram({ id: s.instagram.pageId, accessToken: s.instagram.accessToken, connected: s.instagram.connected });
       if (s.messenger) setMessenger({ id: s.messenger.pageId, accessToken: s.messenger.accessToken, connected: s.messenger.connected });
       setVerifyToken(s.verifyToken ?? "missing");
@@ -49,7 +52,9 @@ export default function ChannelsTab() {
       body: JSON.stringify({
         defaultChatAgentId: defaultAgentId,
         aiAutoReply,
-        whatsapp: whatsapp.id && whatsapp.accessToken ? { phoneNumberId: whatsapp.id, accessToken: whatsapp.accessToken } : undefined,
+        whatsapp: whatsapp.id && whatsapp.accessToken
+          ? { phoneNumberId: whatsapp.id, accessToken: whatsapp.accessToken, displayNumber: whatsapp.displayNumber, wabaId: whatsapp.wabaId, pin: whatsapp.pin }
+          : undefined,
         instagram: instagram.id && instagram.accessToken ? { pageId: instagram.id, accessToken: instagram.accessToken } : undefined,
         messenger: messenger.id && messenger.accessToken ? { pageId: messenger.id, accessToken: messenger.accessToken } : undefined,
       }),
@@ -136,15 +141,51 @@ export default function ChannelsTab() {
         </div>
       </div>
 
-      <ChannelCard
-        title="WhatsApp"
-        icon={<MessageCircle className="h-4 w-4 text-emerald-600" />}
-        idLabel="Phone Number ID"
-        idPlaceholder="1042…"
-        form={whatsapp}
-        setForm={setWhatsapp}
-        note="From Meta for Developers → your app → WhatsApp → API Setup. Use a permanent System User token with whatsapp_business_messaging permission."
-      />
+      <div className="card">
+        <div className="flex items-start justify-between">
+          <h3 className="flex items-center gap-2 text-base font-semibold">
+            <MessageCircle className="h-4 w-4 text-emerald-600" /> WhatsApp
+          </h3>
+          <span className={whatsapp.connected ? "badge-ok" : "badge-muted"}>
+            {whatsapp.connected ? "Connected" : "Not connected"}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label className="label">Display Number</label>
+            <input className="field font-mono !text-[13px]" placeholder="+9715xxxxxxxx"
+              value={whatsapp.displayNumber} onChange={(e) => setWhatsapp({ ...whatsapp, displayNumber: e.target.value.trim() })} />
+            <p className="mt-1 text-xs text-ink-400">The WhatsApp number as customers see it.</p>
+          </div>
+          <div>
+            <label className="label">Phone Number ID</label>
+            <input className="field font-mono !text-[13px]" placeholder="1042…"
+              value={whatsapp.id} onChange={(e) => setWhatsapp({ ...whatsapp, id: e.target.value.trim() })} />
+            <p className="mt-1 text-xs text-ink-400">Meta app → WhatsApp → API Setup.</p>
+          </div>
+          <div>
+            <label className="label">WhatsApp Business Account ID</label>
+            <input className="field font-mono !text-[13px]" placeholder="1234…"
+              value={whatsapp.wabaId} onChange={(e) => setWhatsapp({ ...whatsapp, wabaId: e.target.value.trim() })} />
+            <p className="mt-1 text-xs text-ink-400">The WABA ID shown next to the phone number.</p>
+          </div>
+          <div>
+            <label className="label">Permanent Access Token</label>
+            <input type="password" className="field font-mono !text-[13px]" placeholder="EAAG…"
+              value={whatsapp.accessToken} onChange={(e) => setWhatsapp({ ...whatsapp, accessToken: e.target.value.trim() })} />
+            <p className="mt-1 text-xs text-ink-400">System User token with whatsapp_business_messaging.</p>
+          </div>
+          <div>
+            <label className="label">Two-Step Verification PIN</label>
+            <input type="password" className="field font-mono !text-[13px]" placeholder="6-digit PIN"
+              value={whatsapp.pin} onChange={(e) => setWhatsapp({ ...whatsapp, pin: e.target.value.trim() })} />
+            <p className="mt-1 text-xs text-ink-400">Needed when registering the number on the Cloud API.</p>
+          </div>
+        </div>
+        <p className="mt-3 text-xs text-ink-400">
+          The Webhook Callback URL and Verify Token for the Meta app are shown in the &ldquo;Meta webhook&rdquo; card below.
+        </p>
+      </div>
       <ChannelCard
         title="Instagram DM"
         icon={<Camera className="h-4 w-4 text-pink-600" />}

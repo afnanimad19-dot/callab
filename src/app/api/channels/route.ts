@@ -14,7 +14,14 @@ export async function GET() {
       defaultChatAgentId: s.defaultChatAgentId ?? "",
       aiAutoReply: s.aiAutoReply,
       whatsapp: s.whatsapp
-        ? { phoneNumberId: s.whatsapp.phoneNumberId, accessToken: mask(s.whatsapp.accessToken), connected: s.whatsapp.connected }
+        ? {
+            phoneNumberId: s.whatsapp.phoneNumberId,
+            accessToken: mask(s.whatsapp.accessToken),
+            connected: s.whatsapp.connected,
+            displayNumber: s.whatsapp.displayNumber ?? "",
+            wabaId: s.whatsapp.wabaId ?? "",
+            pin: s.whatsapp.pin ? "••••••" : "",
+          }
         : null,
       instagram: s.instagram
         ? { pageId: s.instagram.pageId, accessToken: mask(s.instagram.accessToken), connected: s.instagram.connected }
@@ -49,9 +56,19 @@ export async function POST(request: Request) {
       const sentToken = String(cfg.accessToken ?? "").trim();
       const token = sentToken.includes("…") ? (current[key]?.accessToken ?? "") : sentToken;
       if (idField && token) {
-        patch[key] = (key === "whatsapp"
-          ? { phoneNumberId: idField, accessToken: token, connected: true }
-          : { pageId: idField, accessToken: token, connected: true }) as never;
+        if (key === "whatsapp") {
+          const sentPin = String(cfg.pin ?? "").trim();
+          patch.whatsapp = {
+            phoneNumberId: idField,
+            accessToken: token,
+            connected: true,
+            displayNumber: String(cfg.displayNumber ?? "").slice(0, 30),
+            wabaId: String(cfg.wabaId ?? "").slice(0, 40),
+            pin: sentPin.includes("•") ? (current.whatsapp?.pin ?? "") : sentPin.slice(0, 10),
+          };
+        } else {
+          patch[key] = { pageId: idField, accessToken: token, connected: true };
+        }
       }
     }
   }

@@ -202,3 +202,31 @@ body:has(div.fixed.inset-0) .app-header {
   background-image: radial-gradient(circle, #d9dbe3 1px, transparent 1px);
   background-size: 22px 22px;
 }
+
+/* Voice wave bars inside the Web Call bubble — amplitude follows --level. */
+.voice-wave {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.voice-wave span {
+  width: 6px;
+  height: 34px;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #8b5cf6, #d946ef);
+  opacity: 0.9;
+  transform-origin: center;
+  animation: voice-bar 1.4s ease-in-out infinite;
+  transform: scaleY(0.3);
+}
+.voice-bubble.talking .voice-wave span,
+.voice-wave.mic-live span {
+  animation-duration: 0.7s;
+}
+@keyframes voice-bar {
+  0%, 100% { transform: scaleY(calc(0.25 + var(--level, 0) * 0.6)); }
+  50% { transform: scaleY(calc(0.55 + var(--level, 0) * 2.6)); }
+}

@@ -392,7 +392,13 @@ export function WebCallModal({
         )}
 
         <div className="flex flex-1 items-center justify-center py-6">
-          <div ref={bubbleRef} className={`voice-bubble ${talking ? "talking" : ""}`} aria-hidden />
+          <div ref={bubbleRef} className={`voice-bubble ${talking ? "talking" : ""}`} aria-hidden>
+            <div className={`voice-wave ${state === "live" && !talking ? "mic-live" : ""}`}>
+              {Array.from({ length: 7 }).map((_, i) => (
+                <span key={i} style={{ animationDelay: `${i * 0.11}s` }} />
+              ))}
+            </div>
+          </div>
         </div>
 
         {notice && (

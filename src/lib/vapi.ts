@@ -686,14 +686,30 @@ export async function getCallRecording(callId: string): Promise<string | null> {
       null;
     if (known) return known;
     // Vapi has moved the recording field between versions — as a last resort,
-    // deep-scan the payload for any audio-file URL.
+    // deep-scan the payload for anything that looks like a recording URL
+    // (audio extension, Vapi storage host, or a "recording" path).
     const found: string[] = [];
     (function scan(v: unknown) {
       if (typeof v === "string") {
-        if (/^https?:\/\/\S+\.(wav|mp3|ogg|m4a|flac)(\?|$)/i.test(v)) found.push(v);
+        if (
+          /^https?:\/\//i.test(v) &&
+          (/\.(wav|mp3|ogg|m4a|flac|webm)(\?|$)/i.test(v) ||
+            /storage\.vapi\.ai/i.test(v) ||
+            /recording/i.test(v))
+        ) {
+          found.push(v);
+        }
       } else if (Array.isArray(v)) v.forEach(scan);
       else if (v && typeof v === "object") Object.values(v).forEach(scan);
     })(call);
+    if (found.length === 0) {
+      console.error(
+        `No recording URL in Vapi call ${callId} — payload keys:`,
+        JSON.stringify(Object.keys(call as object)),
+        "artifact keys:",
+        JSON.stringify(Object.keys((call as { artifact?: object }).artifact ?? {}))
+      );
+    }
     return found[0] ?? null;
   } catch (e) {
     console.error("Recording fetch failed:", e);

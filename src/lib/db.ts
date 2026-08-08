@@ -341,7 +341,14 @@ export interface ChannelSettings {
   userId: string;
   defaultChatAgentId?: string; // Agent Hub default agent
   aiAutoReply: boolean; // master toggle
-  whatsapp?: { phoneNumberId: string; accessToken: string; connected: boolean };
+  whatsapp?: {
+    phoneNumberId: string;
+    accessToken: string;
+    connected: boolean;
+    displayNumber?: string; // the actual +xxx number, for display
+    wabaId?: string; // WhatsApp Business Account ID
+    pin?: string; // two-step verification PIN (needed to register the number)
+  };
   instagram?: { pageId: string; accessToken: string; connected: boolean };
   messenger?: { pageId: string; accessToken: string; connected: boolean };
   updatedAt: string;
@@ -529,7 +536,9 @@ async function rest(pathAndQuery: string, init?: RequestInit) {
     // by mistake. Say so explicitly — it's the #1 setup error.
     const hint = text.includes("42501")
       ? " — SUPABASE_SERVICE_ROLE_KEY appears to be the anon/publishable key. Use the service_role (secret) key from Supabase → Project Settings → API keys."
-      : "";
+      : text.includes("42P01") || text.includes("PGRST205") || text.includes("Could not find the table")
+        ? " — this table doesn't exist yet. Run the latest supabase/schema.sql in the Supabase SQL editor."
+        : "";
     throw new Error(`Supabase ${res.status}: ${text}${hint}`);
   }
   return res;
@@ -539,7 +548,18 @@ const supabaseStore: Store = {
   async list(table, userId) {
     const t = TABLE_NAMES[table];
     const filter = userId ? `&user_id=eq.${encodeURIComponent(userId)}` : "";
-    const res = await rest(`${t}?select=data${filter}`);
+    let res: Response;
+    try {
+      res = await rest(`${t}?select=data${filter}`);
+    } catch (e) {
+      // A table added by a newer schema.sql that hasn't been run yet must not
+      // crash whole pages — read as empty and surface the fix in the logs.
+      if ((e as Error).message.includes("doesn't exist yet")) {
+        console.error(`Supabase table "${t}" missing:`, (e as Error).message);
+        return [] as never;
+      }
+      throw e;
+    }
     const rows = (await res.json()) as { data: Row }[];
     return rows.map((r) => r.data) as never;
   },
