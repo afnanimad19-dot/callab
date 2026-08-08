@@ -1,5 +1,22 @@
 "use client";
-import { Search, RefreshCw, FlaskConical, Pencil, Copy, Trash2 } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  FlaskConical,
+  Pencil,
+  Copy,
+  Trash2,
+  Link2,
+  FileText,
+  AlignLeft,
+  FileType,
+  Download,
+  Calendar,
+  Upload,
+  X,
+  Send,
+  type LucideIcon,
+} from "lucide-react";
 import RowMenu from "./RowMenu";
 import { toast } from "@/components/Toast";
 
@@ -13,11 +30,11 @@ import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { KnowledgeBase } from "@/lib/db";
 
-const TYPE_META: Record<string, { icon: string; badge: string }> = {
-  url: { icon: "🔗", badge: "URL" },
-  file: { icon: "📄", badge: "File" },
-  text: { icon: "📝", badge: "Text" },
-  gdoc: { icon: "📃", badge: "Google Doc" },
+const TYPE_META: Record<string, { icon: LucideIcon; badge: string }> = {
+  url: { icon: Link2, badge: "URL" },
+  file: { icon: FileText, badge: "File" },
+  text: { icon: AlignLeft, badge: "Text" },
+  gdoc: { icon: FileType, badge: "Google Doc" },
 };
 
 type ResourceType = "text" | "url" | "file" | "gdoc";
@@ -43,6 +60,18 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
     await fetch(`/api/knowledge/${kb.id}`, { method: "DELETE" });
     toast(`"${kb.name}" deleted.`);
     router.refresh();
+  }
+
+  function download(kb: KnowledgeBase) {
+    const blob = new Blob([kb.content || `${kb.name}\n${kb.url ?? ""}`], {
+      type: "text/plain;charset=utf-8",
+    });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = kb.fileName || `${kb.name.replace(/[^\w.-]+/g, "_")}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
+    toast(`"${kb.name}" downloaded.`);
   }
 
   async function duplicate(kb: KnowledgeBase) {
@@ -72,20 +101,22 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
           <p className="mt-1 text-sm text-ink-400">Manage knowledge resources for your AI agents</p>
         </div>
         <div className="relative flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <button onClick={() => setTestOpen(true)} className="btn-secondary">🧪 Test</button>
+          <button onClick={() => setTestOpen(true)} className="btn-secondary flex items-center gap-1.5">
+            <FlaskConical className="h-4 w-4" /> Test
+          </button>
           <button onClick={() => setAddMenu((v) => !v)} className="btn-primary">+ Add Resource</button>
           {addMenu && (
-            <div className="absolute right-0 top-12 z-30 w-48 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30">
+            <div className="absolute right-0 top-12 z-30 w-52 overflow-hidden rounded-xl border border-ink-700 bg-ink-900 py-1 shadow-xl shadow-black/30">
               {([
-                ["text", "📝 Text Content"],
-                ["url", "🔗 URL / Website"],
-                ["file", "📄 Upload File"],
-                ["gdoc", "📃 Google Doc"],
-              ] as [ResourceType, string][]).map(([t, label]) => (
+                ["text", "Text Content", AlignLeft],
+                ["url", "URL / Website", Link2],
+                ["file", "Upload File", Upload],
+                ["gdoc", "Google Doc", FileType],
+              ] as [ResourceType, string, LucideIcon][]).map(([t, label, Icon]) => (
                 <button key={t}
                   onClick={() => { setAddMenu(false); setAddType(t); }}
-                  className="block w-full px-4 py-2.5 text-left text-sm text-ink-200 transition hover:bg-ink-800">
-                  {label}
+                  className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-sm text-ink-200 transition hover:bg-ink-800">
+                  <Icon className="h-4 w-4 text-ink-400" /> {label}
                 </button>
               ))}
             </div>
@@ -110,12 +141,18 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
             <div key={kb.id} className="card card-hover relative flex flex-col !p-5">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-start gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-800 text-lg">{meta.icon}</span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-800">
+                    <meta.icon className="h-5 w-5 text-ink-300" />
+                  </span>
                   <div>
                     <h2 className="text-sm font-semibold leading-snug">{kb.name}</h2>
                     <div className="mt-1.5 flex flex-wrap gap-1.5">
                       <span className="badge-warn">{meta.badge}</span>
-                      {kb.autoUpdate && <span className="badge-ok">⟳ Auto 24h</span>}
+                      {kb.autoUpdate && (
+                        <span className="badge-ok inline-flex items-center gap-1">
+                          <RefreshCw className="h-3 w-3" /> Auto 24h
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -130,14 +167,18 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
                       },
                     },
                     { label: "Edit", icon: Pencil, onClick: () => setEditing(kb) },
+                    ...(kb.content || kb.type === "file"
+                      ? [{ label: "Download", icon: Download, onClick: () => download(kb) }]
+                      : []),
                     { label: "Copy", icon: Copy, onClick: () => duplicate(kb) },
                     { label: "Delete", icon: Trash2, danger: true, onClick: () => remove(kb) },
                   ]}
                 />
               </div>
               <p className="mt-3 flex-1 text-sm text-ink-400">{kb.description}</p>
-              <p className="mt-4 border-t border-ink-700/60 pt-3 text-xs text-ink-500">
-                🗓 {new Date(kb.updatedAt ?? kb.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated
+              <p className="mt-4 flex items-center gap-1.5 border-t border-ink-700/60 pt-3 text-xs text-ink-500">
+                <Calendar className="h-3.5 w-3.5" />
+                {new Date(kb.updatedAt ?? kb.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · Updated
               </p>
             </div>
           );
@@ -188,10 +229,28 @@ function AddResourceModal({
   const [multipleUrls, setMultipleUrls] = useState(existing?.multipleUrls ?? false);
   const [crawl, setCrawl] = useState(existing?.crawl ?? false);
   const [autoUpdate, setAutoUpdate] = useState(existing?.autoUpdate ?? false);
-  const [fileName, setFileName] = useState("");
+  const [fileName, setFileName] = useState(existing?.fileName ?? "");
+  const [fileNote, setFileNote] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // Read the uploaded file's text so agents can actually answer from it.
+  async function onFilePicked(f: File) {
+    setFileName(f.name);
+    if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, ""));
+    const textLike = /\.(txt|md|csv|json|html?)$/i.test(f.name);
+    if (textLike) {
+      const text = await f.text();
+      setContent(text.slice(0, 20000));
+      setFileNote(`${f.name} — ${Math.min(text.length, 20000).toLocaleString()} characters read and indexed.`);
+    } else {
+      setContent("");
+      setFileNote(
+        `${f.name} attached. PDF/DOCX text can't be extracted in the browser — paste the key content as a Text resource for the agent to answer from it.`
+      );
+    }
+  }
 
   async function create() {
     setBusy(true);
@@ -200,12 +259,12 @@ function AddResourceModal({
       ? await fetch(`/api/knowledge/${existing.id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, url, content, multipleUrls, crawl, autoUpdate }),
+          body: JSON.stringify({ name, url, content, multipleUrls, crawl, autoUpdate, fileName }),
         })
       : await fetch("/api/knowledge", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, type, url, content, multipleUrls, crawl, autoUpdate }),
+          body: JSON.stringify({ name, type, url, content, multipleUrls, crawl, autoUpdate, fileName }),
         });
     if (res.ok) onCreated();
     else {
@@ -225,7 +284,11 @@ function AddResourceModal({
         <div>
           <label className="label">Type</label>
           <div className="field flex items-center gap-2 !py-2.5 text-ink-300">
-            {TYPE_META[type].icon} {TYPE_META[type].badge}
+            {(() => {
+              const Icon = TYPE_META[type].icon;
+              return <Icon className="h-4 w-4 text-ink-400" />;
+            })()}
+            {TYPE_META[type].badge}
           </div>
         </div>
 
@@ -276,16 +339,16 @@ function AddResourceModal({
 
         {type === "file" && (
           <div>
-            <input ref={fileRef} type="file" className="hidden" accept=".pdf,.txt,.md,.docx,.csv"
-              onChange={(e) => setFileName(e.target.files?.[0]?.name ?? "")} />
+            <input ref={fileRef} type="file" className="hidden" accept=".pdf,.txt,.md,.docx,.csv,.json,.html"
+              onChange={(e) => e.target.files?.[0] && onFilePicked(e.target.files[0])} />
             <button onClick={() => fileRef.current?.click()}
               className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-9 text-sm text-ink-400 transition hover:border-accent-500/50 hover:text-ink-200">
-              <span className="text-2xl">📄</span>
-              {fileName || "Click to choose a file (PDF, TXT, MD, DOCX, CSV)"}
+              <Upload className="h-6 w-6" />
+              {fileName || "Click to choose a file (TXT, MD, CSV, JSON, HTML, PDF, DOCX)"}
             </button>
-            <p className="mt-1.5 text-xs text-ink-500">
-              File contents are indexed for agent answers when knowledge sync to the voice pipeline is connected.
-            </p>
+            {fileNote && (
+              <p className="mt-1.5 rounded-lg bg-ink-800/60 px-3 py-2 text-xs text-ink-300">{fileNote}</p>
+            )}
           </div>
         )}
 
@@ -341,7 +404,7 @@ function TestPanel({
         <div className="border-b border-ink-700 px-5 py-4">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold">Test Knowledge Base</h2>
-            <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">✕</button>
+            <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100"><X className="h-4 w-4" /></button>
           </div>
           <p className="mt-0.5 text-xs text-ink-400">Query your knowledge base(s) to test RAG responses</p>
           <label className="mt-3 flex items-center gap-2.5 text-sm">
@@ -363,7 +426,7 @@ function TestPanel({
                 const kb = items.find((k) => k.id === id);
                 return (
                   <button key={id} onClick={() => setSelected(selected.filter((s) => s !== id))} className="badge-ok">
-                    {kb?.name ?? id} ✕
+                    {kb?.name ?? id} <X className="h-3 w-3" />
                   </button>
                 );
               })}
@@ -374,7 +437,7 @@ function TestPanel({
         <div className="flex-1 space-y-3 overflow-y-auto px-5 py-4">
           {chat.length === 0 ? (
             <div className="pt-20 text-center text-sm text-ink-500">
-              <p className="text-3xl">🤖</p>
+              <FlaskConical className="mx-auto h-7 w-7 text-ink-400" />
               <p className="mt-3">Start a conversation to test your knowledge base</p>
               <p className="mt-1 text-xs">Ask questions and see how the retrieval responds</p>
             </div>
@@ -397,10 +460,10 @@ function TestPanel({
             <p className="mb-2 text-xs text-signal-amber">ⓘ Select knowledge base(s) or enable “Search all”</p>
           )}
           <div className="flex gap-2">
-            <button onClick={() => setChat([])} aria-label="Clear chat" className="btn-secondary !px-3">🗑</button>
+            <button onClick={() => setChat([])} aria-label="Clear chat" className="btn-secondary !px-3"><Trash2 className="h-4 w-4" /></button>
             <input className="field !py-2" placeholder="Ask a question…" value={input}
               onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} />
-            <button onClick={ask} disabled={busy} className="btn-primary !px-4 !py-2 disabled:opacity-60">➤</button>
+            <button onClick={ask} disabled={busy} className="btn-primary !px-4 !py-2 disabled:opacity-60"><Send className="h-4 w-4" /></button>
           </div>
         </div>
       </div>

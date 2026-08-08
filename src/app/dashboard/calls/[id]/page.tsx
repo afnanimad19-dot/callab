@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { Phone, CheckCircle2, Info, MessageSquare } from "lucide-react";
+import { Phone, CheckCircle2, Info, MessageSquare, Play } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { findAgent, findCall, listCampaigns, updateCall } from "@/lib/db";
 import { getCallRecording } from "@/lib/vapi";
@@ -201,7 +201,7 @@ export default async function CallDetailPage({
             }
           >
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300">
-              ▶
+              <Play className="h-4 w-4" />
             </span>
             <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden>
               {bars.map((h, i) => (

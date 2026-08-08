@@ -1,4 +1,5 @@
 "use client";
+import { Check } from "lucide-react";
 
 // "Last 7 Days ▾" dropdown on the Home Dashboard — sets ?range= and the
 // server recomputes every chart for that window.
@@ -39,7 +40,7 @@ export default function DateRangeSelect({ current }: { current: string }) {
               }`}
             >
               {r.label}
-              {r.key === current && <span>✓</span>}
+              {r.key === current && <Check className="h-3.5 w-3.5" />}
             </button>
           ))}
         </div>

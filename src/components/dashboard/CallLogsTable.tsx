@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw } from "lucide-react";
+import { Search, RefreshCw, Play, Download } from "lucide-react";
 
 // Call Logs: searchable, filterable, paginated table with CSV export.
 // Clicking a row (or its recording icon) opens the call detail page.
@@ -83,7 +83,7 @@ export default function CallLogsTable({
           <h1 className="text-2xl font-bold tracking-tight">Call Logs</h1>
           <p className="mt-1 text-sm text-ink-400">View and manage your AI agent calls</p>
         </div>
-        <button onClick={exportCsv} className="btn-secondary">⇩ Export CSV</button>
+        <button onClick={exportCsv} className="btn-secondary flex items-center gap-1.5"><Download className="h-4 w-4" /> Export CSV</button>
       </div>
 
       {/* Toolbar */}
@@ -144,7 +144,7 @@ export default function CallLogsTable({
                   <td className="px-4 py-3"><span className={s.cls}>{s.label}</span></td>
                   <td className="px-4 py-3 text-ink-300">{campaignName(c.campaignId)}</td>
                   <td className="px-4 py-3">{c.agentName}</td>
-                  <td className="px-4 py-3 text-ink-400">{c.recordingUrl ? "▶ audio" : "—"}</td>
+                  <td className="px-4 py-3 text-ink-400">{c.recordingUrl || c.vapiCallId ? (<span className="inline-flex items-center gap-1"><Play className="h-3.5 w-3.5" /> audio</span>) : "—"}</td>
                 </tr>
               );
             })}

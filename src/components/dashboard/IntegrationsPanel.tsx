@@ -234,7 +234,7 @@ function CreateIntegrationModal({ onClose, onCreated }: { onClose: () => void; o
                   onChange={(e) => setSteps(steps.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} />
                 {steps.length > 1 && (
                   <button onClick={() => setSteps(steps.filter((_, j) => j !== i))}
-                    className="text-ink-400 hover:text-signal-red">🗑</button>
+                    aria-label="Remove step" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"><Trash2 className="h-4 w-4" /></button>
                 )}
               </div>
             ))}

@@ -15,6 +15,7 @@ export async function PATCH(
   if (typeof body?.name === "string" && body.name.trim()) patch.name = body.name.trim().slice(0, 120);
   if (typeof body?.url === "string") patch.url = body.url.slice(0, 500);
   if (typeof body?.content === "string") patch.content = body.content.slice(0, 20000);
+  if (typeof body?.fileName === "string") patch.fileName = body.fileName.slice(0, 200) || undefined;
   if (typeof body?.autoUpdate === "boolean") patch.autoUpdate = body.autoUpdate;
   if (typeof body?.crawl === "boolean") patch.crawl = body.crawl;
   if (typeof body?.multipleUrls === "boolean") patch.multipleUrls = body.multipleUrls;

@@ -8,25 +8,26 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
+import { Plus, FileText, Sparkles, MessageSquareText } from "lucide-react";
 
 export const AGENT_TEMPLATES = [
   {
     key: "scratch",
     name: "Start from scratch",
     description: "Create a completely custom agent",
-    icon: "+",
+    icon: Plus,
   },
   {
     key: "healthcare",
     name: "Kate — Healthcare Agent",
     description: "Inbound healthcare agent for a clinic",
-    icon: "📄",
+    icon: FileText,
   },
   {
     key: "realestate",
     name: "Megan — Real Estate Sales",
     description: "Outbound sales rep for property listings",
-    icon: "📄",
+    icon: FileText,
   },
 ];
 
@@ -63,7 +64,7 @@ export default function CreateAgentFlow() {
             onClick={() => pickType("single_prompt")}
             className="card card-hover flex flex-col items-center !p-8 text-center"
           >
-            <span className="text-3xl">📝</span>
+            <MessageSquareText className="h-8 w-8 text-ink-300" />
             <span className="mt-4 text-base font-semibold">Single Prompt Agent</span>
             <span className="mt-1.5 text-sm text-ink-400">
               Create an agent with a single prompt for simpler interactions.
@@ -73,7 +74,7 @@ export default function CreateAgentFlow() {
             onClick={() => pickType("conversation_flow")}
             className="card card-hover flex flex-col items-center !p-8 text-center"
           >
-            <span className="text-3xl">✨</span>
+            <Sparkles className="h-8 w-8 text-ink-300" />
             <span className="mt-4 text-base font-semibold">Conversation Flow</span>
             <span className="mt-1.5 text-sm text-ink-400">
               Build a multi-step flow for complex conversations.
@@ -105,7 +106,7 @@ export default function CreateAgentFlow() {
               onClick={() => pickTemplate(t.key)}
               className="card card-hover flex flex-col items-center !p-7 text-center"
             >
-              <span className="text-2xl text-accent-400">{t.icon}</span>
+              <t.icon className="h-6 w-6 text-accent-400" />
               <span className="mt-3 text-sm font-semibold">{t.name}</span>
               <span className="mt-1 text-xs text-ink-400">{t.description}</span>
             </button>

@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw, Pencil, Trash2 } from "lucide-react";
+import { Search, RefreshCw, Pencil, Trash2, Upload, Download } from "lucide-react";
 import RowMenu from "./RowMenu";
 import { toast } from "@/components/Toast";
 
@@ -83,12 +83,12 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
           <p className="mt-1 text-sm text-ink-400">Manage contacts within your company</p>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => setImportOpen(true)} className="btn-secondary">⇪ Import</button>
+          <button onClick={() => setImportOpen(true)} className="btn-secondary flex items-center gap-1.5"><Upload className="h-4 w-4" /> Import</button>
           <button
             onClick={() => { downloadCsv(filtered); toast("Contacts exported successfully."); }}
-            className="btn-secondary"
+            className="btn-secondary flex items-center gap-1.5"
           >
-            ⇩ Export
+            <Download className="h-4 w-4" /> Export
           </button>
           <button onClick={() => setAddOpen(true)} className="btn-primary">+ Add Contact</button>
         </div>
@@ -344,7 +344,7 @@ function AddContactModal({
                 onChange={(e) => setMeta(meta.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))} />
               <input className="field flex-1" placeholder="Value" value={m.value}
                 onChange={(e) => setMeta(meta.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
-              <button onClick={() => setMeta(meta.filter((_, j) => j !== i))} className="text-ink-400 hover:text-signal-red">🗑</button>
+              <button onClick={() => setMeta(meta.filter((_, j) => j !== i))} aria-label="Remove field" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"><Trash2 className="h-4 w-4" /></button>
             </div>
           ))}
         </div>
@@ -413,7 +413,7 @@ function ImportModal({ onClose, onImported }: { onClose: () => void; onImported:
           onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
         <button onClick={() => fileRef.current?.click()}
           className="flex w-full flex-col items-center gap-2 rounded-xl border-2 border-dashed border-ink-600 py-9 text-sm text-ink-400 transition hover:border-accent-500/50 hover:text-ink-200">
-          <span className="text-2xl">📥</span>
+          <Upload className="h-6 w-6" />
           {fileName || "Click to choose a CSV file"}
         </button>
         {rows.length > 0 && (

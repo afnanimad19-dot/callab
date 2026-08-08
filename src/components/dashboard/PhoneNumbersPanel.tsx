@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw, Trash2 } from "lucide-react";
+import { Search, RefreshCw, Trash2, Zap, Phone, PhoneCall, Lock, type LucideIcon } from "lucide-react";
 import RowMenu from "./RowMenu";
 import { toast } from "@/components/Toast";
 
@@ -15,19 +15,19 @@ import type { PhoneNumber } from "@/lib/db";
 const PROVIDERS = [
   {
     key: "Vapi",
-    icon: "⚡",
+    icon: Zap,
     title: "Vapi Number",
     detail: "Provision a fresh number directly from the voice pipeline",
   },
   {
     key: "Twilio (BYOT)",
-    icon: "🔴",
+    icon: Phone,
     title: "BYOT Phone",
     detail: "Bring your own Twilio phone number",
   },
   {
     key: "Custom SIP Trunk",
-    icon: "📞",
+    icon: PhoneCall,
     title: "Custom SIP Trunk",
     detail: "Connect your own SIP trunk configuration",
   },
@@ -127,7 +127,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
             <button key={p.key} onClick={() => { setPickerOpen(false); setProvider(p.key); }}
               className="card card-hover !p-6 text-left">
               <p className="flex items-center gap-2 text-sm font-semibold">
-                <span>{p.icon}</span> {p.title}
+                <p.icon className="h-4 w-4 text-ink-400" /> {p.title}
               </p>
               <p className="mt-2 text-sm text-ink-400">{p.detail}</p>
             </button>
@@ -240,7 +240,7 @@ function AddNumberModal({
         )}
 
         <p className="text-xs text-ink-500">
-          🔒 Credentials are used to connect the number in the voice pipeline and
+          <Lock className="mr-1 inline h-3.5 w-3.5" /> Credentials are used to connect the number in the voice pipeline and
           are never stored in this dashboard&apos;s database.
         </p>
 

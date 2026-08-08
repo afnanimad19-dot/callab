@@ -38,6 +38,158 @@ async function vapi(path: string, init?: RequestInit) {
   return res.json();
 }
 
+// --- Tool building ----------------------------------------------------------
+// Turns the agent's configured tools into REAL Vapi tools that execute
+// mid-call. Live Webhooks and Zapier point straight at the external URL;
+// Send Email and Cal.com run through our /api/tools/execute endpoint.
+
+function parseHeaders(json?: string): Record<string, string> | undefined {
+  if (!json) return undefined;
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === "object") {
+      const out: Record<string, string> = {};
+      for (const [k, v] of Object.entries(parsed)) out[k] = String(v);
+      return out;
+    }
+  } catch {
+    // Malformed header JSON is ignored rather than breaking the sync.
+  }
+  return undefined;
+}
+
+// {{variable}} placeholders in a webhook body template become the tool's
+// parameters, so the model knows what to collect and send.
+function paramsFromTemplate(template?: string) {
+  const names = [...new Set([...(template ?? "").matchAll(/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/g)].map((m) => m[1]))];
+  const properties: Record<string, { type: string; description: string }> = {};
+  for (const n of names) properties[n] = { type: "string", description: n.replaceAll("_", " ") };
+  return { type: "object" as const, properties, required: names };
+}
+
+function siteUrl(): string | null {
+  // Netlify sets URL to the site's canonical URL; SITE_URL is a manual override.
+  return process.env.SITE_URL ?? process.env.URL ?? null;
+}
+
+export function buildVapiTools(agent: Agent): unknown[] {
+  const tools: unknown[] = [];
+  const site = siteUrl();
+
+  for (const t of agent.tools ?? []) {
+    const cfg = t.config ?? {};
+    switch (t.type) {
+      case "live_webhook": {
+        if (!cfg.serverUrl) break;
+        tools.push({
+          type: "function",
+          async: false,
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: paramsFromTemplate(cfg.body),
+          },
+          server: {
+            url: cfg.serverUrl,
+            ...(parseHeaders(cfg.httpHeaders) ? { headers: parseHeaders(cfg.httpHeaders) } : {}),
+          },
+        });
+        break;
+      }
+      case "zapier": {
+        if (!cfg.zapierUrl) break;
+        let fields: { name: string; description: string }[] = [];
+        try {
+          fields = JSON.parse(cfg.fields ?? "[]");
+        } catch {}
+        const properties: Record<string, { type: string; description: string }> = {};
+        for (const f of fields) {
+          if (f?.name) properties[f.name] = { type: "string", description: f.description ?? f.name };
+        }
+        tools.push({
+          type: "function",
+          async: true,
+          function: {
+            name: t.name,
+            description: t.description,
+            parameters: { type: "object", properties, required: [] },
+          },
+          server: { url: cfg.zapierUrl },
+        });
+        break;
+      }
+      case "send_email": {
+        if (!site) break; // needs the deployed site URL to call back into
+        tools.push({
+          type: "function",
+          async: true,
+          function: {
+            name: t.name,
+            description: `${t.description}. Collect the caller's email address first.`,
+            parameters: {
+              type: "object",
+              properties: {
+                email: { type: "string", description: "The caller's email address" },
+                summary: { type: "string", description: "Short summary of what was discussed" },
+              },
+              required: ["email"],
+            },
+          },
+          server: {
+            url: `${site}/api/tools/execute?agentId=${agent.id}&toolId=${t.id}`,
+            ...(process.env.VAPI_WEBHOOK_SECRET
+              ? { headers: { "x-vl-secret": process.env.VAPI_WEBHOOK_SECRET } }
+              : {}),
+          },
+        });
+        break;
+      }
+      case "cal_com": {
+        if (!site || !cfg.calApiKey) break;
+        tools.push({
+          type: "function",
+          async: false,
+          function: {
+            name: t.name,
+            description: `${t.description}. Collect the caller's name, email, and preferred date/time first.`,
+            parameters: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "The caller's full name" },
+                email: { type: "string", description: "The caller's email address" },
+                start: { type: "string", description: "Meeting start in ISO format, e.g. 2026-08-12T15:00:00Z" },
+              },
+              required: ["name", "email", "start"],
+            },
+          },
+          server: {
+            url: `${site}/api/tools/execute?agentId=${agent.id}&toolId=${t.id}`,
+            ...(process.env.VAPI_WEBHOOK_SECRET
+              ? { headers: { "x-vl-secret": process.env.VAPI_WEBHOOK_SECRET } }
+              : {}),
+          },
+        });
+        break;
+      }
+      case "mcp": {
+        if (!cfg.serverUrl || cfg.serverUrl.includes("your-mcp-server")) break;
+        tools.push({
+          type: "mcp",
+          function: { name: t.name },
+          server: {
+            url: cfg.serverUrl,
+            ...(parseHeaders(cfg.httpHeaders) ? { headers: parseHeaders(cfg.httpHeaders) } : {}),
+          },
+        });
+        break;
+      }
+      default:
+        break; // end_call / transfer_call / knowledge_base map elsewhere
+    }
+  }
+  return tools;
+}
+
 // Create or update the Vapi assistant backing one of our agents.
 // Returns the Vapi assistant id (store it on the agent as vapiAssistantId).
 export async function syncAgentToVapi(
@@ -127,6 +279,7 @@ export async function syncAgentToVapi(
       provider: "anthropic",
       model: "claude-3-5-sonnet-20241022",
       messages: [{ role: "system", content: systemPrompt }],
+      ...(buildVapiTools(agent).length ? { tools: buildVapiTools(agent) } : {}),
     },
     voice: {
       provider: "11labs",
@@ -143,18 +296,32 @@ export async function syncAgentToVapi(
     },
   };
 
-  if (agent.vapiAssistantId) {
-    await vapi(`/assistant/${agent.vapiAssistantId}`, {
-      method: "PATCH",
-      body: JSON.stringify(payload),
-    });
-    return agent.vapiAssistantId;
+  // If Vapi rejects the payload (e.g. a tool shape it doesn't accept), retry
+  // once without custom tools so the assistant itself always stays in sync.
+  async function push(body: Record<string, unknown>): Promise<string> {
+    if (agent.vapiAssistantId) {
+      await vapi(`/assistant/${agent.vapiAssistantId}`, {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+      return agent.vapiAssistantId;
+    }
+    const created = await vapi("/assistant", { method: "POST", body: JSON.stringify(body) });
+    return created.id as string;
   }
-  const created = await vapi("/assistant", {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-  return created.id as string;
+
+  try {
+    return await push(payload);
+  } catch (e) {
+    const model = payload.model as Record<string, unknown>;
+    if (model.tools) {
+      console.error("Vapi rejected custom tools — retrying without them:", e);
+      const modelSansTools = { ...model };
+      delete modelSansTools.tools;
+      return await push({ ...payload, model: modelSansTools });
+    }
+    throw e;
+  }
 }
 
 // Start an outbound call for a campaign ("Launch your AI").

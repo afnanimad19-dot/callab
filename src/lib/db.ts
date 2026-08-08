@@ -211,6 +211,7 @@ export interface KnowledgeBase {
   type?: "file" | "url" | "text" | "gdoc";
   url?: string;
   content?: string; // for text resources; also used by the KB test chat
+  fileName?: string; // original filename for uploaded files (download keeps it)
   autoUpdate?: boolean;
   crawl?: boolean;
   multipleUrls?: boolean;

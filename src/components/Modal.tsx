@@ -1,4 +1,5 @@
 "use client";
+import { X } from "lucide-react";
 
 // Reusable centered modal with backdrop, used by all dashboard popups.
 
@@ -51,7 +52,7 @@ export default function Modal({
             aria-label="Close"
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-ink-400 transition hover:bg-ink-800 hover:text-ink-100"
           >
-            ✕
+            <X className="h-4 w-4" />
           </button>
         </div>
         <div className="mt-5">{children}</div>

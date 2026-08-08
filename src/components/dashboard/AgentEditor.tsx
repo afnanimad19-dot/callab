@@ -31,6 +31,23 @@ import {
   Calendar,
   Zap,
   Plug,
+  User,
+  SlidersHorizontal,
+  MessageSquare,
+  MessagesSquare,
+  ListChecks,
+  Shield,
+  Volume2,
+  Volume1,
+  Phone,
+  Hand,
+  Hash,
+  Database,
+  Save,
+  Send,
+  AlertTriangle,
+  Braces,
+  Clock,
 } from "lucide-react";
 import { useEffect } from "react";
 import type { Agent, AgentRevision } from "@/lib/db";
@@ -112,7 +129,7 @@ function Section({
   children,
   action,
 }: {
-  icon: string;
+  icon: React.ReactNode;
   title: string;
   subtitle: string;
   children: React.ReactNode;
@@ -583,7 +600,7 @@ export default function AgentEditor({
               </>
             )}
             <button onClick={publish} disabled={busy} className="btn-primary !py-2 disabled:opacity-60">
-              {busy ? "Publishing…" : "💾 Publish"}
+              {busy ? "Publishing…" : (<span className="flex items-center gap-1.5"><Save className="h-4 w-4" /> Publish</span>)}
             </button>
           </div>
         </div>
@@ -595,7 +612,7 @@ export default function AgentEditor({
         )}
 
         {/* Agent Details */}
-        <Section icon="👤" title="Agent Details" subtitle="Configure the agent details, voice, and audio settings.">
+        <Section icon={<User className="h-4 w-4 text-ink-400" />} title="Agent Details" subtitle="Configure the agent details, voice, and audio settings.">
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="label">Agent Name</label>
@@ -627,7 +644,7 @@ export default function AgentEditor({
         {/* Prompt Configuration OR Flow Designer */}
         {agentType === "single_prompt" ? (
           <Section
-            icon="🎛"
+            icon={<SlidersHorizontal className="h-4 w-4 text-ink-400" />}
             title="Prompt Configuration"
             subtitle="Define the AI's identity, tasks, and style guardrails."
             action={
@@ -644,7 +661,7 @@ export default function AgentEditor({
           >
             <div className="space-y-4">
               <div>
-                <p className="text-sm font-semibold">👤 Agent Identity</p>
+                <p className="flex items-center gap-2 text-sm font-semibold"><User className="h-4 w-4 text-ink-400" /> Agent Identity</p>
                 <p className="mb-2 text-xs text-ink-400">
                   Describe your agent&apos;s personality, tone, and role — how it presents itself to callers.
                 </p>
@@ -653,7 +670,7 @@ export default function AgentEditor({
               </div>
               <div>
                 <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">☑️ Tasks</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><ListChecks className="h-4 w-4 text-ink-400" /> Tasks</p>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setGenerateMode("tasks")}
@@ -686,7 +703,7 @@ export default function AgentEditor({
                 )}
               </div>
               <div>
-                <p className="text-sm font-semibold">🛡 Style Guardrails</p>
+                <p className="flex items-center gap-2 text-sm font-semibold"><Shield className="h-4 w-4 text-ink-400" /> Style Guardrails</p>
                 <p className="mb-2 text-xs text-ink-400">
                   Style guidelines, phrases to use or avoid, and the overall conversational flow.
                 </p>
@@ -714,7 +731,7 @@ export default function AgentEditor({
         )}
 
         {/* Conversation Settings */}
-        <Section icon="💬" title="Conversation Settings" subtitle="Configure how the conversation begins and who initiates the dialogue.">
+        <Section icon={<MessageSquare className="h-4 w-4 text-ink-400" />} title="Conversation Settings" subtitle="Configure how the conversation begins and who initiates the dialogue.">
           <div className="space-y-4">
             <div>
               <label className="label">Who speaks first</label>
@@ -749,7 +766,7 @@ export default function AgentEditor({
 
         {/* Post-Call Data Extraction */}
         <Section
-          icon="⟨x⟩"
+          icon={<Braces className="h-4 w-4 text-ink-400" />}
           title="Post-Call Data Extraction"
           subtitle="Define the information you want to extract from conversations."
           action={
@@ -848,11 +865,11 @@ export default function AgentEditor({
         </Section>
 
         {/* Advanced Settings */}
-        <Section icon="⚙️" title="Advanced Settings" subtitle="Configure advanced agent behavior and conversation settings.">
+        <Section icon={<Settings className="h-4 w-4 text-ink-400" />} title="Advanced Settings" subtitle="Configure advanced agent behavior and conversation settings.">
           <div className="space-y-5">
             {/* Agent Speaking */}
             <div className="rounded-xl border border-ink-700 p-5">
-              <p className="text-sm font-semibold">🔊 Agent Speaking</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><Volume2 className="h-4 w-4 text-ink-400" /> Agent Speaking</p>
               <p className="text-xs text-ink-400">Voice activity detection and turn management.</p>
               <div className="mt-4 grid gap-5 sm:grid-cols-2">
                 <Slider label="Min Speech Duration" unit="s" min={0.1} max={3} step={0.1}
@@ -882,7 +899,7 @@ export default function AgentEditor({
             <div className="rounded-xl border border-ink-700 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">💬 Turn Detection</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><MessageSquare className="h-4 w-4 text-ink-400" /> Turn Detection</p>
                   <p className="text-xs text-ink-400">Automatically detect when it&apos;s the agent&apos;s turn to speak.</p>
                 </div>
                 <Toggle on={draft.advanced.turnDetection} onChange={(v) => setAdv("turnDetection", v)} />
@@ -909,7 +926,7 @@ export default function AgentEditor({
             <div className="rounded-xl border border-ink-700 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">🔉 Noise Reduction</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><Volume1 className="h-4 w-4 text-ink-400" /> Noise Reduction</p>
                   <p className="text-xs text-ink-400">Noise reduction and audio enhancement.</p>
                 </div>
                 <Toggle on={draft.advanced.noiseReduction} onChange={(v) => setAdv("noiseReduction", v)} />
@@ -931,7 +948,7 @@ export default function AgentEditor({
             <div className="rounded-xl border border-ink-700 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">📞 Answering Machine Detection</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><Phone className="h-4 w-4 text-ink-400" /> Answering Machine Detection</p>
                   <p className="text-xs text-ink-400">Detect answering machines and voicemail.</p>
                 </div>
                 <Toggle on={draft.advanced.amd} onChange={(v) => setAdv("amd", v)} />
@@ -960,7 +977,7 @@ export default function AgentEditor({
 
             {/* Stop Speaking Plan (Vapi parity) */}
             <div className="rounded-xl border border-ink-700 p-5">
-              <p className="text-sm font-semibold">✋ Stop Speaking Plan</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><Hand className="h-4 w-4 text-ink-400" /> Stop Speaking Plan</p>
               <p className="text-xs text-ink-400">How caller speech interrupts the agent mid-sentence.</p>
               <div className="mt-4 grid gap-5 sm:grid-cols-3">
                 <Slider label="Number of Words" unit="" min={0} max={10} step={1}
@@ -980,7 +997,7 @@ export default function AgentEditor({
 
             {/* Messaging (Vapi parity) */}
             <div className="rounded-xl border border-ink-700 p-5">
-              <p className="text-sm font-semibold">💬 Call Messages</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><MessagesSquare className="h-4 w-4 text-ink-400" /> Call Messages</p>
               <p className="text-xs text-ink-400">What the agent says on voicemail, when idle, and when ending the call.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -1025,7 +1042,7 @@ export default function AgentEditor({
             <div className="rounded-xl border border-ink-700 p-5">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold">🔢 Keypad Input</p>
+                  <p className="flex items-center gap-2 text-sm font-semibold"><Hash className="h-4 w-4 text-ink-400" /> Keypad Input</p>
                   <p className="text-xs text-ink-400">Let callers enter digits (DTMF) — for menus, account numbers, PINs.</p>
                 </div>
                 <Toggle on={draft.advanced.keypadInputEnabled} onChange={(v) => setAdv("keypadInputEnabled", v)} />
@@ -1054,7 +1071,7 @@ export default function AgentEditor({
 
             {/* Reminder & Call Duration */}
             <div className="rounded-xl border border-ink-700 p-5">
-              <p className="text-sm font-semibold">⏱ Reminder &amp; Call Duration Settings</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><Clock className="h-4 w-4 text-ink-400" /> Reminder &amp; Call Duration Settings</p>
               <p className="text-xs text-ink-400">How the agent checks on silent callers and call limits.</p>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -1082,7 +1099,7 @@ export default function AgentEditor({
 
             {/* Privacy */}
             <div className="rounded-xl border border-ink-700 p-5">
-              <p className="text-sm font-semibold">🗄 Privacy</p>
+              <p className="flex items-center gap-2 text-sm font-semibold"><Database className="h-4 w-4 text-ink-400" /> Privacy</p>
               <p className="text-xs text-ink-400">Choose whether to store and analyze call data.</p>
               <select className="field mt-3" value={draft.advanced.dataStorage}
                 onChange={(e) => setAdv("dataStorage", e.target.value as "store" | "transcripts_only" | "none")}>
@@ -1137,7 +1154,7 @@ export default function AgentEditor({
               onChange={(e) => setChatInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && sendTest()}
             />
-            <button onClick={sendTest} className="btn-primary !px-4 !py-2">➤</button>
+            <button onClick={sendTest} aria-label="Send" className="btn-primary !px-4 !py-2"><Send className="h-4 w-4" /></button>
           </div>
         </div>
       </div>
@@ -1146,11 +1163,11 @@ export default function AgentEditor({
       {dirty && (
         <div className="fixed bottom-5 left-1/2 z-40 flex w-[min(92vw,560px)] -translate-x-1/2 items-center justify-between gap-3 rounded-2xl border border-ink-600 bg-ink-900 px-5 py-3 shadow-2xl shadow-black/40">
           <p className="flex items-center gap-2 text-sm text-ink-200">
-            <span className="text-signal-amber">⚠️</span> You have unsaved changes
+            <AlertTriangle className="h-4 w-4 text-signal-amber" /> You have unsaved changes
           </p>
           <div className="flex items-center gap-2">
             <button onClick={() => setDraft(initial.current)} className="btn-secondary !px-4 !py-1.5 !text-xs">
-              ↩ Undo Changes
+              Undo Changes
             </button>
             <button onClick={publish} disabled={busy} className="btn-primary !px-4 !py-1.5 !text-xs disabled:opacity-60">
               {busy ? "Publishing…" : "Publish"}
@@ -1510,7 +1527,12 @@ const TOOL_GALLERY: {
       name: "live_webhook",
       description: "Send data to an external API endpoint during the call",
       aiResponse: "One moment while I process that for you.",
-      config: { serverUrl: "", httpHeaders: '{\n  "Content-Type": "application/json"\n}' },
+      config: {
+        method: "POST",
+        serverUrl: "",
+        httpHeaders: '{\n  "Content-Type": "application/json"\n}',
+        body: '{\n  "caller_name": "{{caller_name}}"\n}',
+      },
     },
   },
   {
@@ -1552,11 +1574,19 @@ const TOOL_GALLERY: {
     blurb: "Send data to Zapier webhook",
     defaults: {
       type: "zapier",
-      title: "Zapier",
-      name: "zapier",
-      description: "Send call data to a Zapier webhook",
-      aiResponse: "One moment while I take care of that for you.",
-      config: { zapierUrl: "" },
+      title: "Zapier Webhook",
+      name: "zapier_webhook",
+      description: "Send data to Zapier webhook",
+      aiResponse: "Let me process that information through our system.",
+      config: {
+        zapierUrl: "",
+        fields: JSON.stringify([
+          { name: "caller_name", description: "Name of the caller" },
+          { name: "caller_phone", description: "Phone number of the caller" },
+          { name: "call_summary", description: "Summary of the call" },
+          { name: "timestamp", description: "Call timestamp" },
+        ]),
+      },
     },
   },
   {
@@ -1634,14 +1664,29 @@ function ManageToolsModal({
               No tools yet — add one to give your agent capabilities like ending the call.
             </p>
           )}
-          {tools.map((t) => (
-            <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl border border-ink-700 px-4 py-3">
+          {tools.map((t) => {
+            const typeLabel = TOOL_GALLERY.find((g) => g.type === t.type)?.title ?? "Custom";
+            const urlLine =
+              t.type === "live_webhook"
+                ? `${t.config?.method ?? "POST"} ${t.config?.serverUrl ?? ""}`
+                : t.type === "zapier"
+                  ? `POST ${t.config?.zapierUrl ?? ""}`
+                  : t.type === "mcp"
+                    ? `MCP ${t.config?.serverUrl ?? ""}`
+                    : null;
+            return (
+            <div key={t.id} className="flex items-start justify-between gap-3 rounded-xl border border-ink-700 px-4 py-3">
               <div className="min-w-0">
-                <p className="flex items-center gap-2 text-sm font-semibold">
+                <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
                   {t.title}
-                  <code className="rounded bg-[#301C3F]/10 px-2 py-0.5 text-[11px] font-medium text-[#301C3F]">{t.name}</code>
+                  <span className="rounded-full bg-[#301C3F]/10 px-2.5 py-0.5 text-[11px] font-medium text-[#301C3F]">
+                    {typeLabel}
+                  </span>
                 </p>
-                <p className="truncate text-xs text-ink-400">{t.description}</p>
+                <p className="mt-0.5 line-clamp-3 text-xs leading-relaxed text-ink-400">{t.description}</p>
+                {urlLine && urlLine.trim().length > 5 && (
+                  <p className="mt-1 truncate font-mono text-[11px] text-ink-500">{urlLine}</p>
+                )}
               </div>
               <div className="flex shrink-0 items-center gap-1">
                 <button
@@ -1660,7 +1705,8 @@ function ManageToolsModal({
                 </button>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {galleryOpen && (
@@ -1697,6 +1743,66 @@ function ManageToolsModal({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// Repeater for the Zapier tool's data fields (name + description each).
+function ZapierFieldsEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  let fields: { name: string; description: string }[] = [];
+  try {
+    fields = JSON.parse(value);
+    if (!Array.isArray(fields)) fields = [];
+  } catch {
+    fields = [];
+  }
+
+  function update(next: { name: string; description: string }[]) {
+    onChange(JSON.stringify(next));
+  }
+
+  return (
+    <div className="space-y-2.5">
+      {fields.map((f, i) => (
+        <div key={i} className="flex gap-2 rounded-xl border border-ink-700 p-3">
+          <div className="flex-1 space-y-2">
+            <input
+              className="field !py-2 font-mono !text-[13px]"
+              placeholder="field_name"
+              value={f.name}
+              onChange={(e) =>
+                update(fields.map((x, j) => (j === i ? { ...x, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") } : x)))
+              }
+            />
+            <textarea
+              rows={2}
+              className="field !py-2 !text-[13px]"
+              placeholder="What this field contains"
+              value={f.description}
+              onChange={(e) => update(fields.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+            />
+          </div>
+          <button
+            onClick={() => update(fields.filter((_, j) => j !== i))}
+            aria-label="Remove field"
+            className="self-start rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ))}
+      <button
+        onClick={() => update([...fields, { name: "", description: "" }])}
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-ink-600 py-2.5 text-sm text-ink-400 transition hover:border-[#301C3F]/50 hover:text-ink-200"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add Field
+      </button>
     </div>
   );
 }
@@ -1831,12 +1937,41 @@ function EditToolModal({
             </>
           )}
 
-          {(toolType === "live_webhook" || toolType === "mcp") && (
+          {toolType === "live_webhook" && (
+            <>
+              <div>
+                <label className="label">Method</label>
+                <select className="field" value={config.method ?? "POST"} onChange={(e) => setC("method", e.target.value)}>
+                  <option>POST</option>
+                  <option>GET</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">URL</label>
+                <input className="field font-mono !text-[13px]" placeholder="https://api.example.com/endpoint"
+                  value={config.serverUrl ?? ""} onChange={(e) => setC("serverUrl", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Headers</label>
+                <textarea rows={3} className="field font-mono !text-[12px]"
+                  value={config.httpHeaders ?? ""} onChange={(e) => setC("httpHeaders", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Body</label>
+                <textarea rows={5} className="field font-mono !text-[12px]"
+                  value={config.body ?? ""} onChange={(e) => setC("body", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">
+                  Every {"{{variable}}"} becomes a parameter the agent collects during the call and sends.
+                </p>
+              </div>
+            </>
+          )}
+
+          {toolType === "mcp" && (
             <>
               <div>
                 <label className="label">Server URL</label>
-                <input className="field font-mono !text-[13px]"
-                  placeholder={toolType === "mcp" ? "https://your-mcp-server.com" : "https://api.example.com/endpoint"}
+                <input className="field font-mono !text-[13px]" placeholder="https://your-mcp-server.com"
                   value={config.serverUrl ?? ""} onChange={(e) => setC("serverUrl", e.target.value)} />
               </div>
               <div>
@@ -1844,12 +1979,10 @@ function EditToolModal({
                 <textarea rows={4} className="field font-mono !text-[12px]"
                   value={config.httpHeaders ?? ""} onChange={(e) => setC("httpHeaders", e.target.value)} />
               </div>
-              {toolType === "mcp" && (
-                <p className="rounded-lg border border-ink-700 bg-ink-800/60 px-3.5 py-2.5 text-xs text-ink-300">
-                  ⓘ MCP servers are not provided or verified by us. It is the client&apos;s/developer&apos;s
-                  responsibility to ensure the security and reliability of the MCP server.
-                </p>
-              )}
+              <p className="rounded-lg border border-ink-700 bg-ink-800/60 px-3.5 py-2.5 text-xs text-ink-300">
+                MCP servers are not provided or verified by us. It is the client&apos;s/developer&apos;s
+                responsibility to ensure the security and reliability of the MCP server.
+              </p>
             </>
           )}
 
@@ -1887,12 +2020,22 @@ function EditToolModal({
           )}
 
           {toolType === "zapier" && (
-            <div>
-              <label className="label">Zapier Webhook URL</label>
-              <input className="field font-mono !text-[13px]" placeholder="https://hooks.zapier.com/hooks/catch/…"
-                value={config.zapierUrl ?? ""} onChange={(e) => setC("zapierUrl", e.target.value)} />
-              <p className="mt-1 text-xs text-ink-400">Create a &quot;Catch Hook&quot; trigger in Zapier and paste its URL.</p>
-            </div>
+            <>
+              <div>
+                <label className="label">Zapier Webhook URL</label>
+                <input className="field font-mono !text-[13px]" placeholder="https://hooks.zapier.com/hooks/catch/…"
+                  value={config.zapierUrl ?? ""} onChange={(e) => setC("zapierUrl", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">Your Zapier webhook URL from your Zap.</p>
+              </div>
+              <div>
+                <label className="label">Fields</label>
+                <p className="mb-2 text-xs text-ink-400">Define the data fields to send to Zapier.</p>
+                <ZapierFieldsEditor
+                  value={config.fields ?? "[]"}
+                  onChange={(v) => setC("fields", v)}
+                />
+              </div>
+            </>
           )}
 
           {toolType === "knowledge_base" && (

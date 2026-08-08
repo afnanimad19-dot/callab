@@ -133,7 +133,7 @@ export default function TestAgentPanel({
         setNotice("Simulated replies — sync this agent to Vapi to test the real model.");
       }
     } catch (e) {
-      pushTurn("agent", `⚠ ${(e as Error).message}`);
+      pushTurn("agent", `Error: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }

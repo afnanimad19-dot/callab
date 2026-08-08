@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw, Trash2 } from "lucide-react";
+import { Search, RefreshCw, Trash2, Zap, X, Check, Save } from "lucide-react";
 import RowMenu from "./RowMenu";
 import { toast } from "@/components/Toast";
 
@@ -77,7 +77,7 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {w.events.map((e) => <span key={e} className="badge-muted">{e}</span>)}
                 {(w.steps?.length ?? 0) > 0 && (
-                  <span className="badge-warn">⚡ {w.steps!.length} step{w.steps!.length === 1 ? "" : "s"}</span>
+                  <span className="badge-warn inline-flex items-center gap-1"><Zap className="h-3 w-3" /> {w.steps!.length} step{w.steps!.length === 1 ? "" : "s"}</span>
                 )}
                 <span className={w.active ? "badge-ok" : "badge-muted"}>{w.active ? "active" : "disabled"}</span>
               </div>
@@ -102,7 +102,7 @@ export default function WebhooksPanel({ webhooks }: { webhooks: Webhook[] }) {
           <span className="text-ink-400">→</span>
         </button>
         <div className="mt-4 rounded-xl border border-dashed border-ink-600 py-12 text-center text-sm text-ink-400">
-          <p className="text-2xl">🔍</p>
+          <Search className="mx-auto h-7 w-7 text-ink-400" />
           <p className="mt-3">No templates available</p>
           <p className="mt-1 text-xs">Check back later for new templates</p>
         </div>
@@ -155,7 +155,7 @@ function WebhookBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: ()
       <div className="flex h-full w-full max-w-3xl flex-col border-l border-ink-700 bg-ink-900">
         <div className="flex items-center justify-between border-b border-ink-700 px-6 py-4">
           <h2 className="text-lg font-bold">Create Custom Webhook</h2>
-          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">✕</button>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100"><X className="h-4 w-4" /></button>
         </div>
 
         {/* Stepper */}
@@ -165,7 +165,7 @@ function WebhookBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               <div className="flex flex-col items-center gap-1">
                 <span className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${
                   i < step ? "grad-bg text-white" : i === step ? "border-2 border-accent-500 bg-ink-800 text-accent-300" : "bg-ink-800 text-ink-400"
-                }`}>{i < step ? "✓" : i + 1}</span>
+                }`}>{i < step ? <Check className="h-3 w-3" /> : i + 1}</span>
                 <span className={`text-[11px] ${i === step ? "font-semibold" : "text-ink-400"}`}>{s}</span>
               </div>
               {i === 0 && <div className="mb-4 h-px flex-1 bg-ink-700" />}
@@ -232,7 +232,7 @@ function WebhookBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: ()
                         <input className="field flex-1" placeholder="https://api.example.com/…" value={s.url}
                           onChange={(e) => setSteps(steps.map((x, j) => (j === i ? { ...x, url: e.target.value } : x)))} />
                         <button onClick={() => setSteps(steps.filter((_, j) => j !== i))}
-                          className="text-ink-400 hover:text-signal-red">🗑</button>
+                          aria-label="Remove" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     ))}
                   </div>
@@ -289,7 +289,7 @@ function WebhookBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: ()
                         <input className="field" placeholder="Enter static value if needed" value={v.value}
                           onChange={(e) => setVariables(variables.map((x, j) => (j === i ? { ...x, value: e.target.value } : x)))} />
                         <button onClick={() => setVariables(variables.filter((_, j) => j !== i))}
-                          className="text-ink-400 hover:text-signal-red">🗑</button>
+                          aria-label="Remove" className="rounded-lg p-1.5 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"><Trash2 className="h-4 w-4" /></button>
                       </div>
                     </div>
                   </div>
@@ -329,7 +329,7 @@ function WebhookBuilder({ onClose, onSaved }: { onClose: () => void; onSaved: ()
               }} className="btn-primary">Next</button>
             ) : (
               <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
-                {busy ? "Saving…" : "💾 Save"}
+                {busy ? "Saving…" : (<span className="flex items-center gap-1.5"><Save className="h-4 w-4" /> Save</span>)}
               </button>
             )}
           </div>

@@ -1,5 +1,24 @@
 "use client";
-import { Search, RefreshCw, Eye, Pencil, Play, Pause, Archive } from "lucide-react";
+import {
+  Search,
+  RefreshCw,
+  Eye,
+  Pencil,
+  Play,
+  Pause,
+  Archive,
+  ClipboardList,
+  Calendar,
+  CheckCircle2,
+  PhoneIncoming,
+  PhoneOutgoing,
+  Clock,
+  Users,
+  Bot,
+  Smartphone,
+  Square,
+  Check,
+} from "lucide-react";
 
 // Campaigns list: stat cards, search/filter, and rich campaign cards with
 // schedule / contacts / agent / phone-number panels and lifecycle actions.
@@ -21,11 +40,11 @@ const STATUS_BADGE: Record<Campaign["status"], string> = {
   archived: "badge-muted",
 };
 
-function InfoBox({ icon, title, children }: { icon: string; title: string; children: React.ReactNode }) {
+function InfoBox({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-xl border border-ink-700 bg-ink-900/60 p-4">
       <p className="flex items-center gap-2 text-sm font-semibold">
-        <span>{icon}</span> {title}
+        {icon} {title}
       </p>
       <div className="mt-2 space-y-1 text-sm text-ink-300">{children}</div>
     </div>
@@ -59,10 +78,10 @@ export default function CampaignsPanel({
   const stats = useMemo(() => {
     const active = campaigns.filter((c) => c.status !== "archived");
     return [
-      { label: "Total Campaigns", value: active.length, sub: "All campaigns", icon: "🗒" },
-      { label: "Running", value: active.filter((c) => c.status === "running").length, sub: "Currently active campaigns", icon: "▶" },
-      { label: "Scheduled", value: active.filter((c) => c.status === "scheduled").length, sub: "Campaigns scheduled to start", icon: "🗓" },
-      { label: "Completed", value: active.filter((c) => c.status === "completed").length, sub: "Successfully completed campaigns", icon: "✓" },
+      { label: "Total Campaigns", value: active.length, sub: "All campaigns", icon: ClipboardList },
+      { label: "Running", value: active.filter((c) => c.status === "running").length, sub: "Currently active campaigns", icon: Play },
+      { label: "Scheduled", value: active.filter((c) => c.status === "scheduled").length, sub: "Campaigns scheduled to start", icon: Calendar },
+      { label: "Completed", value: active.filter((c) => c.status === "completed").length, sub: "Successfully completed campaigns", icon: CheckCircle2 },
     ];
   }, [campaigns]);
 
@@ -84,7 +103,7 @@ export default function CampaignsPanel({
           <div key={s.label} className="card">
             <div className="flex items-start justify-between">
               <p className="text-sm font-medium text-ink-300">{s.label}</p>
-              <span className="text-ink-400">{s.icon}</span>
+              <s.icon className="h-4 w-4 text-ink-400" />
             </div>
             <p className="mt-1.5 text-3xl font-bold">{s.value}</p>
             <p className="mt-0.5 text-xs text-ink-400">{s.sub}</p>
@@ -118,13 +137,14 @@ export default function CampaignsPanel({
               <div className="flex items-center gap-2.5">
                 <h2 className="text-base font-bold">{c.name}</h2>
                 <span className={STATUS_BADGE[c.status]}>{c.status}</span>
-                <span className={isOutbound ? "badge-warn" : "badge-ok"}>
-                  {isOutbound ? "📲 outbound" : "📞 inbound"}
+                <span className={`inline-flex items-center gap-1 ${isOutbound ? "badge-warn" : "badge-ok"}`}>
+                  {isOutbound ? <PhoneOutgoing className="h-3 w-3" /> : <PhoneIncoming className="h-3 w-3" />}
+                  {isOutbound ? "outbound" : "inbound"}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setStatus(c.id, "archived")} className="btn-secondary !px-3.5 !py-1.5 !text-xs">
-                  🗄 Archive
+                <button onClick={() => setStatus(c.id, "archived")} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-1.5 !text-xs">
+                  <Archive className="h-3 w-3" /> Archive
                 </button>
                 <RowMenu
                   items={[
@@ -137,23 +157,23 @@ export default function CampaignsPanel({
                   ]}
                 />
                 {c.status === "running" && (
-                  <button onClick={() => setStatus(c.id, "paused")} className="btn-secondary !px-3.5 !py-1.5 !text-xs !text-signal-amber">
-                    ⏸ Pause
+                  <button onClick={() => setStatus(c.id, "paused")} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-1.5 !text-xs !text-signal-amber">
+                    <Pause className="h-3 w-3" /> Pause
                   </button>
                 )}
                 {(c.status === "paused" || c.status === "stopped") && (
-                  <button onClick={() => setStatus(c.id, "running")} className="btn-secondary !px-3.5 !py-1.5 !text-xs !text-accent-300">
-                    ▶ Resume
+                  <button onClick={() => setStatus(c.id, "running")} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-1.5 !text-xs !text-accent-300">
+                    <Play className="h-3 w-3" /> Resume
                   </button>
                 )}
                 {c.status === "running" && (
-                  <button onClick={() => setStatus(c.id, "stopped")} className="btn-secondary !px-3.5 !py-1.5 !text-xs !text-signal-red">
-                    ⏹ Stop
+                  <button onClick={() => setStatus(c.id, "stopped")} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-1.5 !text-xs !text-signal-red">
+                    <Square className="h-3 w-3" /> Stop
                   </button>
                 )}
                 {c.status !== "completed" && (
-                  <button onClick={() => setStatus(c.id, "completed")} className="btn-secondary !px-3.5 !py-1.5 !text-xs">
-                    ✓ Complete
+                  <button onClick={() => setStatus(c.id, "completed")} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-1.5 !text-xs">
+                    <Check className="h-3 w-3" /> Complete
                   </button>
                 )}
               </div>
@@ -163,18 +183,18 @@ export default function CampaignsPanel({
 
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
               {isOutbound && c.schedule && (
-                <InfoBox icon="🗓" title="Schedule">
+                <InfoBox icon={<Calendar className="h-4 w-4 text-ink-400" />} title="Schedule">
                   <p>
                     {c.schedule.startDate} — {c.schedule.endDate || "Ongoing"}
                   </p>
-                  <p className="text-xs">
-                    🕐 {c.schedule.from} – {c.schedule.to} <span className="text-ink-500">({c.schedule.timezone})</span>
+                  <p className="flex items-center gap-1 text-xs">
+                    <Clock className="h-3 w-3" /> {c.schedule.from} – {c.schedule.to} <span className="text-ink-500">({c.schedule.timezone})</span>
                   </p>
                   <p className="text-xs text-ink-400">{c.schedule.days.join(", ")}</p>
                 </InfoBox>
               )}
               {isOutbound && (
-                <InfoBox icon="👥" title="Contacts">
+                <InfoBox icon={<Users className="h-4 w-4 text-ink-400" />} title="Contacts">
                   <p className="flex flex-wrap items-center gap-1.5 text-xs">
                     Tags:
                     {(c.filters?.tags?.length ? c.filters.tags : ["all"]).map((t) => (
@@ -192,10 +212,10 @@ export default function CampaignsPanel({
                   </div>
                 </InfoBox>
               )}
-              <InfoBox icon="🤖" title="AI Agent">
+              <InfoBox icon={<Bot className="h-4 w-4 text-ink-400" />} title="AI Agent">
                 <p>{c.agentName}</p>
               </InfoBox>
-              <InfoBox icon="📱" title="Phone Number">
+              <InfoBox icon={<Smartphone className="h-4 w-4 text-ink-400" />} title="Phone Number">
                 <p className="font-mono text-[13px]">{c.phoneNumber || "No number assigned"}</p>
               </InfoBox>
             </div>

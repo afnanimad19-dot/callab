@@ -42,6 +42,7 @@ export async function POST(request: Request) {
     type,
     url: String(body?.url ?? "").slice(0, 500),
     content: String(body?.content ?? "").slice(0, 20000),
+    fileName: String(body?.fileName ?? "").slice(0, 200) || undefined,
     autoUpdate: Boolean(body?.autoUpdate),
     crawl: Boolean(body?.crawl),
     multipleUrls: Boolean(body?.multipleUrls),

@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { toast } from "@/components/Toast";
+import { PhoneIncoming, PhoneOutgoing, X, Check, Rocket } from "lucide-react";
 import type { Agent, Contact, PhoneNumber, Webhook } from "@/lib/db";
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -168,12 +169,12 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
       <Modal open={typeModal} onClose={() => setTypeModal(false)} title="Select Campaign Type" wide>
         <div className="grid gap-4 sm:grid-cols-2">
           <button onClick={() => pickType("inbound")} className="card card-hover flex flex-col items-center !p-8 text-center">
-            <span className="text-2xl">📞</span>
+            <PhoneIncoming className="h-7 w-7 text-ink-300" />
             <span className="mt-3 text-base font-semibold">Inbound</span>
             <span className="mt-1 text-sm text-ink-400">Receive calls to your AI agent</span>
           </button>
           <button onClick={() => pickType("outbound")} className="card card-hover flex flex-col items-center !p-8 text-center">
-            <span className="text-2xl">📲</span>
+            <PhoneOutgoing className="h-7 w-7 text-ink-300" />
             <span className="mt-3 text-base font-semibold">Outbound</span>
             <span className="mt-1 text-sm text-ink-400">Make calls from your AI agent</span>
           </button>
@@ -190,7 +191,7 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
               <h2 className="text-lg font-bold">
                 Create {direction === "outbound" ? "Outbound" : "Inbound"} Campaign
               </h2>
-              <button onClick={reset} aria-label="Close" className="text-ink-400 hover:text-ink-100">✕</button>
+              <button onClick={reset} aria-label="Close" className="text-ink-400 hover:text-ink-100"><X className="h-4 w-4" /></button>
             </div>
 
             {/* Stepper */}
@@ -207,7 +208,7 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
                             : "bg-ink-800 text-ink-400"
                       }`}
                     >
-                      {i < step ? "✓" : i + 1}
+                      {i < step ? <Check className="h-3.5 w-3.5" /> : i + 1}
                     </span>
                     <span className={`whitespace-nowrap text-[11px] ${i === step ? "font-semibold text-ink-100" : "text-ink-400"}`}>
                       {s}
@@ -449,7 +450,7 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
                 <button onClick={next} className="btn-primary">Next</button>
               ) : (
                 <button onClick={launch} disabled={busy} className="btn-primary disabled:opacity-60">
-                  {busy ? "Launching…" : "🚀 Launch your AI"}
+                  {busy ? "Launching…" : (<span className="flex items-center gap-1.5"><Rocket className="h-4 w-4" /> Launch your AI</span>)}
                 </button>
               )}
             </div>
