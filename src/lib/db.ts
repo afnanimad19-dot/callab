@@ -10,6 +10,44 @@
 import fs from "fs";
 import path from "path";
 
+// Billing lives on the workspace owner's user record — no extra table needed.
+// Card data stores ONLY display metadata (last4, expiry, holder, address);
+// full card numbers never touch our backend. Real charging arrives with the
+// Stripe integration; purchases meanwhile update balances + history.
+export interface BillingCard {
+  id: string;
+  holder: string;
+  last4: string;
+  expMonth: string;
+  expYear: string;
+  address: string;
+  city: string;
+  country: string;
+  taxNumber?: string;
+  isDefault: boolean;
+}
+
+export interface BillingEntry {
+  id: string;
+  description: string;
+  detail: string;
+  date: string; // ISO
+  amount: number; // USD
+  status: "Paid";
+}
+
+export interface BillingState {
+  planName: string;
+  planPrice: number; // USD / month
+  planMinutes: number;
+  startedAt: string; // ISO
+  minutesTotal: number;
+  minutesUsed: number;
+  addons: { workspace: number; knowledgeBase: number };
+  cards: BillingCard[];
+  history: BillingEntry[];
+}
+
 export interface User {
   id: string;
   email: string;
@@ -25,6 +63,7 @@ export interface User {
   verifyToken?: string;
   emailVerified?: boolean;
   mustResetPassword?: boolean;
+  billing?: BillingState;
 }
 
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
