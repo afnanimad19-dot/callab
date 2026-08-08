@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { deleteAgent, findAgent, updateAgent, Agent, AgentRevision } from "@/lib/db";
 import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
+import { sanitizeFlow, compileFlow } from "@/lib/flow";
 import { syncAgentToVapi } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
 
@@ -64,6 +65,19 @@ export async function PATCH(request: Request, { params }: Params) {
   }
   if (typeof body?.voiceId === "string") {
     patch.voiceId = body.voiceId.slice(0, 60);
+  }
+  // Flow Designer save: store the graph and compile it into the same
+  // primitives single-prompt agents use, so Vapi sync and extraction work.
+  if (body?.flow !== undefined) {
+    const flow = sanitizeFlow(body.flow);
+    if (!flow) return NextResponse.json({ error: "Invalid flow payload." }, { status: 400 });
+    patch.flow = flow;
+    const compiled = compileFlow(flow, patch.name ?? existing.name);
+    patch.systemPrompt = compiled.systemPrompt;
+    patch.greeting = compiled.greeting || existing.greeting;
+    patch.tools = sanitizeTools(compiled.tools);
+    patch.knowledgeBaseIds = compiled.knowledgeBaseIds;
+    if (compiled.outcomes.length) patch.outcomes = sanitizeOutcomes(compiled.outcomes);
   }
   if (body?.knowledgeBaseIds !== undefined) {
     patch.knowledgeBaseIds = Array.isArray(body.knowledgeBaseIds)

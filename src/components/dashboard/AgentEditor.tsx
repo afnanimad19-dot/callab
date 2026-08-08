@@ -56,12 +56,14 @@ import {
   Table2,
   MessageCircle,
   Building2,
+  Bot,
 } from "lucide-react";
 import { useEffect } from "react";
-import type { Agent, AgentRevision } from "@/lib/db";
+import type { Agent, AgentRevision, PhoneNumber } from "@/lib/db";
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "@/lib/agent-defaults";
 import { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "@/lib/agent-defaults";
 import { toast, toastError } from "@/components/Toast";
+import { PhoneTestCallModal, WebCallModal } from "@/components/dashboard/TestCallModals";
 
 const VOICES = [
   "Nova (female, warm)",
@@ -471,6 +473,18 @@ export default function AgentEditor({
   const [toolsOpen, setToolsOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [phoneCallOpen, setPhoneCallOpen] = useState(false);
+  const [webCallOpen, setWebCallOpen] = useState(false);
+  const [phoneNums, setPhoneNums] = useState<PhoneNumber[]>([]);
+
+  // Workspace numbers for the phone test-call popup ("Call From").
+  useEffect(() => {
+    if (!phoneCallOpen || phoneNums.length > 0) return;
+    fetch("/api/phone-numbers")
+      .then((r) => r.json())
+      .then((d) => setPhoneNums(Array.isArray(d.phoneNumbers) ? d.phoneNumbers : []))
+      .catch(() => {});
+  }, [phoneCallOpen, phoneNums.length]);
 
   const dirty = useMemo(
     () => JSON.stringify(draft) !== JSON.stringify(initial.current),
@@ -484,7 +498,7 @@ export default function AgentEditor({
     setDraft((d) => ({ ...d, advanced: { ...d.advanced, [key]: value } }));
   }
 
-  async function publish() {
+  async function publish(redirectTo?: "flow") {
     setBusy(true);
     setError(null);
     const systemPrompt = [
@@ -526,7 +540,7 @@ export default function AgentEditor({
       initial.current = draftFrom(data.agent);
       setDraft(initial.current);
       toast(agent.id ? `Agent "${data.agent.name}" updated.` : `Agent "${data.agent.name}" created.`);
-      router.push("/dashboard/agents");
+      router.push(redirectTo === "flow" ? `/dashboard/agents/${data.agent.id}/flow` : "/dashboard/agents");
       router.refresh();
       return;
     }
@@ -588,27 +602,46 @@ export default function AgentEditor({
               Modify your AI agent&apos;s behavior, voice settings, and conversation flow.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            {agent.id && (
-              <>
-                <button
-                  className="btn-secondary flex items-center gap-1.5 !py-2"
-                  title="Revision history"
-                  onClick={() => setHistoryOpen(true)}
-                >
-                  <History className="h-4 w-4" /> History
-                </button>
-                <button
-                  className="btn-secondary flex items-center gap-1.5 !py-2"
-                  title="Share & embed this agent"
-                  onClick={() => setShareOpen(true)}
-                >
-                  <Share2 className="h-4 w-4" /> Share
-                </button>
-              </>
-            )}
-            <button onClick={publish} disabled={busy} className="btn-primary !py-2 disabled:opacity-60">
-              {busy ? "Publishing…" : (<span className="flex items-center gap-1.5"><Save className="h-4 w-4" /> Publish</span>)}
+          <div className="flex flex-col items-stretch gap-2">
+            <div className="flex items-center gap-2">
+              {agent.id && (
+                <>
+                  <button
+                    className="btn-secondary !px-3 !py-2"
+                    title="Revision history"
+                    aria-label="Revision history"
+                    onClick={() => setHistoryOpen(true)}
+                  >
+                    <History className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="btn-secondary !px-3 !py-2"
+                    title="Share & embed this agent"
+                    aria-label="Share and embed"
+                    onClick={() => setShareOpen(true)}
+                  >
+                    <Share2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="btn-secondary !px-3 !py-2"
+                    title="Call your phone with this agent"
+                    aria-label="Phone test call"
+                    onClick={() => setPhoneCallOpen(true)}
+                  >
+                    <Phone className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="flex items-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-4 py-2 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-100"
+                    title="Talk to this agent in the browser"
+                    onClick={() => setWebCallOpen(true)}
+                  >
+                    <Bot className="h-4 w-4" /> Test Call
+                  </button>
+                </>
+              )}
+            </div>
+            <button onClick={() => publish()} disabled={busy} className="btn-primary !py-2 disabled:opacity-60">
+              {busy ? "Publishing…" : (<span className="flex items-center justify-center gap-1.5"><Save className="h-4 w-4" /> Publish</span>)}
             </button>
           </div>
         </div>
@@ -730,9 +763,13 @@ export default function AgentEditor({
             </p>
             <button
               className="btn-primary mt-5"
-              onClick={() => alert("The visual Flow Designer is the next feature on the roadmap — coming soon.")}
+              disabled={busy}
+              onClick={() => {
+                if (agent.id) router.push(`/dashboard/agents/${agent.id}/flow`);
+                else publish("flow"); // save the draft first, then open the designer
+              }}
             >
-              Open Flow Designer
+              {agent.id ? "Open Flow Designer" : busy ? "Saving…" : "Save & Open Flow Designer"}
             </button>
             <p className="mt-3 text-xs text-ink-500">ⓘ Make sure to save your changes before navigating</p>
           </div>
@@ -1177,7 +1214,7 @@ export default function AgentEditor({
             <button onClick={() => setDraft(initial.current)} className="btn-secondary !px-4 !py-1.5 !text-xs">
               Undo Changes
             </button>
-            <button onClick={publish} disabled={busy} className="btn-primary !px-4 !py-1.5 !text-xs disabled:opacity-60">
+            <button onClick={() => publish()} disabled={busy} className="btn-primary !px-4 !py-1.5 !text-xs disabled:opacity-60">
               {busy ? "Publishing…" : "Publish"}
             </button>
           </div>
@@ -1225,6 +1262,16 @@ export default function AgentEditor({
           agentId={agent.id}
           initialVisibility={agent.visibility ?? "private"}
           onClose={() => setShareOpen(false)}
+        />
+      )}
+      {webCallOpen && agent.id && (
+        <WebCallModal agent={{ ...(agent as Agent), name: draft.name }} onClose={() => setWebCallOpen(false)} />
+      )}
+      {phoneCallOpen && agent.id && (
+        <PhoneTestCallModal
+          agent={{ ...(agent as Agent), name: draft.name }}
+          phoneNumbers={phoneNums}
+          onClose={() => setPhoneCallOpen(false)}
         />
       )}
     </div>

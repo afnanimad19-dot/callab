@@ -453,6 +453,7 @@ export async function startOutboundCall(options: {
   assistantId: string;
   phoneNumberId: string;
   customerNumber: string;
+  variableValues?: Record<string, string>;
 }) {
   if (!vapiConfigured()) return null;
   return vapi("/call", {
@@ -461,6 +462,9 @@ export async function startOutboundCall(options: {
       assistantId: options.assistantId,
       phoneNumberId: options.phoneNumberId,
       customer: { number: options.customerNumber },
+      ...(options.variableValues && Object.keys(options.variableValues).length
+        ? { assistantOverrides: { variableValues: options.variableValues } }
+        : {}),
     }),
   });
 }

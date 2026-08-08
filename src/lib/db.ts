@@ -93,6 +93,7 @@ export interface Agent {
   createdAt: string;
   // Editor fields (optional so older rows stay valid)
   agentType?: "single_prompt" | "conversation_flow";
+  flow?: import("./flow").ConversationFlow; // visual Flow Designer graph
   version?: number;
   backgroundAudio?: string;
   identity?: string;
