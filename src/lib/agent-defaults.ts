@@ -8,20 +8,37 @@ export interface AgentOutcome {
 }
 
 // Conversation tools the agent can call mid-call (Vapi parity — e.g. End Call).
+export type AgentToolType =
+  | "end_call"
+  | "transfer_call"
+  | "live_webhook"
+  | "send_email"
+  | "cal_com"
+  | "zapier"
+  | "knowledge_base"
+  | "mcp"
+  | "custom";
+
 export interface AgentTool {
   id: string;
+  type?: AgentToolType;
   title: string; // display name, e.g. "End Call"
   name: string; // tool id the model calls, e.g. "end_call"
   description: string;
   aiResponse: string; // what the agent says when using the tool
+  // Type-specific settings: phoneNumber/transferType, serverUrl/httpHeaders,
+  // emailSubject/emailContent, calApiKey/calEventTypeId, zapierUrl,
+  // knowledgeBaseIds (comma-separated resource ids).
+  config?: Record<string, string>;
 }
 
 export const DEFAULT_TOOLS: AgentTool[] = [
   {
     id: "tool_end_call",
+    type: "end_call",
     title: "End Call",
     name: "end_call",
-    description: "Allows the AI agent to end the current call",
+    description: "Ends the phone call when the conversation is complete",
     aiResponse: "Say goodbye and wish the caller a great day.",
   },
 ];

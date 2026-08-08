@@ -18,14 +18,34 @@ export function sanitizeOutcomes(input: unknown): AgentOutcome[] {
     .slice(0, 20);
 }
 
+const TOOL_TYPES = [
+  "end_call",
+  "transfer_call",
+  "live_webhook",
+  "send_email",
+  "cal_com",
+  "zapier",
+  "knowledge_base",
+  "mcp",
+  "custom",
+];
+
 export function sanitizeTools(input: unknown): AgentTool[] {
   if (!Array.isArray(input)) return [];
   return input
     .filter((t) => t && typeof t === "object")
     .map((t) => {
       const src = t as AgentTool;
+      let config: Record<string, string> | undefined;
+      if (src.config && typeof src.config === "object") {
+        config = {};
+        for (const [k, v] of Object.entries(src.config).slice(0, 12)) {
+          config[String(k).slice(0, 40)] = String(v).slice(0, 4000);
+        }
+      }
       return {
         id: String(src.id ?? `tool_${Math.random().toString(36).slice(2, 10)}`).slice(0, 40),
+        type: (TOOL_TYPES.includes(String(src.type)) ? src.type : "custom") as AgentTool["type"],
         title: String(src.title ?? "").slice(0, 80),
         name: String(src.name ?? "")
           .toLowerCase()
@@ -33,6 +53,7 @@ export function sanitizeTools(input: unknown): AgentTool[] {
           .slice(0, 60),
         description: String(src.description ?? "").slice(0, 300),
         aiResponse: String(src.aiResponse ?? "").slice(0, 300),
+        ...(config ? { config } : {}),
       };
     })
     .filter((t) => t.title && t.name)

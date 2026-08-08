@@ -56,10 +56,18 @@ export async function syncAgentToVapi(
     .map((p) => p.trim())
     .filter(Boolean);
 
+  // Transfer Call tool → Vapi call forwarding to the configured number.
+  const transferTool = agent.tools?.find(
+    (t) => t.type === "transfer_call" && t.config?.phoneNumber
+  );
+
   const payload = {
     // Conversation tools: End Call lets the model hang up on its own.
-    ...(agent.tools?.some((t) => t.name === "end_call")
+    ...(agent.tools?.some((t) => t.name === "end_call" || t.type === "end_call")
       ? { endCallFunctionEnabled: true }
+      : {}),
+    ...(transferTool
+      ? { forwardingPhoneNumber: transferTool.config!.phoneNumber }
       : {}),
     // Vapi-parity advanced settings from the editor's Advanced section.
     ...(adv

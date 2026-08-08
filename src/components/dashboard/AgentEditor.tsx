@@ -24,6 +24,13 @@ import {
   Play,
   Square,
   BookOpen,
+  PhoneOff,
+  PhoneForwarded,
+  Webhook,
+  Mail,
+  Calendar,
+  Zap,
+  Plug,
 } from "lucide-react";
 import { useEffect } from "react";
 import type { Agent, AgentRevision } from "@/lib/db";
@@ -59,6 +66,26 @@ type Draft = {
 };
 
 function draftFrom(agent: Partial<Agent>): Draft {
+  // Migrate agents that attached knowledge bases via the old editor section:
+  // represent them as a Knowledge Base tool so they show up in Add Tools.
+  let tools = agent.tools ?? DEFAULT_TOOLS;
+  if (
+    agent.knowledgeBaseIds?.length &&
+    !tools.some((t) => t.type === "knowledge_base")
+  ) {
+    tools = [
+      ...tools,
+      {
+        id: "tool_knowledge_base",
+        type: "knowledge_base" as const,
+        title: "Knowledge Base",
+        name: "knowledge_base",
+        description: "Look up business knowledge to answer caller questions",
+        aiResponse: "Let me look that up for you, one moment.",
+        config: { knowledgeBaseIds: agent.knowledgeBaseIds.join(",") },
+      },
+    ];
+  }
   return {
     name: agent.name ?? "New Agent",
     language: agent.language ?? LANGUAGES[0],
@@ -72,7 +99,7 @@ function draftFrom(agent: Partial<Agent>): Draft {
     status: agent.status ?? "draft",
     outcomes: agent.outcomes ?? [],
     advanced: { ...DEFAULT_ADVANCED, ...agent.advanced },
-    tools: agent.tools ?? DEFAULT_TOOLS,
+    tools,
     voiceId: agent.voiceId ?? "",
     knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
   };
@@ -443,8 +470,21 @@ export default function AgentEditor({
       .filter(Boolean)
       .join("\n\n");
 
+    // Knowledge bases attach through the Knowledge Base tool (Add Tools);
+    // collect the selected resource ids from every knowledge_base tool.
+    const knowledgeBaseIds = [
+      ...new Set(
+        draft.tools
+          .filter((t) => t.type === "knowledge_base")
+          .flatMap((t) => (t.config?.knowledgeBaseIds ?? "").split(","))
+          .map((s) => s.trim())
+          .filter(Boolean)
+      ),
+    ];
+
     const payload = {
       ...draft,
+      knowledgeBaseIds,
       systemPrompt,
       agentType,
       status: draft.status === "draft" ? "active" : draft.status,
@@ -582,36 +622,6 @@ export default function AgentEditor({
               </select>
             </div>
           </div>
-        </Section>
-
-        {/* Knowledge Base */}
-        <Section
-          icon="📚"
-          title="Knowledge Base"
-          subtitle="Attach knowledge resources — the agent reads them and answers from their content."
-        >
-          {knowledgeBases.length === 0 ? (
-            <p className="py-3 text-sm text-ink-400">
-              No resources yet — add files, text, or URLs under{" "}
-              <Link href="/dashboard/knowledge" className="text-accent-600 hover:text-accent-500">
-                Knowledge Bases
-              </Link>{" "}
-              and they&apos;ll be selectable here.
-            </p>
-          ) : (
-            <>
-              <KnowledgePicker
-                options={knowledgeBases}
-                selectedIds={draft.knowledgeBaseIds}
-                onChange={(ids) => set("knowledgeBaseIds", ids)}
-              />
-              <p className="mt-3 text-xs text-ink-400">
-                {draft.knowledgeBaseIds.length === 0
-                  ? "Select the resources this agent should know — clinic info, FAQs, price lists, anything."
-                  : `${draft.knowledgeBaseIds.length} resource${draft.knowledgeBaseIds.length === 1 ? "" : "s"} attached. Their content is loaded fresh on every publish and test, so editing a resource updates the agent automatically.`}
-              </p>
-            </>
-          )}
         </Section>
 
         {/* Prompt Configuration OR Flow Designer */}
@@ -1169,6 +1179,7 @@ export default function AgentEditor({
       {toolsOpen && (
         <ManageToolsModal
           tools={draft.tools}
+          knowledgeBases={knowledgeBases}
           onChange={(tools) => set("tools", tools)}
           onClose={() => setToolsOpen(false)}
         />
@@ -1452,17 +1463,149 @@ function GenerateWizard({
 
 // --- Manage Agent Tools (Callab parity) -------------------------------------
 
+// The Add Tool gallery: every tool type the agent can be given, each opening
+// its own type-specific settings form.
+const TOOL_GALLERY: {
+  type: NonNullable<AgentTool["type"]>;
+  title: string;
+  icon: typeof PhoneOff;
+  blurb: string;
+  defaults: Omit<AgentTool, "id">;
+}[] = [
+  {
+    type: "end_call",
+    title: "End Call",
+    icon: PhoneOff,
+    blurb: "Ends the phone call when the conversation is complete",
+    defaults: {
+      type: "end_call",
+      title: "End Call",
+      name: "end_call",
+      description: "Ends the phone call when the conversation is complete",
+      aiResponse: "Say goodbye and wish the caller a great day.",
+    },
+  },
+  {
+    type: "transfer_call",
+    title: "Transfer Call",
+    icon: PhoneForwarded,
+    blurb: "Transfer the caller to another department or phone number",
+    defaults: {
+      type: "transfer_call",
+      title: "Transfer Call",
+      name: "transfer_call",
+      description: "Transfer the caller to another department or phone number",
+      aiResponse: "Let me transfer you to the right department. Please hold on.",
+      config: { transferType: "Twilio", phoneNumber: "" },
+    },
+  },
+  {
+    type: "live_webhook",
+    title: "Live Webhook",
+    icon: Webhook,
+    blurb: "Send data to an external API endpoint during the call",
+    defaults: {
+      type: "live_webhook",
+      title: "Live Webhook",
+      name: "live_webhook",
+      description: "Send data to an external API endpoint during the call",
+      aiResponse: "One moment while I process that for you.",
+      config: { serverUrl: "", httpHeaders: '{\n  "Content-Type": "application/json"\n}' },
+    },
+  },
+  {
+    type: "send_email",
+    title: "Send Email",
+    icon: Mail,
+    blurb: "Send an email to the caller",
+    defaults: {
+      type: "send_email",
+      title: "Send Email",
+      name: "send_email",
+      description: "Send an email to the caller",
+      aiResponse: "Let me send you an email with the information you requested.",
+      config: {
+        emailSubject: "Follow-up from our call",
+        emailContent:
+          "Hi {{caller_name}},\n\nThank you for calling us today. Here is the information we discussed:\n\n{{call_summary}}\n\nBest regards",
+      },
+    },
+  },
+  {
+    type: "cal_com",
+    title: "Cal.com",
+    icon: Calendar,
+    blurb: "Schedule a meeting with the caller",
+    defaults: {
+      type: "cal_com",
+      title: "Cal.com",
+      name: "cal_com",
+      description: "Schedule a meeting with the caller through Cal.com",
+      aiResponse: "Let me check the calendar and schedule that for you.",
+      config: { calApiKey: "", calEventTypeId: "" },
+    },
+  },
+  {
+    type: "zapier",
+    title: "Zapier",
+    icon: Zap,
+    blurb: "Send data to Zapier webhook",
+    defaults: {
+      type: "zapier",
+      title: "Zapier",
+      name: "zapier",
+      description: "Send call data to a Zapier webhook",
+      aiResponse: "One moment while I take care of that for you.",
+      config: { zapierUrl: "" },
+    },
+  },
+  {
+    type: "knowledge_base",
+    title: "Knowledge Base",
+    icon: BookOpen,
+    blurb: "Give the agent access to a knowledge base for reference during conversations",
+    defaults: {
+      type: "knowledge_base",
+      title: "Knowledge Base",
+      name: "knowledge_base",
+      description: "Look up business knowledge to answer caller questions",
+      aiResponse: "Let me look that up for you, one moment.",
+      config: { knowledgeBaseIds: "" },
+    },
+  },
+  {
+    type: "mcp",
+    title: "MCP",
+    icon: Plug,
+    blurb: "Connect to Model Context Protocol servers to extend agent capabilities with external tools and data sources",
+    defaults: {
+      type: "mcp",
+      title: "MCP Server",
+      name: "mcp_server",
+      description: "Connect to Model Context Protocol server to extend agent capabilities",
+      aiResponse: "Let me connect to the MCP server to access additional tools and data.",
+      config: {
+        serverUrl: "https://your-mcp-server.com",
+        httpHeaders: '{\n  "Content-Type": "application/json",\n  "Authorization": "Bearer YOUR_TOKEN"\n}',
+      },
+    },
+  },
+];
+
 function ManageToolsModal({
   tools,
+  knowledgeBases,
   onChange,
   onClose,
 }: {
   tools: AgentTool[];
+  knowledgeBases: KnowledgeOption[];
   onChange: (tools: AgentTool[]) => void;
   onClose: () => void;
 }) {
   const [editing, setEditing] = useState<AgentTool | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [adding, setAdding] = useState<(typeof TOOL_GALLERY)[number] | null>(null);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -1480,7 +1623,7 @@ function ManageToolsModal({
         </div>
 
         <div className="mt-4 flex justify-end">
-          <button onClick={() => setAdding(true)} className="btn-secondary flex items-center gap-1.5 !text-sm">
+          <button onClick={() => setGalleryOpen(true)} className="btn-secondary flex items-center gap-1.5 !text-sm">
             <Plus className="h-3.5 w-3.5" /> Add Tool
           </button>
         </div>
@@ -1520,12 +1663,27 @@ function ManageToolsModal({
           ))}
         </div>
 
+        {galleryOpen && (
+          <ToolGalleryModal
+            onClose={() => setGalleryOpen(false)}
+            onPick={(entry) => {
+              setGalleryOpen(false);
+              setAdding(entry);
+            }}
+          />
+        )}
+
         {(editing || adding) && (
           <EditToolModal
             tool={editing ?? undefined}
+            typeEntry={
+              adding ??
+              TOOL_GALLERY.find((g) => g.type === (editing?.type ?? "custom"))
+            }
+            knowledgeBases={knowledgeBases}
             onClose={() => {
               setEditing(null);
-              setAdding(false);
+              setAdding(null);
             }}
             onSave={(tool) => {
               onChange(
@@ -1534,7 +1692,7 @@ function ManageToolsModal({
                   : [...tools, tool]
               );
               setEditing(null);
-              setAdding(false);
+              setAdding(null);
             }}
           />
         )}
@@ -1543,28 +1701,87 @@ function ManageToolsModal({
   );
 }
 
+// The Callab-style tool gallery — pick a tool type, then configure it.
+function ToolGalleryModal({
+  onClose,
+  onPick,
+}: {
+  onClose: () => void;
+  onPick: (entry: (typeof TOOL_GALLERY)[number]) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[88vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between">
+          <div>
+            <h2 className="text-lg font-bold">Add Tool</h2>
+            <p className="mt-0.5 text-sm text-ink-400">
+              Choose a tool to enhance your agent&apos;s capabilities during conversations
+            </p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {TOOL_GALLERY.map((entry) => (
+            <button
+              key={entry.type}
+              onClick={() => onPick(entry)}
+              className="card card-hover flex flex-col items-center gap-2.5 !p-6 text-center"
+            >
+              <entry.icon className="h-6 w-6 text-ink-300" />
+              <span className="text-sm font-semibold">{entry.title}</span>
+              <span className="text-xs leading-relaxed text-ink-400">{entry.blurb}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function EditToolModal({
   tool,
+  typeEntry,
+  knowledgeBases,
   onClose,
   onSave,
 }: {
   tool?: AgentTool;
+  typeEntry?: (typeof TOOL_GALLERY)[number];
+  knowledgeBases: KnowledgeOption[];
   onClose: () => void;
   onSave: (tool: AgentTool) => void;
 }) {
-  const [title, setTitle] = useState(tool?.title ?? "");
-  const [name, setName] = useState(tool?.name ?? "");
-  const [description, setDescription] = useState(tool?.description ?? "");
-  const [aiResponse, setAiResponse] = useState(tool?.aiResponse ?? "");
+  const defaults = tool ?? typeEntry?.defaults;
+  const toolType = tool?.type ?? typeEntry?.type ?? "custom";
+  const [title, setTitle] = useState(defaults?.title ?? "");
+  const [name, setName] = useState(defaults?.name ?? "");
+  const [description, setDescription] = useState(defaults?.description ?? "");
+  const [aiResponse, setAiResponse] = useState(defaults?.aiResponse ?? "");
+  const [config, setConfig] = useState<Record<string, string>>({ ...(defaults?.config ?? {}) });
+
+  function setC(key: string, value: string) {
+    setConfig((c) => ({ ...c, [key]: value }));
+  }
+
+  const kbSelected = (config.knowledgeBaseIds ?? "").split(",").map((s) => s.trim()).filter(Boolean);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div
+        className="max-h-[88vh] w-full max-w-md overflow-y-auto rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <div>
-            <h2 className="text-lg font-bold">{tool ? "Edit Tool" : "Add Tool"}</h2>
+            <h2 className="text-lg font-bold">{tool ? "Edit Tool" : "Add New Tool"}</h2>
             <p className="mt-0.5 text-sm text-ink-400">
-              {tool ? "Modify the tool settings." : "Define a new capability for your agent."}
+              {tool ? "Modify the tool settings." : "Define a tool that the AI agent can use during conversations."}
             </p>
           </div>
           <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100">
@@ -1574,38 +1791,142 @@ function EditToolModal({
         <div className="mt-4 space-y-4">
           <div>
             <label className="label">Tool Title</label>
-            <input className="field" placeholder="End Call" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <input className="field" value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div>
             <label className="label">Tool Name (ID)</label>
             <input
-              className="field font-mono !text-[13px]"
-              placeholder="end_call"
+              className="field bg-ink-800/50 font-mono !text-[13px]"
               value={name}
               onChange={(e) => setName(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_"))}
             />
           </div>
           <div>
             <label className="label">Description</label>
-            <textarea rows={3} className="field" placeholder="Allows the AI agent to end the current call"
-              value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea rows={2} className="field" value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
           <div>
             <label className="label">AI Response</label>
-            <textarea rows={3} className="field" placeholder="Say goodbye and wish the caller a great day."
-              value={aiResponse} onChange={(e) => setAiResponse(e.target.value)} />
+            <textarea rows={2} className="field" value={aiResponse} onChange={(e) => setAiResponse(e.target.value)} />
             <p className="mt-1 text-xs text-ink-400">What the agent should say when it uses this tool.</p>
           </div>
+
+          {/* Type-specific settings */}
+          {toolType === "transfer_call" && (
+            <>
+              <div>
+                <label className="label">Transfer Type</label>
+                <select className="field" value={config.transferType ?? "Twilio"} onChange={(e) => setC("transferType", e.target.value)}>
+                  <option>Twilio</option>
+                  <option>SIP</option>
+                  <option>Direct dial</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Phone Number</label>
+                <input className="field font-mono !text-[13px]" placeholder="+1234567890"
+                  value={config.phoneNumber ?? ""} onChange={(e) => setC("phoneNumber", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">Enter phone number in E.164 format (e.g., +14155552671)</p>
+              </div>
+            </>
+          )}
+
+          {(toolType === "live_webhook" || toolType === "mcp") && (
+            <>
+              <div>
+                <label className="label">Server URL</label>
+                <input className="field font-mono !text-[13px]"
+                  placeholder={toolType === "mcp" ? "https://your-mcp-server.com" : "https://api.example.com/endpoint"}
+                  value={config.serverUrl ?? ""} onChange={(e) => setC("serverUrl", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">HTTP Headers</label>
+                <textarea rows={4} className="field font-mono !text-[12px]"
+                  value={config.httpHeaders ?? ""} onChange={(e) => setC("httpHeaders", e.target.value)} />
+              </div>
+              {toolType === "mcp" && (
+                <p className="rounded-lg border border-ink-700 bg-ink-800/60 px-3.5 py-2.5 text-xs text-ink-300">
+                  ⓘ MCP servers are not provided or verified by us. It is the client&apos;s/developer&apos;s
+                  responsibility to ensure the security and reliability of the MCP server.
+                </p>
+              )}
+            </>
+          )}
+
+          {toolType === "send_email" && (
+            <>
+              <div>
+                <label className="label">Email Subject</label>
+                <input className="field" value={config.emailSubject ?? ""} onChange={(e) => setC("emailSubject", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Email Content</label>
+                <textarea rows={5} className="field !text-[13px]"
+                  value={config.emailContent ?? ""} onChange={(e) => setC("emailContent", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">
+                  Use {"{{caller_name}}"} and {"{{call_summary}}"} — they fill in from the call.
+                </p>
+              </div>
+            </>
+          )}
+
+          {toolType === "cal_com" && (
+            <>
+              <div>
+                <label className="label">Cal.com API Key</label>
+                <input className="field font-mono !text-[13px]" placeholder="cal_live_…"
+                  value={config.calApiKey ?? ""} onChange={(e) => setC("calApiKey", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Event Type ID</label>
+                <input className="field font-mono !text-[13px]" placeholder="e.g. 1234567"
+                  value={config.calEventTypeId ?? ""} onChange={(e) => setC("calEventTypeId", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">Found in your Cal.com event type&apos;s URL.</p>
+              </div>
+            </>
+          )}
+
+          {toolType === "zapier" && (
+            <div>
+              <label className="label">Zapier Webhook URL</label>
+              <input className="field font-mono !text-[13px]" placeholder="https://hooks.zapier.com/hooks/catch/…"
+                value={config.zapierUrl ?? ""} onChange={(e) => setC("zapierUrl", e.target.value)} />
+              <p className="mt-1 text-xs text-ink-400">Create a &quot;Catch Hook&quot; trigger in Zapier and paste its URL.</p>
+            </div>
+          )}
+
+          {toolType === "knowledge_base" && (
+            <div>
+              <label className="label">Knowledge Bases</label>
+              {knowledgeBases.length === 0 ? (
+                <p className="rounded-lg border border-ink-700 px-3.5 py-3 text-sm text-ink-400">
+                  No resources yet — add files, text, or URLs under Knowledge Bases first.
+                </p>
+              ) : (
+                <KnowledgePicker
+                  options={knowledgeBases}
+                  selectedIds={kbSelected}
+                  onChange={(ids) => setC("knowledgeBaseIds", ids.join(","))}
+                />
+              )}
+              <p className="mt-1.5 text-xs text-ink-400">
+                Select one or more resources — the agent reads their content and answers from it.
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end gap-2">
             <button onClick={onClose} className="btn-secondary">Cancel</button>
             <button
               onClick={() =>
                 onSave({
                   id: tool?.id ?? `tool_${Math.random().toString(36).slice(2, 10)}`,
+                  type: toolType,
                   title,
                   name,
                   description,
                   aiResponse,
+                  config,
                 })
               }
               disabled={!title.trim() || !name.trim()}

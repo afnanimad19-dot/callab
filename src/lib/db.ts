@@ -462,7 +462,11 @@ export async function findUserByVerifyToken(token: string): Promise<User | undef
   return (await store.list<User>("users")).find((u) => u.verifyToken === token);
 }
 
-export const listAgents = (userId: string) => store.list<Agent>("agents", userId);
+export async function listAgents(userId: string): Promise<Agent[]> {
+  // Newest first — a freshly created agent appears at the top of the list.
+  const agents = await store.list<Agent>("agents", userId);
+  return agents.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
 export async function findAgent(userId: string, id: string) {
   return (await listAgents(userId)).find((a) => a.id === id);
 }

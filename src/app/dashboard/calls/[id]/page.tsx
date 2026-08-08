@@ -177,10 +177,19 @@ export default async function CallDetailPage({
       <div className="card !p-6">
         <h2 className="flex items-center gap-2 text-base font-semibold"><MessageSquare className="h-4 w-4 text-ink-400" /> Call Transcript</h2>
 
-        {/* Recording player */}
-        {call.recordingUrl ? (
+        {/* Recording player — plays via the proxy endpoint, which fetches a
+            fresh signed URL from the voice provider on every play so links
+            never expire. */}
+        {call.recordingUrl || call.vapiCallId ? (
           <div className="mt-4">
-            <AudioPlayer src={call.recordingUrl} seedKey={call.id} />
+            <AudioPlayer
+              src={
+                call.vapiCallId
+                  ? `/api/calls/${call.id}/recording`
+                  : (call.recordingUrl as string)
+              }
+              seedKey={call.id}
+            />
           </div>
         ) : (
           <div
