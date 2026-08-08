@@ -17,6 +17,15 @@ export type AgentToolType =
   | "zapier"
   | "knowledge_base"
   | "mcp"
+  | "customer_memory"
+  | "voicemail"
+  | "dtmf"
+  | "sms"
+  | "gcal_create"
+  | "gcal_availability"
+  | "gsheets"
+  | "slack"
+  | "ghl"
   | "custom";
 
 export interface AgentTool {

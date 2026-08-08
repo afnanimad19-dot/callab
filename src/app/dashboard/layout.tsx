@@ -115,7 +115,7 @@ export default async function DashboardLayout({
       </aside>
 
       <div className="flex-1 lg:pl-60">
-        <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-700 bg-ink-950/85 px-6 backdrop-blur lg:justify-end lg:px-10">
+        <header className="app-header sticky top-0 z-20 flex h-14 items-center justify-between border-b border-ink-700 bg-ink-950/85 px-6 backdrop-blur lg:justify-end lg:px-10">
           <Link href="/dashboard" className="font-semibold lg:hidden">
             VoiceLine AI
           </Link>

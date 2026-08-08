@@ -1,6 +1,104 @@
 import { NextResponse } from "next/server";
-import { findAgentAnyUser } from "@/lib/db";
+import {
+  findAgentAnyUser,
+  listContacts,
+  createContact,
+  updateContact,
+  listCalls,
+  newId,
+  Contact,
+} from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+
+const normalizePhone = (p: string) => p.replace(/[^\d]/g, "").slice(-9);
+
+// Customer memory: recognise returning callers from OUR contacts + call
+// history, and remember new ones — the workspace's own CRM, no external
+// system needed.
+async function lookupCustomer(
+  userId: string,
+  args: Record<string, unknown>,
+  callerNumber?: string
+): Promise<string> {
+  const contacts = await listContacts(userId);
+  const phone = String(args.phone ?? callerNumber ?? "").trim();
+  const name = String(args.name ?? "").trim().toLowerCase();
+
+  let match: Contact | undefined;
+  if (phone) {
+    const np = normalizePhone(phone);
+    if (np.length >= 6) match = contacts.find((c) => normalizePhone(c.phone) === np);
+  }
+  if (!match && name) {
+    match = contacts.find((c) => c.name.toLowerCase() === name) ??
+      contacts.find((c) => c.name.toLowerCase().includes(name) || name.includes(c.name.toLowerCase()));
+  }
+  if (!match) {
+    return "No existing record found — treat them as a new customer, and use save_customer to add them.";
+  }
+
+  // Last visit = their most recent call in the log.
+  const calls = await listCalls(userId);
+  const np = normalizePhone(match.phone);
+  const lastCall = calls.find((c) => !c.isTest && normalizePhone(c.callerNumber) === np);
+
+  const parts = [
+    `Existing customer: ${match.name}`,
+    `phone ${match.phone}`,
+    match.metadata?.email && `email ${match.metadata.email}`,
+    match.category && `category ${match.category}`,
+    lastCall &&
+      `last contact ${new Date(lastCall.startedAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}${lastCall.summary ? ` — ${lastCall.summary}` : ""}`,
+    match.metadata?.notes && `notes: ${match.metadata.notes}`,
+  ].filter(Boolean);
+  return parts.join("; ");
+}
+
+async function saveCustomer(
+  userId: string,
+  args: Record<string, unknown>,
+  callerNumber?: string
+): Promise<string> {
+  const name = String(args.name ?? "").trim();
+  if (!name) return "A name is required to save the customer.";
+  const phone = String(args.phone ?? callerNumber ?? "").trim();
+  const email = String(args.email ?? "").trim();
+  const notes = String(args.notes ?? "").trim();
+
+  const contacts = await listContacts(userId);
+  const np = normalizePhone(phone);
+  const existing =
+    (np.length >= 6 && contacts.find((c) => normalizePhone(c.phone) === np)) ||
+    contacts.find((c) => c.name.toLowerCase() === name.toLowerCase());
+
+  if (existing) {
+    const metadata = { ...(existing.metadata ?? {}) };
+    if (email) metadata.email = email;
+    if (notes) metadata.notes = [metadata.notes, notes].filter(Boolean).join(" | ").slice(0, 1000);
+    await updateContact(userId, existing.id, {
+      name: name || existing.name,
+      phone: phone || existing.phone,
+      metadata,
+    });
+    return `Updated ${name}'s record.`;
+  }
+
+  await createContact({
+    id: newId("ct"),
+    userId,
+    name,
+    phone: phone || "Unknown",
+    tag: "customer",
+    category: "Customer",
+    source: "AI Agent",
+    createdAt: new Date().toISOString(),
+    metadata: {
+      ...(email ? { email } : {}),
+      ...(notes ? { notes } : {}),
+    },
+  });
+  return `Saved ${name} as a new customer.`;
+}
 
 // Executes agent tools that need server-side work, called BY VAPI mid-call
 // (send_email, cal_com). Vapi POSTs a tool-calls message; we run the tool and
@@ -46,10 +144,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ results: [] });
   }
 
+  const callerNumber: string | undefined = body?.message?.call?.customer?.number;
+
   const results = await Promise.all(
     calls.map(async (call) => {
       const args = parseArgs(call);
       try {
+        if (tool.type === "customer_memory") {
+          const fn = call.function?.name;
+          const result =
+            fn === "save_customer"
+              ? await saveCustomer(agent.userId, args, callerNumber)
+              : await lookupCustomer(agent.userId, args, callerNumber);
+          return { toolCallId: call.id, result };
+        }
+
         if (tool.type === "send_email") {
           const to = String(args.email ?? "").trim();
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {

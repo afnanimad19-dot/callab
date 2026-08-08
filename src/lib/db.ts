@@ -211,6 +211,7 @@ export interface WebhookVariable {
   name: string;
   jsonPath: string;
   sourceType: "response" | "static";
+  sourceStep?: string;
   dataType: "string" | "number" | "boolean";
   value?: string;
 }
@@ -225,6 +226,35 @@ export interface Webhook {
   name?: string;
   steps?: WebhookStep[];
   variables?: WebhookVariable[];
+  predefinedVariables?: Record<string, string>;
+}
+
+export interface IntegrationFlowStep {
+  id: string;
+  method: "GET" | "POST";
+  url: string;
+  headers: Record<string, string>;
+  timeoutSec: number;
+  retryLimit: number;
+  totalTimeoutSec: number;
+  dependsOn?: string; // id of the step that must succeed first
+  successKey?: string; // optional success condition: response[key] == value
+  successValue?: string;
+}
+
+export interface IntegrationVariable {
+  name: string;
+  jsonPath: string;
+  sourceType: "response" | "custom";
+  sourceStep?: string;
+  dataType: string;
+  customValue?: string;
+}
+
+export interface IntegrationRun {
+  at: string;
+  status: "success" | "failed";
+  message: string;
 }
 
 export interface Integration {
@@ -234,10 +264,18 @@ export interface Integration {
   tag: string;
   category: string;
   intervalSeconds: number;
-  steps: WebhookStep[];
-  status: "idle" | "running" | "failed" | "success";
+  steps: WebhookStep[]; // legacy simple steps (kept for old rows)
+  status: "idle" | "running" | "failed" | "success" | "stopped";
   lastRunAt?: string;
   createdAt: string;
+  // Full custom-integration config (3-step wizard)
+  retryUnit?: "Seconds" | "Minutes" | "Hours";
+  maxRetries?: number;
+  predefinedVariables?: Record<string, string>;
+  flowSteps?: IntegrationFlowStep[];
+  variables?: IntegrationVariable[];
+  mapping?: Record<string, string>; // standard field -> result path
+  runs?: IntegrationRun[]; // newest first, capped
 }
 
 export interface KnowledgeBase {

@@ -137,3 +137,10 @@ body {
       0 0 50px rgba(217, 70, 239, 0.12);
   }
 }
+
+/* Hide the dashboard header (avatar, etc.) whenever any full-screen overlay
+   (modal, slide-over, wizard) is open, so nothing peeks through the gap
+   above popups. Matches every overlay via the shared fixed+inset-0 pattern. */
+body:has(div.fixed.inset-0) .app-header {
+  visibility: hidden;
+}

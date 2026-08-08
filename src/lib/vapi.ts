@@ -75,10 +75,122 @@ function siteUrl(): string | null {
 export function buildVapiTools(agent: Agent): unknown[] {
   const tools: unknown[] = [];
   const site = siteUrl();
+  const executeServer = (toolId: string) => ({
+    url: `${site}/api/tools/execute?agentId=${agent.id}&toolId=${toolId}`,
+    ...(process.env.VAPI_WEBHOOK_SECRET
+      ? { headers: { "x-vl-secret": process.env.VAPI_WEBHOOK_SECRET } }
+      : {}),
+  });
 
   for (const t of agent.tools ?? []) {
     const cfg = t.config ?? {};
     switch (t.type) {
+      case "customer_memory": {
+        // Two tools backed by OUR contacts + call history: the agent can
+        // recognise returning customers and remember new ones.
+        if (!site) break;
+        tools.push(
+          {
+            type: "function",
+            async: false,
+            function: {
+              name: "lookup_customer",
+              description:
+                "Look up whether the caller is an existing customer/patient. Call when the caller says they've been here before, gives their name, or you need their history. Returns their details and last visit.",
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "The caller's name, if they gave it" },
+                  phone: { type: "string", description: "The caller's phone number, if known" },
+                },
+                required: [],
+              },
+            },
+            server: executeServer(t.id),
+          },
+          {
+            type: "function",
+            async: false,
+            function: {
+              name: "save_customer",
+              description:
+                "Save or update the caller's details in the customer database — name, phone, email, and any notes worth remembering for their next call.",
+              parameters: {
+                type: "object",
+                properties: {
+                  name: { type: "string", description: "The caller's full name" },
+                  phone: { type: "string", description: "The caller's phone number" },
+                  email: { type: "string", description: "The caller's email address" },
+                  notes: { type: "string", description: "Anything worth remembering next time" },
+                },
+                required: ["name"],
+              },
+            },
+            server: executeServer(t.id),
+          }
+        );
+        break;
+      }
+      case "voicemail": {
+        tools.push({ type: "voicemail", function: { name: t.name } });
+        break;
+      }
+      case "dtmf": {
+        tools.push({ type: "dtmf", function: { name: t.name } });
+        break;
+      }
+      case "sms": {
+        tools.push({ type: "sms", function: { name: t.name }, metadata: {} });
+        break;
+      }
+      case "gcal_create": {
+        tools.push({ type: "google.calendar.event.create", function: { name: t.name } });
+        break;
+      }
+      case "gcal_availability": {
+        tools.push({ type: "google.calendar.availability.check", function: { name: t.name } });
+        break;
+      }
+      case "gsheets": {
+        tools.push({ type: "google.sheets.row.append", function: { name: t.name } });
+        break;
+      }
+      case "slack": {
+        tools.push({ type: "slack.message.send", function: { name: t.name } });
+        break;
+      }
+      case "ghl": {
+        tools.push({ type: "gohighlevel.contact.create", function: { name: t.name } });
+        break;
+      }
+      case "custom": {
+        // Callab-style custom tool: server URL + user-defined properties.
+        if (!cfg.serverUrl) break;
+        let props: { name: string; type?: string; description?: string; required?: boolean }[] = [];
+        try {
+          props = JSON.parse(cfg.properties ?? "[]");
+        } catch {}
+        const properties: Record<string, { type: string; description: string }> = {};
+        const required: string[] = [];
+        for (const p of props) {
+          if (!p?.name) continue;
+          properties[p.name] = {
+            type: ["string", "number", "boolean"].includes(p.type ?? "") ? p.type! : "string",
+            description: p.description ?? p.name,
+          };
+          if (p.required) required.push(p.name);
+        }
+        tools.push({
+          type: "function",
+          async: false,
+          function: { name: t.name, description: t.description, parameters: { type: "object", properties, required } },
+          server: {
+            url: cfg.serverUrl,
+            ...(parseHeaders(cfg.httpHeaders) ? { headers: parseHeaders(cfg.httpHeaders) } : {}),
+          },
+        });
+        break;
+      }
       case "live_webhook": {
         if (!cfg.serverUrl) break;
         tools.push({
@@ -310,17 +422,28 @@ export async function syncAgentToVapi(
     return created.id as string;
   }
 
+  // Staged fallback: full payload → function-type tools only (the named
+  // provider tools need credentials linked in the Vapi dashboard and may be
+  // rejected) → no custom tools. The assistant itself always stays in sync.
+  const model = payload.model as Record<string, unknown> & { tools?: { type?: string }[] };
   try {
     return await push(payload);
   } catch (e) {
-    const model = payload.model as Record<string, unknown>;
-    if (model.tools) {
+    if (!model.tools) throw e;
+    const functionTools = model.tools.filter((t) => t.type === "function");
+    if (functionTools.length > 0 && functionTools.length < model.tools.length) {
+      console.error("Vapi rejected the tool set — retrying with function tools only:", e);
+      try {
+        return await push({ ...payload, model: { ...model, tools: functionTools } });
+      } catch (e2) {
+        console.error("Function-only tools also rejected — retrying without tools:", e2);
+      }
+    } else {
       console.error("Vapi rejected custom tools — retrying without them:", e);
-      const modelSansTools = { ...model };
-      delete modelSansTools.tools;
-      return await push({ ...payload, model: modelSansTools });
     }
-    throw e;
+    const modelSansTools = { ...model };
+    delete modelSansTools.tools;
+    return await push({ ...payload, model: modelSansTools });
   }
 }
 

@@ -48,6 +48,14 @@ import {
   AlertTriangle,
   Braces,
   Clock,
+  Brain,
+  Voicemail,
+  MessageSquareText,
+  CalendarPlus,
+  CalendarSearch,
+  Table2,
+  MessageCircle,
+  Building2,
 } from "lucide-react";
 import { useEffect } from "react";
 import type { Agent, AgentRevision } from "@/lib/db";
@@ -1620,7 +1628,152 @@ const TOOL_GALLERY: {
       },
     },
   },
+  {
+    type: "customer_memory",
+    title: "Customer Memory",
+    icon: Brain,
+    blurb: "Recognise returning customers and remember new ones — reads and writes your Contacts and call history",
+    defaults: {
+      type: "customer_memory",
+      title: "Customer Memory",
+      name: "customer_memory",
+      description:
+        "Look up whether a caller is an existing customer (name, email, last visit, notes) and save new caller details for next time",
+      aiResponse: "Let me check our records for you, one moment.",
+    },
+  },
+  {
+    type: "voicemail",
+    title: "Leave Voicemail",
+    icon: Voicemail,
+    blurb: "Leave a voice message when the call reaches an answering machine",
+    defaults: {
+      type: "voicemail",
+      title: "Leave Voicemail",
+      name: "leave_voicemail",
+      description: "Leaves a voice message when voicemail is detected",
+      aiResponse: "Leave a brief, friendly message with a callback number.",
+    },
+  },
+  {
+    type: "dtmf",
+    title: "DTMF Keypad",
+    icon: Hash,
+    blurb: "Press keypad digits during the call — for navigating phone menus and IVRs",
+    defaults: {
+      type: "dtmf",
+      title: "DTMF Keypad",
+      name: "press_keypad",
+      description: "Presses keypad digits (DTMF tones) during the call",
+      aiResponse: "One moment while I enter that.",
+    },
+  },
+  {
+    type: "sms",
+    title: "Send Message",
+    icon: MessageSquareText,
+    blurb: "Send an SMS text message to the caller during or after the call",
+    defaults: {
+      type: "sms",
+      title: "Send Message",
+      name: "send_message",
+      description: "Sends an SMS text message to the caller",
+      aiResponse: "I've just sent that to your phone.",
+    },
+  },
+  {
+    type: "gcal_create",
+    title: "Google Calendar — Create",
+    icon: CalendarPlus,
+    blurb: "Create an event on a connected Google Calendar",
+    defaults: {
+      type: "gcal_create",
+      title: "Google Calendar — Create Event",
+      name: "gcal_create_event",
+      description: "Creates a calendar event for the caller's booking",
+      aiResponse: "Let me put that on the calendar for you.",
+    },
+  },
+  {
+    type: "gcal_availability",
+    title: "Google Calendar — Availability",
+    icon: CalendarSearch,
+    blurb: "Check available time slots on a connected Google Calendar",
+    defaults: {
+      type: "gcal_availability",
+      title: "Google Calendar — Check Availability",
+      name: "gcal_check_availability",
+      description: "Checks the calendar for available time slots",
+      aiResponse: "Let me check the calendar for open times.",
+    },
+  },
+  {
+    type: "gsheets",
+    title: "Google Sheets",
+    icon: Table2,
+    blurb: "Append call data as a new row in a connected Google Sheet",
+    defaults: {
+      type: "gsheets",
+      title: "Google Sheets",
+      name: "gsheets_add_row",
+      description: "Appends a row with call data to a Google Sheet",
+      aiResponse: "One moment while I record that.",
+    },
+  },
+  {
+    type: "slack",
+    title: "Slack",
+    icon: MessageCircle,
+    blurb: "Send a message to a connected Slack channel",
+    defaults: {
+      type: "slack",
+      title: "Slack",
+      name: "slack_send_message",
+      description: "Sends a notification message to the team's Slack channel",
+      aiResponse: "I'm notifying the team right now.",
+    },
+  },
+  {
+    type: "ghl",
+    title: "GoHighLevel",
+    icon: Building2,
+    blurb: "Create or update a contact in a connected GoHighLevel account",
+    defaults: {
+      type: "ghl",
+      title: "GoHighLevel",
+      name: "ghl_create_contact",
+      description: "Creates a contact in GoHighLevel with the caller's details",
+      aiResponse: "Let me save your details in our system.",
+    },
+  },
+  {
+    type: "custom",
+    title: "Custom Tool",
+    icon: Wrench,
+    blurb: "Define your own tool with a server URL and custom properties the agent collects",
+    defaults: {
+      type: "custom",
+      title: "Custom Tool",
+      name: "custom_tool",
+      description: "Describe here exactly what this tool does and when the agent should use it",
+      aiResponse: "One moment while I take care of that.",
+      config: {
+        serverUrl: "",
+        httpHeaders: '{\n  "Content-Type": "application/json"\n}',
+        properties: JSON.stringify([{ name: "input", type: "string", description: "The value to send", required: true }]),
+      },
+    },
+  },
 ];
+
+const PROVIDER_TOOL_NOTE: Partial<Record<NonNullable<AgentTool["type"]>, string>> = {
+  sms: "SMS sending uses the phone provider linked in your Vapi dashboard (e.g. Twilio).",
+  gcal_create: "Connect Google Calendar in your Vapi dashboard (Integrations) for this tool to activate.",
+  gcal_availability: "Connect Google Calendar in your Vapi dashboard (Integrations) for this tool to activate.",
+  gsheets: "Connect Google Sheets in your Vapi dashboard (Integrations) for this tool to activate.",
+  slack: "Connect Slack in your Vapi dashboard (Integrations) for this tool to activate.",
+  ghl: "Connect GoHighLevel in your Vapi dashboard (Integrations) for this tool to activate.",
+};
 
 function ManageToolsModal({
   tools,
@@ -1639,7 +1792,10 @@ function ManageToolsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-lg rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="max-h-[88vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-lg font-bold">Manage Agent Tools</h2>
@@ -1743,6 +1899,82 @@ function ManageToolsModal({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+// Repeater for a custom tool's properties (name, type, description, required).
+function PropertiesEditor({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  let props: { name: string; type: string; description: string; required: boolean }[] = [];
+  try {
+    props = JSON.parse(value);
+    if (!Array.isArray(props)) props = [];
+  } catch {
+    props = [];
+  }
+  const update = (next: typeof props) => onChange(JSON.stringify(next));
+
+  return (
+    <div className="space-y-2.5">
+      {props.map((p, i) => (
+        <div key={i} className="rounded-xl border border-ink-700 p-3">
+          <div className="flex gap-2">
+            <input
+              className="field flex-1 !py-2 font-mono !text-[13px]"
+              placeholder="property_name"
+              value={p.name}
+              onChange={(e) =>
+                update(props.map((x, j) => (j === i ? { ...x, name: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, "_") } : x)))
+              }
+            />
+            <select
+              className="field w-28 !py-2 !text-[13px]"
+              value={p.type}
+              onChange={(e) => update(props.map((x, j) => (j === i ? { ...x, type: e.target.value } : x)))}
+            >
+              <option value="string">string</option>
+              <option value="number">number</option>
+              <option value="boolean">boolean</option>
+            </select>
+            <button
+              onClick={() => update(props.filter((_, j) => j !== i))}
+              aria-label="Remove property"
+              className="rounded-lg p-2 text-ink-400 transition hover:bg-ink-800 hover:text-signal-red"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="mt-2 flex items-center gap-3">
+            <input
+              className="field flex-1 !py-2 !text-[13px]"
+              placeholder="What this property contains"
+              value={p.description}
+              onChange={(e) => update(props.map((x, j) => (j === i ? { ...x, description: e.target.value } : x)))}
+            />
+            <label className="flex shrink-0 items-center gap-1.5 text-xs text-ink-300">
+              <input
+                type="checkbox"
+                className="h-3.5 w-3.5 accent-accent-500"
+                checked={p.required}
+                onChange={(e) => update(props.map((x, j) => (j === i ? { ...x, required: e.target.checked } : x)))}
+              />
+              Required
+            </label>
+          </div>
+        </div>
+      ))}
+      <button
+        onClick={() => update([...props, { name: "", type: "string", description: "", required: false }])}
+        className="flex w-full items-center justify-center gap-1.5 rounded-xl border border-dashed border-ink-600 py-2.5 text-sm text-ink-400 transition hover:border-[#301C3F]/50 hover:text-ink-200"
+      >
+        <Plus className="h-3.5 w-3.5" /> Add Property
+      </button>
     </div>
   );
 }
@@ -2036,6 +2268,46 @@ function EditToolModal({
                 />
               </div>
             </>
+          )}
+
+          {toolType === "custom" && (
+            <>
+              <div>
+                <label className="label">Server URL</label>
+                <input className="field font-mono !text-[13px]" placeholder="https://api.example.com/tool"
+                  value={config.serverUrl ?? ""} onChange={(e) => setC("serverUrl", e.target.value)} />
+                <p className="mt-1 text-xs text-ink-400">
+                  When the agent uses this tool, the collected properties are POSTed here.
+                </p>
+              </div>
+              <div>
+                <label className="label">HTTP Headers</label>
+                <textarea rows={3} className="field font-mono !text-[12px]"
+                  value={config.httpHeaders ?? ""} onChange={(e) => setC("httpHeaders", e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Properties</label>
+                <p className="mb-2 text-xs text-ink-400">
+                  The values the agent collects from the caller and sends to your server.
+                </p>
+                <PropertiesEditor value={config.properties ?? "[]"} onChange={(v) => setC("properties", v)} />
+              </div>
+            </>
+          )}
+
+          {toolType === "customer_memory" && (
+            <p className="rounded-lg border border-emerald-300 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800">
+              Works out of the box — no setup needed. The agent can ask &quot;are you an existing
+              patient/customer?&quot;, look the caller up by name or phone in your Contacts (with their
+              email, notes, and last visit from Call Logs), and save new callers so they&apos;re
+              recognised next time.
+            </p>
+          )}
+
+          {PROVIDER_TOOL_NOTE[toolType] && (
+            <p className="rounded-lg border border-ink-700 bg-ink-800/60 px-3.5 py-2.5 text-xs text-ink-300">
+              {PROVIDER_TOOL_NOTE[toolType]}
+            </p>
           )}
 
           {toolType === "knowledge_base" && (
