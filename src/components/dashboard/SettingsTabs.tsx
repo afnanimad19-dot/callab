@@ -20,8 +20,9 @@ import {
 } from "lucide-react";
 import { toast } from "@/components/Toast";
 import BillingTab from "./BillingTab";
+import ChannelsTab from "./ChannelsTab";
 
-const TABS = ["Profile", "Users", "API Keys", "Preferences", "Billing", "Workspaces"] as const;
+const TABS = ["Profile", "Users", "API Keys", "Preferences", "Billing", "Channels", "Workspaces"] as const;
 type Tab = (typeof TABS)[number];
 
 interface SessionInfo {
@@ -65,6 +66,7 @@ export default function SettingsTabs({
       {tab === "API Keys" && <ApiKeysTab />}
       {tab === "Preferences" && <PreferencesTab />}
       {tab === "Billing" && <BillingTab />}
+      {tab === "Channels" && <ChannelsTab />}
       {tab === "Workspaces" && <WorkspacesTab session={session} />}
     </div>
   );

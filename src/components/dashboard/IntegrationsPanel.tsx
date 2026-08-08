@@ -60,9 +60,11 @@ const TEMPLATES: { key: string; name: string; description: string }[] = [
 export default function IntegrationsPanel({
   integrations,
   platforms,
+  google,
 }: {
   integrations: Integration[];
   platforms: Platform[];
+  google?: { configured: boolean; connected: boolean; email: string | null };
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -256,6 +258,7 @@ export default function IntegrationsPanel({
         <h2 className="text-base font-semibold">Platform connections</h2>
         <p className="text-sm text-ink-400">Read from your environment variables — keys are never stored in the database.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          {google && <GoogleCalendarCard google={google} />}
           {platforms.map((p) => (
             <div key={p.name} className="card card-hover">
               <div className="flex items-start justify-between gap-3">
@@ -1098,6 +1101,65 @@ function FlowStepModal({
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+// --- Google Calendar connect card -------------------------------------------
+// Each workspace owner connects THEIR OWN Google account; appointments booked
+// by agents sync to that account's primary calendar.
+
+function GoogleCalendarCard({
+  google,
+}: {
+  google: { configured: boolean; connected: boolean; email: string | null };
+}) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+
+  async function connect() {
+    setBusy(true);
+    const res = await fetch("/api/integrations/google", { method: "POST" });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok && data.url) window.location.href = data.url;
+    else toastError(data.error ?? "Could not start the Google connection.");
+  }
+
+  async function disconnect() {
+    if (!confirm("Disconnect Google Calendar? Appointments will stop syncing.")) return;
+    setBusy(true);
+    await fetch("/api/integrations/google", { method: "DELETE" });
+    setBusy(false);
+    toast("Google Calendar disconnected.");
+    router.refresh();
+  }
+
+  return (
+    <div className="card card-hover">
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="text-base font-semibold">Google Calendar</h3>
+        <span className={google.connected ? "badge-ok" : "badge-muted"}>
+          {google.connected ? "Connected" : "Not connected"}
+        </span>
+      </div>
+      <p className="mt-2 text-sm text-ink-300">
+        Appointments your agents book, reschedule or cancel sync to your own Google Calendar
+        {google.email ? ` (${google.email})` : ""}. Manage them here or in Google — your choice.
+      </p>
+      {google.configured ? (
+        <button
+          onClick={google.connected ? disconnect : connect}
+          disabled={busy}
+          className={`${google.connected ? "btn-secondary" : "btn-primary"} mt-3 !px-4 !py-2 !text-sm disabled:opacity-60`}
+        >
+          {busy ? "Working\u2026" : google.connected ? "Disconnect" : "Connect Google Calendar"}
+        </button>
+      ) : (
+        <p className="mt-3 rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-ink-300">
+          Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your Netlify environment variables.
+        </p>
+      )}
     </div>
   );
 }

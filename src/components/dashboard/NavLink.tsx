@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import {
   BookOpen,
   Bot,
+  CalendarDays,
+  Inbox,
   LayoutDashboard,
   Phone,
   PhoneCall,
@@ -25,6 +27,8 @@ const ICONS: Record<string, LucideIcon> = {
   users: Users,
   "phone-call": PhoneCall,
   radio: Radio,
+  "calendar-days": CalendarDays,
+  inbox: Inbox,
   plug: Plug,
   webhook: Webhook,
 };

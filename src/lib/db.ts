@@ -64,6 +64,10 @@ export interface User {
   emailVerified?: boolean;
   mustResetPassword?: boolean;
   billing?: BillingState;
+  // Google Calendar connection (each workspace owner connects their own
+  // Google account; the refresh token lives with their tenant data).
+  googleRefreshToken?: string;
+  googleEmail?: string;
 }
 
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
@@ -279,6 +283,70 @@ export interface Integration {
   runs?: IntegrationRun[]; // newest first, capped
 }
 
+// Appointments created by agents during calls/chats (and manually), shown on
+// the Calendar tab and optionally synced to the customer's Google Calendar.
+export interface Appointment {
+  id: string;
+  userId: string;
+  patientName: string;
+  phone?: string;
+  doctor?: string;
+  service?: string;
+  status: "booked" | "rescheduled" | "canceled" | "completed";
+  startsAt: string; // ISO datetime
+  endsAt?: string;
+  notes?: string;
+  contactId?: string;
+  source?: string; // "call" | "chat" | "manual"
+  gcalEventId?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Omnichannel: one conversation per customer per channel.
+export interface Conversation {
+  id: string;
+  userId: string;
+  channel: "whatsapp" | "instagram" | "messenger";
+  externalId: string; // wa_id / IG user id / PSID
+  customerName: string;
+  customerPhone?: string;
+  contactId?: string;
+  aiEnabled: boolean; // false = assigned to a human
+  agentId?: string; // per-conversation agent override (Agent Hub default otherwise)
+  assignee?: string; // human display name when taken over
+  lastMessageAt: string;
+  lastMessageText?: string;
+  unread: number;
+  createdAt: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  conversationId: string;
+  direction: "in" | "out";
+  from: "customer" | "agent" | "human";
+  kind: "text" | "audio";
+  text: string;
+  mediaUrl?: string;
+  at: string; // ISO
+}
+
+// Per-workspace channel connections + Agent Hub settings. Meta tokens are the
+// CUSTOMER's own credentials for their pages/numbers (per-tenant, so they
+// live with the tenant's data — unlike our provider keys, which stay in env).
+export interface ChannelSettings {
+  id: string; // one row per user: `ch_<userId>`
+  userId: string;
+  defaultChatAgentId?: string; // Agent Hub default agent
+  aiAutoReply: boolean; // master toggle
+  whatsapp?: { phoneNumberId: string; accessToken: string; connected: boolean };
+  instagram?: { pageId: string; accessToken: string; connected: boolean };
+  messenger?: { pageId: string; accessToken: string; connected: boolean };
+  updatedAt: string;
+}
+
 export interface KnowledgeBase {
   id: string;
   userId: string;
@@ -306,6 +374,10 @@ interface Database {
   webhooks: Webhook[];
   knowledgeBases: KnowledgeBase[];
   integrations: Integration[];
+  appointments: Appointment[];
+  conversations: Conversation[];
+  chatMessages: ChatMessage[];
+  channels: ChannelSettings[];
 }
 
 type Table = keyof Database;
@@ -347,6 +419,10 @@ const EMPTY: Database = {
   webhooks: [],
   knowledgeBases: [],
   integrations: [],
+  appointments: [],
+  conversations: [],
+  chatMessages: [],
+  channels: [],
 };
 
 function readFileDb(): Database {
@@ -426,6 +502,10 @@ const TABLE_NAMES: Record<Table, string> = {
   webhooks: "webhooks",
   knowledgeBases: "knowledge_bases",
   integrations: "integrations",
+  appointments: "appointments",
+  conversations: "conversations",
+  chatMessages: "chat_messages",
+  channels: "channels",
 };
 
 function supabaseHeaders() {
@@ -617,6 +697,70 @@ export async function deletePhoneNumber(userId: string, id: string) {
   const exists = (await listPhoneNumbers(userId)).some((p) => p.id === id);
   if (!exists) return false;
   return store.remove("phoneNumbers", id);
+}
+
+// --- Appointments -----------------------------------------------------------
+export const listAppointments = (userId: string) => store.list<Appointment>("appointments", userId);
+export const createAppointment = (a: Appointment) => store.insert("appointments", a);
+export async function updateAppointment(userId: string, id: string, patch: Partial<Appointment>) {
+  const exists = (await listAppointments(userId)).some((a) => a.id === id);
+  if (!exists) return null;
+  return store.update<Appointment>("appointments", id, patch);
+}
+export async function deleteAppointment(userId: string, id: string) {
+  const exists = (await listAppointments(userId)).some((a) => a.id === id);
+  if (!exists) return false;
+  return store.remove("appointments", id);
+}
+
+// --- Omnichannel ------------------------------------------------------------
+export const listConversations = (userId: string) => store.list<Conversation>("conversations", userId);
+export const createConversation = (c: Conversation) => store.insert("conversations", c);
+export async function updateConversation(userId: string, id: string, patch: Partial<Conversation>) {
+  const exists = (await listConversations(userId)).some((c) => c.id === id);
+  if (!exists) return null;
+  return store.update<Conversation>("conversations", id, patch);
+}
+export const listChatMessages = (userId: string) => store.list<ChatMessage>("chatMessages", userId);
+export const createChatMessage = (m: ChatMessage) => store.insert("chatMessages", m);
+
+export async function getChannelSettings(userId: string): Promise<ChannelSettings> {
+  const rows = await store.list<ChannelSettings>("channels", userId);
+  return (
+    rows[0] ?? {
+      id: `ch_${userId}`,
+      userId,
+      aiAutoReply: true,
+      updatedAt: new Date().toISOString(),
+    }
+  );
+}
+export async function saveChannelSettings(userId: string, patch: Partial<ChannelSettings>): Promise<ChannelSettings> {
+  const rows = await store.list<ChannelSettings>("channels", userId);
+  const now = new Date().toISOString();
+  if (rows[0]) {
+    return (await store.update<ChannelSettings>("channels", rows[0].id, { ...patch, updatedAt: now }))!;
+  }
+  const row: ChannelSettings = {
+    id: `ch_${userId}`,
+    userId,
+    aiAutoReply: true,
+    ...patch,
+    updatedAt: now,
+  };
+  return store.insert("channels", row);
+}
+// Find which workspace a Meta webhook event belongs to (by page/number id).
+export async function findUserByChannelId(channelId: string): Promise<ChannelSettings | null> {
+  const rows = await store.list<ChannelSettings>("channels");
+  return (
+    rows.find(
+      (r) =>
+        r.whatsapp?.phoneNumberId === channelId ||
+        r.instagram?.pageId === channelId ||
+        r.messenger?.pageId === channelId
+    ) ?? null
+  );
 }
 
 export const listWebhooks = (userId: string) => store.list<Webhook>("webhooks", userId);

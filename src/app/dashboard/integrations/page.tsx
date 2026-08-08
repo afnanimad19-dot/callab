@@ -1,7 +1,8 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { listIntegrations } from "@/lib/db";
+import { findUserById, listIntegrations } from "@/lib/db";
 import { vapiConfigured } from "@/lib/vapi";
+import { googleConfigured } from "@/lib/gcal";
 import IntegrationsPanel from "@/components/dashboard/IntegrationsPanel";
 
 export const metadata = { title: "Integrations — VoiceLine AI" };
@@ -31,12 +32,6 @@ export default async function IntegrationsPage() {
       hint: "Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in Netlify, then run supabase/schema.sql.",
     },
     {
-      name: "Google Calendar",
-      detail: "Real appointment booking during calls.",
-      connected: false,
-      hint: "Planned — actions phase of the roadmap.",
-    },
-    {
       name: "CRM (HubSpot / Salesforce)",
       detail: "Sync leads and call outcomes automatically after every call.",
       connected: false,
@@ -44,5 +39,12 @@ export default async function IntegrationsPage() {
     },
   ];
 
-  return <IntegrationsPanel integrations={integrations} platforms={platforms} />;
+  const user = await findUserById(session.userId);
+  const google = {
+    configured: googleConfigured(),
+    connected: Boolean(user?.googleRefreshToken),
+    email: user?.googleEmail ?? null,
+  };
+
+  return <IntegrationsPanel integrations={integrations} platforms={platforms} google={google} />;
 }

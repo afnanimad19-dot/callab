@@ -29,6 +29,8 @@ const NAV_GROUPS: {
       { href: "/dashboard/phone-numbers", label: "Phone Numbers", icon: "phone" },
       { href: "/dashboard/contacts", label: "Contacts", icon: "users" },
       { href: "/dashboard/calls", label: "Call Logs", icon: "phone-call" },
+      { href: "/dashboard/calendar", label: "Calendar", icon: "calendar-days" },
+      { href: "/dashboard/inbox", label: "Inbox", icon: "inbox" },
       { href: "/dashboard/live", label: "Live Monitoring", icon: "radio" },
     ],
   },

@@ -299,6 +299,75 @@ export function buildVapiTools(agent: Agent): unknown[] {
         break; // end_call / transfer_call / knowledge_base map elsewhere
     }
   }
+
+  // Built-in appointment tools — every agent can book, reschedule and cancel
+  // appointments. Results land on the Calendar tab, create Contacts, and sync
+  // to Google Calendar when the workspace has connected one.
+  if (site) {
+    const calServer = executeServer("builtin_calendar");
+    tools.push(
+      {
+        type: "function",
+        async: false,
+        function: {
+          name: "book_appointment",
+          description:
+            "Book an appointment for the caller. Call this once the patient has confirmed a date and time. Always collect the patient's name first.",
+          parameters: {
+            type: "object",
+            properties: {
+              patient_name: { type: "string", description: "The patient's full name" },
+              phone: { type: "string", description: "The patient's phone number" },
+              doctor: { type: "string", description: "Doctor or staff member the appointment is with" },
+              service: { type: "string", description: "Service or treatment, e.g. cleaning, consultation" },
+              datetime: { type: "string", description: "Appointment start in ISO format, e.g. 2026-08-12T15:30:00" },
+              notes: { type: "string", description: "Any extra notes about the appointment" },
+            },
+            required: ["patient_name", "datetime"],
+          },
+        },
+        server: calServer,
+      },
+      {
+        type: "function",
+        async: false,
+        function: {
+          name: "reschedule_appointment",
+          description:
+            "Move the caller's existing appointment to a new date/time. Identify the patient by name or phone number.",
+          parameters: {
+            type: "object",
+            properties: {
+              patient_name: { type: "string", description: "The patient's full name" },
+              phone: { type: "string", description: "The patient's phone number" },
+              new_datetime: { type: "string", description: "New start in ISO format, e.g. 2026-08-12T15:30:00" },
+            },
+            required: ["new_datetime"],
+          },
+        },
+        server: calServer,
+      },
+      {
+        type: "function",
+        async: false,
+        function: {
+          name: "cancel_appointment",
+          description:
+            "Cancel the caller's existing appointment. Identify the patient by name or phone number and confirm before canceling.",
+          parameters: {
+            type: "object",
+            properties: {
+              patient_name: { type: "string", description: "The patient's full name" },
+              phone: { type: "string", description: "The patient's phone number" },
+            },
+            required: [],
+          },
+        },
+        server: calServer,
+      }
+    );
+  }
+
   return tools;
 }
 

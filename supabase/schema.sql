@@ -87,3 +87,37 @@ alter table phone_numbers enable row level security;
 alter table webhooks enable row level security;
 alter table knowledge_bases enable row level security;
 alter table integrations enable row level security;
+
+-- Calendar + omnichannel (added with the Calendar/Inbox features)
+create table if not exists appointments (
+  id text primary key,
+  user_id text not null,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+create table if not exists conversations (
+  id text primary key,
+  user_id text not null,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+create table if not exists chat_messages (
+  id text primary key,
+  user_id text not null,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+create table if not exists channels (
+  id text primary key,
+  user_id text not null,
+  data jsonb not null,
+  created_at timestamptz default now()
+);
+create index if not exists appointments_user_idx on appointments (user_id);
+create index if not exists conversations_user_idx on conversations (user_id);
+create index if not exists chat_messages_user_idx on chat_messages (user_id);
+create index if not exists channels_user_idx on channels (user_id);
+alter table appointments enable row level security;
+alter table conversations enable row level security;
+alter table chat_messages enable row level security;
+alter table channels enable row level security;

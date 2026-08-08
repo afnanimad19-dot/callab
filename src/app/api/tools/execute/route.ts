@@ -7,8 +7,15 @@ import {
   listCalls,
   newId,
   Contact,
+  Agent,
 } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
+import {
+  bookAppointment,
+  cancelAppointment,
+  findUpcomingAppointment,
+  rescheduleAppointment,
+} from "@/lib/appointments";
 
 const normalizePhone = (p: string) => p.replace(/[^\d]/g, "").slice(-9);
 
@@ -133,7 +140,12 @@ export async function POST(request: Request) {
   const agentId = url.searchParams.get("agentId") ?? "";
   const toolId = url.searchParams.get("toolId") ?? "";
   const agent = await findAgentAnyUser(agentId);
-  const tool = agent?.tools?.find((t) => t.id === toolId);
+  // "builtin_calendar" is the always-on appointment tool set — it has no
+  // per-agent tool record.
+  const tool =
+    toolId === "builtin_calendar"
+      ? ({ id: toolId, type: "builtin_calendar" } as unknown as NonNullable<Agent["tools"]>[number])
+      : agent?.tools?.find((t) => t.id === toolId);
   if (!agent || !tool) {
     return NextResponse.json({ error: "Unknown tool" }, { status: 404 });
   }
@@ -150,6 +162,57 @@ export async function POST(request: Request) {
     calls.map(async (call) => {
       const args = parseArgs(call);
       try {
+        if (toolId === "builtin_calendar") {
+          const fn = call.function?.name ?? "";
+          const name = String(args.patient_name ?? "").trim();
+          const phone = String(args.phone ?? "").trim() || callerNumber;
+          if (fn === "book_appointment") {
+            const when = String(args.datetime ?? "");
+            if (!name || Number.isNaN(Date.parse(when))) {
+              return { toolCallId: call.id, result: "Missing patient name or a valid date/time — ask and try again." };
+            }
+            const apt = await bookAppointment(agent.userId, {
+              patientName: name,
+              phone,
+              doctor: String(args.doctor ?? "").trim() || undefined,
+              service: String(args.service ?? "").trim() || undefined,
+              startsAt: new Date(when).toISOString(),
+              notes: String(args.notes ?? "").trim() || undefined,
+              source: "call",
+            });
+            return {
+              toolCallId: call.id,
+              result: `Appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Confirm it with the caller.`,
+            };
+          }
+          if (fn === "reschedule_appointment") {
+            const when = String(args.new_datetime ?? "");
+            if (Number.isNaN(Date.parse(when))) {
+              return { toolCallId: call.id, result: "Ask for the new date and time first." };
+            }
+            const existing = await findUpcomingAppointment(agent.userId, name || undefined, phone);
+            if (!existing) {
+              return { toolCallId: call.id, result: "No existing appointment found for that patient — offer to book a new one." };
+            }
+            await rescheduleAppointment(agent.userId, existing, new Date(when).toISOString());
+            return {
+              toolCallId: call.id,
+              result: `Appointment moved to ${new Date(when).toLocaleString()} for ${existing.patientName}.`,
+            };
+          }
+          if (fn === "cancel_appointment") {
+            const existing = await findUpcomingAppointment(agent.userId, name || undefined, phone);
+            if (!existing) {
+              return { toolCallId: call.id, result: "No appointment found for that patient." };
+            }
+            await cancelAppointment(agent.userId, existing);
+            return {
+              toolCallId: call.id,
+              result: `The ${new Date(existing.startsAt).toLocaleString()} appointment for ${existing.patientName} is canceled.`,
+            };
+          }
+          return { toolCallId: call.id, result: "Unknown calendar action." };
+        }
         if (tool.type === "customer_memory") {
           const fn = call.function?.name;
           const result =
