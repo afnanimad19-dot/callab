@@ -186,10 +186,19 @@ function AddNumberModal({
       }),
     });
     const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      if (data.linked) toast("Number added and connected to the voice pipeline.");
-      else toastError(data.linkError ?? "Number saved, but not linked to the voice pipeline yet.");
+    if (res.ok && data.linked) {
+      toast("Number added and connected to the voice pipeline.");
       onCreated();
+    } else if (res.ok) {
+      // Saved locally but Vapi didn't accept it — keep the modal open and
+      // show the real reason so it can be fixed (wrong SID/token, number not
+      // in that Twilio account, already imported, etc.).
+      setBusy(false);
+      setError(
+        (data.linkError ??
+          "The number was saved but could NOT be connected to the voice pipeline, so calls won't ring yet.") +
+          " Fix the details and click Add again, or remove and re-add it."
+      );
     } else {
       setError(data.error ?? "Something went wrong.");
       setBusy(false);

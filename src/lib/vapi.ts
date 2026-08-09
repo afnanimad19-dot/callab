@@ -38,6 +38,49 @@ async function vapi(path: string, init?: RequestInit) {
   return res.json();
 }
 
+// The last error Vapi returned while syncing an assistant's TOOLS, if any.
+// Keyed by agent id so the editor can show "tools didn't sync — here's why".
+export const lastToolSyncError = new Map<string, string>();
+
+// Read the live assistant back from Vapi (id, tool names, model) so the UI
+// and diagnostics can show what ACTUALLY exists on Vapi's side.
+export async function getVapiAssistant(assistantId: string): Promise<{
+  id: string;
+  name?: string;
+  toolNames: string[];
+  model?: string;
+} | null> {
+  if (!vapiConfigured()) return null;
+  try {
+    const a = (await vapi(`/assistant/${assistantId}`)) as {
+      id: string;
+      name?: string;
+      model?: { model?: string; tools?: { function?: { name?: string }; type?: string }[] };
+    };
+    const toolNames = (a.model?.tools ?? []).map((t) => t.function?.name ?? t.type ?? "tool");
+    return { id: a.id, name: a.name, toolNames, model: a.model?.model };
+  } catch (e) {
+    console.error("getVapiAssistant failed:", e);
+    return null;
+  }
+}
+
+// List phone numbers currently in the connected Vapi account.
+export async function listVapiNumbers(): Promise<{ id: string; number: string; assistantId?: string }[]> {
+  if (!vapiConfigured()) return [];
+  try {
+    const list = (await vapi("/phone-number")) as { id: string; number?: string; assistantId?: string }[];
+    return (Array.isArray(list) ? list : []).map((n) => ({
+      id: n.id,
+      number: n.number ?? "",
+      assistantId: n.assistantId,
+    }));
+  } catch (e) {
+    console.error("listVapiNumbers failed:", e);
+    return [];
+  }
+}
+
 // --- Tool building ----------------------------------------------------------
 // Turns the agent's configured tools into REAL Vapi tools that execute
 // mid-call. Live Webhooks and Zapier point straight at the external URL;
@@ -524,25 +567,45 @@ export async function syncAgentToVapi(
     return created.id as string;
   }
 
-  // Staged fallback: full payload → function-type tools only (the named
-  // provider tools need credentials linked in the Vapi dashboard and may be
-  // rejected) → no custom tools. The assistant itself always stays in sync.
+  // Staged fallback: full payload → function-type tools only (named provider
+  // tools like Slack/Sheets need credentials linked in the Vapi dashboard and
+  // are rejected until then) → no custom tools. The assistant itself always
+  // stays in sync, and the exact Vapi rejection is recorded per agent so the
+  // editor can show WHY tools didn't attach.
   const model = payload.model as Record<string, unknown> & { tools?: { type?: string }[] };
+  lastToolSyncError.delete(agent.id);
   try {
-    return await push(payload);
+    const id = await push(payload);
+    return id;
   } catch (e) {
-    if (!model.tools) throw e;
+    if (!model.tools) throw e; // no tools involved → a real assistant error
+    const fullErr = (e as Error).message;
+    console.error(`Vapi rejected the full tool set for agent ${agent.id}:`, fullErr);
+
+    // Retry with ONLY our function-type tools (booking, memory, webhooks, …),
+    // dropping provider tools. Always attempt this when any function tool
+    // exists — even if every tool is a function type — so a provider-tool
+    // rejection or a transient error never silently kills our real tools.
     const functionTools = model.tools.filter((t) => t.type === "function");
-    if (functionTools.length > 0 && functionTools.length < model.tools.length) {
-      console.error("Vapi rejected the tool set — retrying with function tools only:", e);
+    if (functionTools.length > 0) {
       try {
-        return await push({ ...payload, model: { ...model, tools: functionTools } });
+        const id = await push({ ...payload, model: { ...model, tools: functionTools } });
+        if (functionTools.length < model.tools.length) {
+          lastToolSyncError.set(
+            agent.id,
+            "Provider tools (e.g. Slack, Google Sheets) need their credentials linked in the Vapi dashboard, so they were skipped. Booking, webhooks and other function tools are active."
+          );
+        }
+        return id;
       } catch (e2) {
-        console.error("Function-only tools also rejected — retrying without tools:", e2);
+        const fnErr = (e2 as Error).message;
+        console.error(`Vapi rejected function tools too for agent ${agent.id}:`, fnErr);
+        lastToolSyncError.set(agent.id, `Vapi rejected the tools: ${fnErr.slice(0, 400)}`);
       }
     } else {
-      console.error("Vapi rejected custom tools — retrying without them:", e);
+      lastToolSyncError.set(agent.id, `Vapi rejected the tools: ${fullErr.slice(0, 400)}`);
     }
+
     const modelSansTools = { ...model };
     delete modelSansTools.tools;
     return await push({ ...payload, model: modelSansTools });

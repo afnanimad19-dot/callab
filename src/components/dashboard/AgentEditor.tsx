@@ -57,6 +57,8 @@ import {
   MessageCircle,
   Building2,
   Bot,
+  Stethoscope,
+  RefreshCw,
 } from "lucide-react";
 import { useEffect } from "react";
 import type { Agent, AgentRevision, PhoneNumber } from "@/lib/db";
@@ -475,6 +477,7 @@ export default function AgentEditor({
   const [shareOpen, setShareOpen] = useState(false);
   const [phoneCallOpen, setPhoneCallOpen] = useState(false);
   const [webCallOpen, setWebCallOpen] = useState(false);
+  const [diagOpen, setDiagOpen] = useState(false);
   const [phoneNums, setPhoneNums] = useState<PhoneNumber[]>([]);
 
   // Workspace numbers for the phone test-call popup ("Call From").
@@ -629,6 +632,14 @@ export default function AgentEditor({
                     onClick={() => setPhoneCallOpen(true)}
                   >
                     <Phone className="h-4 w-4" />
+                  </button>
+                  <button
+                    className="btn-secondary !px-3 !py-2"
+                    title="Vapi diagnostics — check tools & sync"
+                    aria-label="Vapi diagnostics"
+                    onClick={() => setDiagOpen(true)}
+                  >
+                    <Stethoscope className="h-4 w-4" />
                   </button>
                   <button
                     className="flex items-center gap-1.5 rounded-lg border border-fuchsia-200 bg-fuchsia-50 px-4 py-2 text-sm font-medium text-fuchsia-700 transition hover:bg-fuchsia-100"
@@ -1273,6 +1284,9 @@ export default function AgentEditor({
           phoneNumbers={phoneNums}
           onClose={() => setPhoneCallOpen(false)}
         />
+      )}
+      {diagOpen && agent.id && (
+        <VapiDiagnosticsModal agentId={agent.id} onClose={() => setDiagOpen(false)} />
       )}
     </div>
   );
@@ -2591,6 +2605,141 @@ function ShareAgentModal({
           </p>
         )}
       </div>
+    </div>
+  );
+}
+
+// --- Vapi Diagnostics -------------------------------------------------------
+// Shows exactly what Vapi has for this agent: is it synced, which tools
+// actually attached vs. which we expect, the precise rejection reason if any,
+// and whether the site URL + phone numbers are wired up. This turns "it
+// doesn't work" into a concrete, fixable answer.
+
+function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: () => void }) {
+  const [data, setData] = useState<{
+    vapiConfigured: boolean;
+    hint?: string;
+    siteUrl: string | null;
+    siteUrlOk: boolean;
+    numbers: { number: string; provider: string; agent: string; linkedInApp: boolean; presentInVapi: boolean }[];
+    vapiNumberCount: number;
+    agentReport: {
+      name: string;
+      synced: boolean;
+      expectedTools: string[];
+      vapiTools: string[];
+      missingTools: string[];
+      toolSyncError: string | null;
+    } | null;
+  } | null>(null);
+  const [busy, setBusy] = useState(true);
+
+  const load = async () => {
+    setBusy(true);
+    const res = await fetch(`/api/vapi/diagnostics?agentId=${agentId}`);
+    setData(await res.json().catch(() => null));
+    setBusy(false);
+  };
+  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+
+  const report = data?.agentReport;
+
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h2 className="flex items-center gap-2 text-lg font-bold"><Stethoscope className="h-5 w-5 text-[#301C3F]" /> Vapi Diagnostics</h2>
+          <div className="flex items-center gap-2">
+            <button onClick={load} disabled={busy} aria-label="Re-check" className="btn-secondary !px-2.5 !py-2 disabled:opacity-50">
+              <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
+            </button>
+            <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-100"><X className="h-4 w-4" /></button>
+          </div>
+        </div>
+
+        {busy && !data ? (
+          <p className="py-10 text-center text-sm text-ink-400">Re-syncing this agent to Vapi and reading it back…</p>
+        ) : !data ? (
+          <p className="py-10 text-center text-sm text-signal-red">Could not run diagnostics.</p>
+        ) : (
+          <div className="mt-5 space-y-4 text-sm">
+            <Row label="Vapi API key (server)" ok={data.vapiConfigured}
+              value={data.vapiConfigured ? "Set" : "Missing — set VAPI_API_KEY in Netlify"} />
+            <Row label="Site URL (for tool callbacks)" ok={data.siteUrlOk}
+              value={data.siteUrl ?? "Missing — set SITE_URL in Netlify"} />
+
+            {report && (
+              <>
+                <Row label="Agent synced to Vapi" ok={report.synced} value={report.synced ? "Yes" : "No"} />
+                <div>
+                  <p className="mb-1.5 font-semibold">Tools on Vapi ({report.vapiTools.length})</p>
+                  {report.vapiTools.length === 0 ? (
+                    <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">No tools attached to the Vapi assistant.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {report.vapiTools.map((t) => (
+                        <code key={t} className="rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">{t}</code>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {report.missingTools.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 font-semibold text-amber-600">Expected but missing ({report.missingTools.length})</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {report.missingTools.map((t) => (
+                        <code key={t} className="rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">{t}</code>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {report.toolSyncError && (
+                  <div className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-signal-red">Why tools didn&apos;t attach</p>
+                    <p className="mt-1 break-words text-xs text-signal-red">{report.toolSyncError}</p>
+                  </div>
+                )}
+              </>
+            )}
+
+            <div>
+              <p className="mb-1.5 font-semibold">Phone numbers ({data.vapiNumberCount} in Vapi)</p>
+              {data.numbers.length === 0 ? (
+                <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">No numbers added in the app yet.</p>
+              ) : (
+                <div className="space-y-1.5">
+                  {data.numbers.map((n, i) => (
+                    <div key={i} className="flex items-center justify-between rounded-lg border border-ink-700 px-3 py-2 text-xs">
+                      <span className="font-mono">{n.number} <span className="text-ink-400">· {n.agent}</span></span>
+                      <span className="flex items-center gap-2">
+                        <span className={n.linkedInApp ? "text-emerald-600" : "text-signal-red"}>{n.linkedInApp ? "linked" : "not linked"}</span>
+                        <span className={n.presentInVapi ? "text-emerald-600" : "text-signal-red"}>{n.presentInVapi ? "in Vapi" : "not in Vapi"}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">
+              After changing environment variables in Netlify, click the re-check button above (it re-syncs this agent).
+              For inbound calls to ring, the number must show both &ldquo;linked&rdquo; and &ldquo;in Vapi&rdquo;.
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Row({ label, ok, value }: { label: string; ok: boolean; value: string }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-ink-800 pb-2">
+      <span className="text-ink-300">{label}</span>
+      <span className={`flex items-center gap-1.5 text-right font-medium ${ok ? "text-emerald-600" : "text-signal-red"}`}>
+        {ok ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
+        <span className="max-w-[240px] truncate" title={value}>{value}</span>
+      </span>
     </div>
   );
 }

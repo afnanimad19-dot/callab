@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findAgent, updateAgent } from "@/lib/db";
-import { syncAgentToVapi, vapiConfigured } from "@/lib/vapi";
+import { syncAgentToVapi, vapiConfigured, lastToolSyncError } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
 
 // Sync an agent to Vapi on demand (used by the Test Agent panel so agents
@@ -30,7 +30,11 @@ export async function POST(
     if (assistantId && assistantId !== agent.vapiAssistantId) {
       await updateAgent(session.userId, id, { vapiAssistantId: assistantId });
     }
-    return NextResponse.json({ configured: true, vapiAssistantId: assistantId });
+    return NextResponse.json({
+      configured: true,
+      vapiAssistantId: assistantId,
+      toolSyncError: lastToolSyncError.get(id) ?? null,
+    });
   } catch (e) {
     console.error("On-demand Vapi sync failed:", e);
     return NextResponse.json(
