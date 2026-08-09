@@ -11,8 +11,83 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import { toast, toastError } from "@/components/Toast";
-import { PhoneIncoming, PhoneOutgoing, X, Check, Rocket } from "lucide-react";
+import { PhoneIncoming, PhoneOutgoing, X, Check, Rocket, ChevronDown, Search, Plus } from "lucide-react";
 import type { Agent, Contact, PhoneNumber, Webhook } from "@/lib/db";
+
+// Callab-style searchable multi-select: type to filter, or type a value not in
+// the list and "Add" it. Used for Contact Sources / Tags / Categories.
+function SearchSelect({
+  label,
+  placeholder,
+  options,
+  selected,
+  onChange,
+}: {
+  label: string;
+  placeholder: string;
+  options: string[];
+  selected: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const all = useMemo(() => [...new Set([...options, ...selected])], [options, selected]);
+  const filtered = all.filter((o) => o.toLowerCase().includes(query.trim().toLowerCase()));
+  const canAdd = query.trim() && !all.some((o) => o.toLowerCase() === query.trim().toLowerCase());
+  const toggle = (v: string) =>
+    onChange(selected.includes(v) ? selected.filter((x) => x !== v) : [...selected, v]);
+
+  return (
+    <div className="relative">
+      <label className="label">{label}</label>
+      <button type="button" onClick={() => setOpen((v) => !v)}
+        className="field flex w-full items-center justify-between text-left">
+        <span className={selected.length ? "" : "text-ink-400"}>
+          {selected.length ? selected.join(", ") : placeholder}
+        </span>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-ink-400 transition ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="absolute z-30 mt-1 w-full rounded-xl border border-ink-700 bg-white py-1 shadow-xl">
+          <div className="flex items-center gap-2 px-3 py-1.5">
+            <Search className="h-3.5 w-3.5 text-ink-400" />
+            <input autoFocus className="w-full bg-transparent text-sm outline-none" placeholder="Search or add new..."
+              value={query} onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && canAdd) { toggle(query.trim()); setQuery(""); } }} />
+          </div>
+          <div className="max-h-52 overflow-y-auto border-t border-ink-800">
+            {options.length > 0 && (
+              <label className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-ink-800">
+                <input type="checkbox" className="h-3.5 w-3.5"
+                  checked={filtered.length > 0 && filtered.every((o) => selected.includes(o))}
+                  onChange={(e) => onChange(e.target.checked ? [...new Set([...selected, ...filtered])] : selected.filter((s) => !filtered.includes(s)))} />
+                (Select All)
+              </label>
+            )}
+            {filtered.map((o) => (
+              <label key={o} className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-ink-800">
+                <input type="checkbox" className="h-3.5 w-3.5" checked={selected.includes(o)} onChange={() => toggle(o)} />
+                {o}
+              </label>
+            ))}
+            {canAdd && (
+              <button onClick={() => { toggle(query.trim()); setQuery(""); }}
+                className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-[#301C3F] hover:bg-ink-800">
+                <Plus className="h-3.5 w-3.5" /> Add &ldquo;{query.trim()}&rdquo;
+              </button>
+            )}
+            {filtered.length === 0 && !canAdd && (
+              <p className="px-3 py-3 text-center text-xs text-ink-400">No matches.</p>
+            )}
+          </div>
+          <button onClick={() => setOpen(false)} className="w-full border-t border-ink-800 py-1.5 text-center text-sm font-medium hover:bg-ink-800">
+            Close
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIMEZONES = [
@@ -67,7 +142,11 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
   const [retryAttempts, setRetryAttempts] = useState(false);
   const [sources, setSources] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
-  const [csvContacts, setCsvContacts] = useState<Record<string, string>[]>([]);
+  const [categories, setCategories] = useState<string[]>([]);
+  const [sendMode, setSendMode] = useState<"now" | "schedule">("now");
+  const [csvHeaders, setCsvHeaders] = useState<string[]>([]);
+  const [csvRows, setCsvRows] = useState<string[][]>([]);
+  const [csvMap, setCsvMap] = useState<{ number: string; name: string }>({ number: "", name: "" });
   const [csvName, setCsvName] = useState("");
   const [csvError, setCsvError] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
@@ -80,7 +159,8 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
 
   const agent = agents.find((a) => a.id === agentId);
   const variables = useMemo(() => extractVariables(agent), [agent]);
-  const allTags = useMemo(() => [...new Set(contacts.map((c) => c.tag))], [contacts]);
+  const allTags = useMemo(() => [...new Set(contacts.map((c) => c.tag).filter(Boolean))], [contacts]);
+  const allCategories = useMemo(() => [...new Set(contacts.map((c) => c.category).filter(Boolean) as string[])], [contacts]);
   const matching = useMemo(
     () => (tags.length ? contacts.filter((c) => tags.includes(c.tag)) : contacts),
     [contacts, tags]
@@ -96,7 +176,10 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
     setPhoneNumber("");
     setTags([]);
     setSources([]);
-    setCsvContacts([]);
+    setCategories([]);
+    setSendMode("now");
+    setCsvHeaders([]);
+    setCsvRows([]);
     setCsvName("");
     setCsvError(null);
     setMapping({});
@@ -109,8 +192,9 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
     setStep(0);
   }
 
-  // Parse an uploaded CSV: needs a "number" (or "phone") column; every other
-  // column becomes a dynamic variable passed to the agent per contact.
+  // Parse a CSV into headers + rows, then let the user MAP which column is the
+  // phone number / name (the rest become dynamic variables). Auto-guesses the
+  // number/name columns so it works out of the box.
   function onCsv(file: File) {
     setCsvError(null);
     const reader = new FileReader();
@@ -119,32 +203,40 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
         const text = String(reader.result ?? "");
         const lines = text.split(/\r?\n/).filter((l) => l.trim());
         if (lines.length < 2) throw new Error("empty");
-        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
-        const numIdx = headers.findIndex((h) => h === "number" || h === "phone" || h === "phone_number");
-        if (numIdx < 0) throw new Error("no number column");
-        const rows = lines.slice(1).map((line) => {
-          const cells = line.split(",").map((c) => c.trim());
-          const row: Record<string, string> = { number: (cells[numIdx] ?? "").replace(/[^+0-9]/g, "") };
-          headers.forEach((h, i) => {
-            if (i !== numIdx && cells[i]) row[h === "phone" || h === "phone_number" ? "extra" : h] = cells[i];
-          });
-          return row;
-        }).filter((r) => /^\+?\d{7,15}$/.test(r.number));
-        if (rows.length === 0) throw new Error("no valid numbers");
-        setCsvContacts(rows);
+        const headers = lines[0].split(",").map((h) => h.trim());
+        const rows = lines.slice(1).map((l) => l.split(",").map((c) => c.trim()));
+        const lower = headers.map((h) => h.toLowerCase());
+        const numGuess = headers[lower.findIndex((h) => /number|phone/.test(h))] ?? "";
+        const nameGuess = headers[lower.findIndex((h) => /name/.test(h))] ?? "";
+        setCsvHeaders(headers);
+        setCsvRows(rows);
+        setCsvMap({ number: numGuess, name: nameGuess });
         setCsvName(file.name);
-      } catch (e) {
-        setCsvError(
-          (e as Error).message === "no number column"
-            ? "The CSV needs a 'number' column. Download the template for the exact format."
-            : "Could not read that CSV — check it has a header row and a 'number' column."
-        );
-        setCsvContacts([]);
-        setCsvName("");
+      } catch {
+        setCsvError("Could not read that CSV — check it has a header row and at least one data row.");
+        setCsvHeaders([]); setCsvRows([]); setCsvName("");
       }
     };
     reader.readAsText(file);
   }
+
+  // Apply the column mapping to produce the contact list sent to the API.
+  const mappedCsv = useMemo(() => {
+    if (!csvMap.number || csvHeaders.length === 0) return [];
+    const numIdx = csvHeaders.indexOf(csvMap.number);
+    const nameIdx = csvHeaders.indexOf(csvMap.name);
+    if (numIdx < 0) return [];
+    return csvRows
+      .map((cells) => {
+        const row: Record<string, string> = { number: (cells[numIdx] ?? "").replace(/[^+0-9]/g, "") };
+        if (nameIdx >= 0 && cells[nameIdx]) row.name = cells[nameIdx];
+        csvHeaders.forEach((h, i) => {
+          if (i !== numIdx && i !== nameIdx && cells[i]) row[h.toLowerCase().replace(/[^\w]/g, "_")] = cells[i];
+        });
+        return row;
+      })
+      .filter((r) => /^\+?\d{7,15}$/.test(r.number));
+  }, [csvHeaders, csvRows, csvMap]);
 
   function validateStep(): string | null {
     if (steps[step] === "Campaign Info") {
@@ -174,9 +266,10 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
         phoneNumber,
         direction,
         syncWithContact,
+        sendNow: sendMode === "now",
         schedule: { startDate, endDate, from, to, days, timezone, retryAttempts },
-        filters: { sources, tags, categories: [] },
-        csvContacts,
+        filters: { sources, tags, categories },
+        csvContacts: mappedCsv,
         variableMapping: mapping,
         webhookId,
       }),
@@ -324,6 +417,30 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
 
               {stepName === "Date & Time" && (
                 <div className="space-y-4">
+                  <div>
+                    <label className="label">When to send</label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button type="button" onClick={() => setSendMode("now")}
+                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                          sendMode === "now" ? "border-[#301C3F] bg-[#301C3F] text-white" : "border-ink-700 text-ink-300 hover:bg-ink-800"
+                        }`}>
+                        Send Now
+                      </button>
+                      <button type="button" onClick={() => setSendMode("schedule")}
+                        className={`rounded-xl border px-4 py-3 text-sm font-medium transition ${
+                          sendMode === "schedule" ? "border-[#301C3F] bg-[#301C3F] text-white" : "border-ink-700 text-ink-300 hover:bg-ink-800"
+                        }`}>
+                        Schedule for later
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-xs text-ink-400">
+                      {sendMode === "now"
+                        ? "Calls begin immediately when you launch the campaign."
+                        : "The campaign starts at the date & time below."}
+                    </p>
+                  </div>
+                  {sendMode === "schedule" && (
+                  <>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <label className="label">Start Date</label>
@@ -366,6 +483,8 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
                     <input type="checkbox" className="h-4 w-4 accent-accent-500" checked={retryAttempts} onChange={(e) => setRetryAttempts(e.target.checked)} />
                     Enable retry attempts
                   </label>
+                  </>
+                  )}
                 </div>
               )}
 
@@ -395,16 +514,43 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
                         onChange={(e) => e.target.files?.[0] && onCsv(e.target.files[0])} />
                       <span className="text-sm text-ink-300">
                         {csvName ? (
-                          <span className="font-medium text-emerald-600">{csvName} — {csvContacts.length} numbers loaded</span>
+                          <span className="font-medium text-emerald-600">{csvName} — {csvRows.length} rows</span>
                         ) : (
-                          "Drag a CSV here or click to choose. Needs a 'number' column; extra columns become dynamic variables."
+                          "Drag a CSV here or click to choose, then map the columns below."
                         )}
                       </span>
                     </label>
                     {csvError && <p className="mt-1.5 text-xs text-signal-red">{csvError}</p>}
-                    {csvContacts.length > 0 && (
-                      <button onClick={() => { setCsvContacts([]); setCsvName(""); }}
-                        className="mt-1.5 text-xs text-ink-400 hover:text-signal-red">Clear CSV</button>
+
+                    {/* Column mapping — appears after a CSV is loaded */}
+                    {csvHeaders.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-ink-700 p-4">
+                        <p className="text-sm font-semibold">Map your columns</p>
+                        <p className="mb-3 text-xs text-ink-400">Tell us which column holds the phone number and the name. The rest are passed to the agent as dynamic variables.</p>
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div>
+                            <label className="label !text-xs">Phone number column *</label>
+                            <select className="field !py-2 !text-[13px]" value={csvMap.number}
+                              onChange={(e) => setCsvMap({ ...csvMap, number: e.target.value })}>
+                              <option value="">Select column</option>
+                              {csvHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="label !text-xs">Name column</label>
+                            <select className="field !py-2 !text-[13px]" value={csvMap.name}
+                              onChange={(e) => setCsvMap({ ...csvMap, name: e.target.value })}>
+                              <option value="">— none —</option>
+                              {csvHeaders.map((h) => <option key={h} value={h}>{h}</option>)}
+                            </select>
+                          </div>
+                        </div>
+                        <p className="mt-2 text-xs font-medium text-emerald-600">
+                          {mappedCsv.length} valid number{mappedCsv.length === 1 ? "" : "s"} ready to call.
+                        </p>
+                        <button onClick={() => { setCsvHeaders([]); setCsvRows([]); setCsvName(""); }}
+                          className="mt-1 text-xs text-ink-400 hover:text-signal-red">Clear CSV</button>
+                      </div>
                     )}
                   </div>
 
@@ -413,50 +559,33 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
                     <span className="text-xs text-ink-500">or pick existing contacts</span>
                     <div className="h-px flex-1 bg-ink-700" />
                   </div>
-                  <div>
-                    <label className="label">Contact Sources</label>
-                    <div className="flex flex-wrap gap-2">
-                      {SOURCES.map((s) => (
-                        <button key={s} onClick={() => chipToggle(sources, setSources, s)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                            sources.includes(s) ? "grad-bg text-white" : "bg-ink-800 text-ink-300 hover:text-ink-100"
-                          }`}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <label className="label">Contact Tags</label>
-                    <div className="flex flex-wrap gap-2">
-                      {allTags.map((t) => (
-                        <button key={t} onClick={() => chipToggle(tags, setTags, t)}
-                          className={`rounded-full px-4 py-1.5 text-sm font-medium transition ${
-                            tags.includes(t) ? "grad-bg text-white" : "bg-ink-800 text-ink-300 hover:text-ink-100"
-                          }`}>
-                          {t}
-                        </button>
-                      ))}
-                      {allTags.length === 0 && (
-                        <p className="text-sm text-ink-400">No tags yet — add contacts first.</p>
-                      )}
-                    </div>
-                  </div>
+
+                  {/* Callab-style searchable dropdowns; you can type to add new. */}
+                  <SearchSelect label="Contact Sources" placeholder="Select sources..."
+                    options={SOURCES} selected={sources} onChange={setSources} />
+                  <SearchSelect label="Contact Tags" placeholder="Select tags..."
+                    options={allTags} selected={tags} onChange={setTags} />
+                  <SearchSelect label="Contact Categories" placeholder="Select categories..."
+                    options={allCategories} selected={categories} onChange={setCategories} />
+
                   {/* Matching preview */}
                   <div className="card !p-0">
                     <p className="border-b border-ink-700 px-4 py-2.5 text-xs font-semibold text-ink-300">
-                      Preview — {matching.length} matching contact{matching.length === 1 ? "" : "s"}
+                      Preview — {mappedCsv.length > 0 ? `${mappedCsv.length} from CSV` : `${matching.length} matching contact${matching.length === 1 ? "" : "s"}`}
                     </p>
                     <div className="max-h-44 overflow-y-auto">
-                      {matching.slice(0, 8).map((c) => (
+                      {(mappedCsv.length > 0
+                        ? mappedCsv.slice(0, 8).map((c, i) => ({ id: String(i), name: c.name ?? "—", phone: c.number, tag: "CSV" }))
+                        : matching.slice(0, 8)
+                      ).map((c) => (
                         <div key={c.id} className="flex items-center justify-between border-b border-ink-700/50 px-4 py-2 text-sm last:border-0">
                           <span>{c.name}</span>
                           <span className="font-mono text-xs text-ink-400">{c.phone}</span>
                           <span className="badge-muted">{c.tag}</span>
                         </div>
                       ))}
-                      {matching.length === 0 && (
-                        <p className="px-4 py-4 text-sm text-ink-400">No contacts match these filters.</p>
+                      {mappedCsv.length === 0 && matching.length === 0 && (
+                        <p className="px-4 py-4 text-sm text-ink-400">Upload a CSV or pick a tag to choose who to call.</p>
                       )}
                     </div>
                   </div>

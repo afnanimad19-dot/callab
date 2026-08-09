@@ -19,6 +19,16 @@ export async function PATCH(
   const record = (await listPhoneNumbers(session.userId)).find((n) => n.id === id);
   if (!record) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Edit the number's details (nickname, type). Agent assignment is handled
+  // separately below via the agentId field.
+  if (body?.agentId === undefined && (body?.nickname !== undefined || body?.numberType !== undefined)) {
+    const patch: Record<string, unknown> = { updatedAt: new Date().toISOString() };
+    if (typeof body?.nickname === "string") patch.nickname = body.nickname.slice(0, 60);
+    if (["national", "local", "toll-free"].includes(body?.numberType)) patch.numberType = body.numberType;
+    const updated = await updatePhoneNumber(session.userId, id, patch);
+    return NextResponse.json({ phoneNumber: updated });
+  }
+
   if (body?.agentId === null || body?.agentId === "") {
     if (record.vapiPhoneNumberId) {
       try { await assignNumberToAssistant(record.vapiPhoneNumberId, null); }

@@ -88,8 +88,15 @@ export async function POST(request: Request) {
       });
     } else {
       const contacts = await listContacts(session.userId);
-      const selected = filters.tags.length
-        ? contacts.filter((c) => filters.tags.includes(c.tag))
+      // Apply any of the three filters (source / tag / category); no filter = all.
+      const anyFilter = filters.sources.length || filters.tags.length || filters.categories.length;
+      const selected = anyFilter
+        ? contacts.filter(
+            (c) =>
+              (!filters.tags.length || filters.tags.includes(c.tag)) &&
+              (!filters.sources.length || filters.sources.includes(c.source ?? "")) &&
+              (!filters.categories.length || filters.categories.includes(c.category ?? ""))
+          )
         : contacts;
       targets = selected
         .filter((c) => /^\+?[0-9 ()-]{7,}$/.test(c.phone ?? ""))
@@ -109,8 +116,10 @@ export async function POST(request: Request) {
 
   const schedule = sanitizeSchedule(body?.schedule);
   const now = new Date().toISOString();
-  // Launching a campaign that starts later = scheduled; today = running.
-  const startsLater = schedule.startDate > now.slice(0, 10);
+  // Send Now overrides the date — calls begin immediately. Otherwise a future
+  // start date = scheduled.
+  const sendNow = body?.sendNow !== false;
+  const startsLater = !sendNow && schedule.startDate > now.slice(0, 10);
   // Compute the exact ISO start for a scheduled campaign (date + from-time).
   const earliestAt =
     startsLater && schedule.startDate

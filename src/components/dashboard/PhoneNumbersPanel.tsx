@@ -1,5 +1,5 @@
 "use client";
-import { Search, RefreshCw, Trash2, Zap, Phone, PhoneCall, Lock, Bot, type LucideIcon } from "lucide-react";
+import { Search, RefreshCw, Trash2, Zap, Phone, PhoneCall, Lock, Bot, Pencil, type LucideIcon } from "lucide-react";
 import RowMenu from "./RowMenu";
 import { toast, toastError } from "@/components/Toast";
 
@@ -41,6 +41,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
   const [pickerOpen, setPickerOpen] = useState(false);
   const [provider, setProvider] = useState<string | null>(null);
   const [assignFor, setAssignFor] = useState<PhoneNumber | null>(null);
+  const [editFor, setEditFor] = useState<PhoneNumber | null>(null);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -96,6 +97,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
               <p className="text-sm text-ink-400">{n.provider}</p>
               <RowMenu
                 items={[
+                  { label: "Edit", icon: Pencil, onClick: () => setEditFor(n) },
                   { label: "Assign agent", icon: Bot, onClick: () => setAssignFor(n) },
                   { label: "Remove", icon: Trash2, danger: true, onClick: () => remove(n) },
                 ]}
@@ -147,6 +149,11 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
       {assignFor && (
         <AssignAgentModal number={assignFor} onClose={() => setAssignFor(null)}
           onDone={() => { setAssignFor(null); router.refresh(); }} />
+      )}
+
+      {editFor && (
+        <EditNumberModal number={editFor} onClose={() => setEditFor(null)}
+          onDone={() => { setEditFor(null); router.refresh(); }} />
       )}
     </div>
   );
@@ -358,6 +365,61 @@ function AssignAgentModal({
               {busy ? "Assigning\u2026" : "Assign Agent"}
             </button>
           </div>
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function EditNumberModal({
+  number,
+  onClose,
+  onDone,
+}: {
+  number: PhoneNumber;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const [nickname, setNickname] = useState(number.nickname ?? "");
+  const [numberType, setNumberType] = useState(number.numberType ?? "national");
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    setBusy(true);
+    const res = await fetch(`/api/phone-numbers/${number.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nickname, numberType }),
+    });
+    setBusy(false);
+    if (res.ok) { toast(`${number.number} updated.`); onDone(); }
+    else toastError("Could not update the number.");
+  }
+
+  return (
+    <Modal open onClose={onClose} title={`Edit ${number.number}`}
+      subtitle="Update this number's nickname and type. Use Assign agent to change routing.">
+      <div className="space-y-4">
+        <div>
+          <label className="label">Nickname</label>
+          <input className="field" value={nickname} onChange={(e) => setNickname(e.target.value)} placeholder="Main clinic line" />
+        </div>
+        <div>
+          <label className="label">Type</label>
+          <select className="field" value={numberType} onChange={(e) => setNumberType(e.target.value as "national" | "local" | "toll-free")}>
+            <option value="national">National</option>
+            <option value="local">Local</option>
+            <option value="toll-free">Toll-free</option>
+          </select>
+        </div>
+        <div className="rounded-lg bg-ink-800 px-3.5 py-2.5 text-xs text-ink-400">
+          The phone number itself (<span className="font-mono">{number.number}</span>) and its provider can&apos;t be changed here — remove and re-add the number to change those.
+        </div>
+        <div className="flex justify-end gap-2 pt-1">
+          <button onClick={onClose} className="btn-secondary">Cancel</button>
+          <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
+            {busy ? "Saving\u2026" : "Save Changes"}
+          </button>
         </div>
       </div>
     </Modal>
