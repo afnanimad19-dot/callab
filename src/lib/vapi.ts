@@ -790,6 +790,35 @@ export async function startOutboundCall(options: {
   });
 }
 
+// Create a NATIVE Vapi outbound campaign. Vapi handles the dialing queue,
+// concurrency, retries and (optional) scheduling for the whole customer list
+// — the right way to run bulk outbound. Returns the Vapi campaign id.
+export async function createVapiCampaign(options: {
+  name: string;
+  assistantId: string;
+  phoneNumberId: string;
+  customers: { number: string; name?: string; variableValues?: Record<string, string> }[];
+  earliestAt?: string; // ISO — omit to start now
+}): Promise<{ id?: string } | null> {
+  if (!vapiConfigured()) return null;
+  return vapi("/campaign", {
+    method: "POST",
+    body: JSON.stringify({
+      name: options.name,
+      assistantId: options.assistantId,
+      phoneNumberId: options.phoneNumberId,
+      customers: options.customers.map((c) => ({
+        number: c.number,
+        ...(c.name ? { name: c.name } : {}),
+        ...(c.variableValues && Object.keys(c.variableValues).length
+          ? { assistantOverrides: { variableValues: c.variableValues } }
+          : {}),
+      })),
+      ...(options.earliestAt ? { schedulePlan: { earliestAt: options.earliestAt } } : {}),
+    }),
+  }) as Promise<{ id?: string }>;
+}
+
 // Text-test an assistant via Vapi's Chat API. Returns the assistant's reply
 // and a chat id to continue the same conversation on the next turn.
 export async function chatWithAssistant(options: {

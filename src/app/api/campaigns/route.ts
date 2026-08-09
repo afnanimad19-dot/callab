@@ -10,7 +10,26 @@ import {
   updateCampaign,
   newId,
 } from "@/lib/db";
-import { startOutboundCall, vapiConfigured } from "@/lib/vapi";
+import { createVapiCampaign, startOutboundCall, vapiConfigured } from "@/lib/vapi";
+
+// Contacts uploaded via CSV in the wizard: [{ number, name, ...vars }].
+interface CsvContact { number: string; name?: string; [k: string]: string | undefined }
+function sanitizeCsvContacts(input: unknown): CsvContact[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((c) => c && typeof c === "object")
+    .map((c) => {
+      const src = c as Record<string, unknown>;
+      const out: CsvContact = { number: String(src.number ?? "").replace(/[^+0-9]/g, "").slice(0, 20) };
+      if (src.name) out.name = String(src.name).slice(0, 120);
+      for (const [k, v] of Object.entries(src).slice(0, 20)) {
+        if (k !== "number" && k !== "name" && v != null) out[k.slice(0, 40)] = String(v).slice(0, 200);
+      }
+      return out;
+    })
+    .filter((c) => /^\+?\d{7,15}$/.test(c.number))
+    .slice(0, 2000);
+}
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -55,13 +74,28 @@ export async function POST(request: Request) {
     categories: sanitizeStrings(body?.filters?.categories),
   };
 
-  // Count matching contacts for outbound campaigns.
+  const csvContacts = sanitizeCsvContacts(body?.csvContacts);
+
+  // Build the outbound call list from CSV upload + selected contacts (by tag,
+  // or all). CSV takes precedence when provided.
   let contactsTotal = 0;
+  let targets: { number: string; name?: string; variableValues?: Record<string, string> }[] = [];
   if (direction === "outbound") {
-    const contacts = await listContacts(session.userId);
-    contactsTotal = filters.tags.length
-      ? contacts.filter((c) => filters.tags.includes(c.tag)).length
-      : contacts.length;
+    if (csvContacts.length) {
+      targets = csvContacts.map((c) => {
+        const { number, name, ...vars } = c;
+        return { number, name, variableValues: vars as Record<string, string> };
+      });
+    } else {
+      const contacts = await listContacts(session.userId);
+      const selected = filters.tags.length
+        ? contacts.filter((c) => filters.tags.includes(c.tag))
+        : contacts;
+      targets = selected
+        .filter((c) => /^\+?[0-9 ()-]{7,}$/.test(c.phone ?? ""))
+        .map((c) => ({ number: c.phone.replace(/[^+0-9]/g, ""), name: c.name }));
+    }
+    contactsTotal = targets.length;
   }
 
   const mappingSrc =
@@ -77,6 +111,11 @@ export async function POST(request: Request) {
   const now = new Date().toISOString();
   // Launching a campaign that starts later = scheduled; today = running.
   const startsLater = schedule.startDate > now.slice(0, 10);
+  // Compute the exact ISO start for a scheduled campaign (date + from-time).
+  const earliestAt =
+    startsLater && schedule.startDate
+      ? new Date(`${schedule.startDate}T${schedule.from || "09:00"}:00`).toISOString()
+      : undefined;
 
   const campaign = await createCampaign({
     id: newId("cmp"),
@@ -99,45 +138,56 @@ export async function POST(request: Request) {
     syncWithContact: Boolean(body?.syncWithContact),
   } as Campaign);
 
-  // Launch: a running outbound campaign fans out real Vapi calls when the
-  // agent is synced and a Vapi-linked phone number is available. Best-effort —
-  // a failed dial never fails the campaign creation.
+  // Launch: create a NATIVE Vapi campaign for the whole list — Vapi runs the
+  // dialing queue, concurrency, retries and (if scheduled) the start time.
+  // Requires the agent synced + a Vapi-linked phone number. Falls back to
+  // firing individual calls if the campaign API isn't available.
   let launched = 0;
-  if (
-    campaign.status === "running" &&
-    direction === "outbound" &&
-    vapiConfigured() &&
-    agent.vapiAssistantId
-  ) {
-    const numbers = await listPhoneNumbers(session.userId);
-    const fromNumber =
-      numbers.find((n) => n.number === campaign.phoneNumber && n.vapiPhoneNumberId) ??
-      numbers.find((n) => n.vapiPhoneNumberId);
-    if (fromNumber?.vapiPhoneNumberId) {
-      const contacts = await listContacts(session.userId);
-      const targets = (
-        filters.tags.length ? contacts.filter((c) => filters.tags.includes(c.tag)) : contacts
-      )
-        .filter((c) => /^\+?[0-9 ()-]{7,}$/.test(c.phone ?? ""))
-        .slice(0, 10); // first batch; the rest dial as the campaign progresses
-      const results = await Promise.allSettled(
-        targets.map((c) =>
-          startOutboundCall({
-            assistantId: agent.vapiAssistantId!,
-            phoneNumberId: fromNumber.vapiPhoneNumberId!,
-            customerNumber: c.phone.replace(/[^+0-9]/g, ""),
-          })
-        )
-      );
-      launched = results.filter((r) => r.status === "fulfilled").length;
-      results
-        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-        .forEach((r) => console.error("Outbound dial failed:", r.reason));
-      if (launched > 0) {
-        await updateCampaign(session.userId, campaign.id, { contactsCalled: launched });
+  let launchError: string | undefined;
+  if (direction === "outbound" && vapiConfigured() && agent.vapiAssistantId) {
+    if (targets.length === 0) {
+      launchError = "No callable contacts — upload a CSV or pick a contact tag with valid phone numbers.";
+    } else {
+      const numbers = await listPhoneNumbers(session.userId);
+      const fromNumber =
+        numbers.find((n) => n.number === campaign.phoneNumber && n.vapiPhoneNumberId) ??
+        numbers.find((n) => n.vapiPhoneNumberId);
+      if (!fromNumber?.vapiPhoneNumberId) {
+        launchError = "No Vapi-linked phone number to call from — connect a number in Phone Numbers first.";
+      } else {
+        try {
+          const camp = await createVapiCampaign({
+            name: campaign.name,
+            assistantId: agent.vapiAssistantId,
+            phoneNumberId: fromNumber.vapiPhoneNumberId,
+            customers: targets,
+            earliestAt,
+          });
+          launched = targets.length;
+          await updateCampaign(session.userId, campaign.id, {
+            contactsCalled: earliestAt ? 0 : launched,
+            vapiCampaignId: (camp as { id?: string })?.id,
+          } as Partial<Campaign>);
+        } catch (e) {
+          // Fallback: fire the first batch as individual calls (older Vapi accounts).
+          console.error("Vapi campaign API failed, firing individual calls:", e);
+          const results = await Promise.allSettled(
+            targets.slice(0, 20).map((c) =>
+              startOutboundCall({
+                assistantId: agent.vapiAssistantId!,
+                phoneNumberId: fromNumber.vapiPhoneNumberId!,
+                customerNumber: c.number,
+                variableValues: c.variableValues,
+              })
+            )
+          );
+          launched = results.filter((r) => r.status === "fulfilled").length;
+          if (launched === 0) launchError = `Could not start the campaign: ${(e as Error).message.slice(0, 160)}`;
+          else await updateCampaign(session.userId, campaign.id, { contactsCalled: launched });
+        }
       }
     }
   }
 
-  return NextResponse.json({ campaign, launched }, { status: 201 });
+  return NextResponse.json({ campaign, launched, launchError }, { status: 201 });
 }

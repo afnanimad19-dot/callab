@@ -177,6 +177,7 @@ export interface Campaign {
   webhookId?: string;
   syncWithContact?: boolean;
   updatedAt?: string;
+  vapiCampaignId?: string; // native Vapi campaign id when launched via Vapi
 }
 
 export interface Contact {

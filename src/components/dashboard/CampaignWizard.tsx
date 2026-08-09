@@ -10,7 +10,7 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
-import { toast } from "@/components/Toast";
+import { toast, toastError } from "@/components/Toast";
 import { PhoneIncoming, PhoneOutgoing, X, Check, Rocket } from "lucide-react";
 import type { Agent, Contact, PhoneNumber, Webhook } from "@/lib/db";
 
@@ -67,6 +67,9 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
   const [retryAttempts, setRetryAttempts] = useState(false);
   const [sources, setSources] = useState<string[]>([]);
   const [tags, setTags] = useState<string[]>([]);
+  const [csvContacts, setCsvContacts] = useState<Record<string, string>[]>([]);
+  const [csvName, setCsvName] = useState("");
+  const [csvError, setCsvError] = useState<string | null>(null);
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [webhookId, setWebhookId] = useState("");
 
@@ -93,6 +96,9 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
     setPhoneNumber("");
     setTags([]);
     setSources([]);
+    setCsvContacts([]);
+    setCsvName("");
+    setCsvError(null);
     setMapping({});
     setWebhookId("");
   }
@@ -101,6 +107,43 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
     setTypeModal(false);
     setDirection(d);
     setStep(0);
+  }
+
+  // Parse an uploaded CSV: needs a "number" (or "phone") column; every other
+  // column becomes a dynamic variable passed to the agent per contact.
+  function onCsv(file: File) {
+    setCsvError(null);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const text = String(reader.result ?? "");
+        const lines = text.split(/\r?\n/).filter((l) => l.trim());
+        if (lines.length < 2) throw new Error("empty");
+        const headers = lines[0].split(",").map((h) => h.trim().toLowerCase());
+        const numIdx = headers.findIndex((h) => h === "number" || h === "phone" || h === "phone_number");
+        if (numIdx < 0) throw new Error("no number column");
+        const rows = lines.slice(1).map((line) => {
+          const cells = line.split(",").map((c) => c.trim());
+          const row: Record<string, string> = { number: (cells[numIdx] ?? "").replace(/[^+0-9]/g, "") };
+          headers.forEach((h, i) => {
+            if (i !== numIdx && cells[i]) row[h === "phone" || h === "phone_number" ? "extra" : h] = cells[i];
+          });
+          return row;
+        }).filter((r) => /^\+?\d{7,15}$/.test(r.number));
+        if (rows.length === 0) throw new Error("no valid numbers");
+        setCsvContacts(rows);
+        setCsvName(file.name);
+      } catch (e) {
+        setCsvError(
+          (e as Error).message === "no number column"
+            ? "The CSV needs a 'number' column. Download the template for the exact format."
+            : "Could not read that CSV — check it has a header row and a 'number' column."
+        );
+        setCsvContacts([]);
+        setCsvName("");
+      }
+    };
+    reader.readAsText(file);
   }
 
   function validateStep(): string | null {
@@ -133,17 +176,22 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
         syncWithContact,
         schedule: { startDate, endDate, from, to, days, timezone, retryAttempts },
         filters: { sources, tags, categories: [] },
+        csvContacts,
         variableMapping: mapping,
         webhookId,
       }),
     });
     if (res.ok) {
       const data = await res.json().catch(() => ({}));
-      toast(
-        data.launched
-          ? `Campaign launched — dialing ${data.launched} contact${data.launched === 1 ? "" : "s"}.`
-          : "Campaign created."
-      );
+      if (data.launchError) {
+        toastError(data.launchError);
+      } else {
+        toast(
+          data.launched
+            ? `Campaign launched — Vapi is dialing ${data.launched} contact${data.launched === 1 ? "" : "s"}.`
+            : "Campaign created."
+        );
+      }
       reset();
       router.refresh();
     } else {
@@ -324,10 +372,46 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
               {stepName === "Contact Filters" && (
                 <div className="space-y-5">
                   <div>
-                    <h3 className="text-base font-semibold">Contact Filters</h3>
+                    <h3 className="text-base font-semibold">Who to call</h3>
                     <p className="text-sm text-ink-400">
-                      Select contacts for this outbound campaign based on their source, tags, or categories.
+                      Upload a CSV of numbers, or pick existing contacts by tag. CSV takes priority when provided.
                     </p>
+                  </div>
+
+                  {/* CSV upload */}
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <label className="label !mb-0">Upload CSV</label>
+                      <a
+                        href={"data:text/csv;charset=utf-8," + encodeURIComponent("number,name,another_var\n+14155550142,John Doe,Hello\n")}
+                        download="campaign-template.csv"
+                        className="text-xs font-medium text-[#301C3F] underline-offset-2 hover:underline"
+                      >
+                        Download template
+                      </a>
+                    </div>
+                    <label className="mt-1.5 flex cursor-pointer flex-col items-center rounded-xl border border-dashed border-ink-600 px-4 py-6 text-center transition hover:border-ink-400">
+                      <input type="file" accept=".csv,text/csv" className="hidden"
+                        onChange={(e) => e.target.files?.[0] && onCsv(e.target.files[0])} />
+                      <span className="text-sm text-ink-300">
+                        {csvName ? (
+                          <span className="font-medium text-emerald-600">{csvName} — {csvContacts.length} numbers loaded</span>
+                        ) : (
+                          "Drag a CSV here or click to choose. Needs a 'number' column; extra columns become dynamic variables."
+                        )}
+                      </span>
+                    </label>
+                    {csvError && <p className="mt-1.5 text-xs text-signal-red">{csvError}</p>}
+                    {csvContacts.length > 0 && (
+                      <button onClick={() => { setCsvContacts([]); setCsvName(""); }}
+                        className="mt-1.5 text-xs text-ink-400 hover:text-signal-red">Clear CSV</button>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="h-px flex-1 bg-ink-700" />
+                    <span className="text-xs text-ink-500">or pick existing contacts</span>
+                    <div className="h-px flex-1 bg-ink-700" />
                   </div>
                   <div>
                     <label className="label">Contact Sources</label>
