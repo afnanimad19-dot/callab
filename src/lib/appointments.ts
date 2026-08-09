@@ -66,9 +66,17 @@ export async function bookAppointment(
     createdAt: now,
     updatedAt: now,
   };
-  const gcalEventId = await syncAppointmentToGoogle(userId, appointment);
-  if (gcalEventId) appointment.gcalEventId = gcalEventId;
+  // Insert FIRST — the booking must never fail because of calendar sync.
   await createAppointment(appointment);
+  try {
+    const gcalEventId = await syncAppointmentToGoogle(userId, appointment);
+    if (gcalEventId) {
+      appointment.gcalEventId = gcalEventId;
+      await updateAppointment(userId, appointment.id, { gcalEventId });
+    }
+  } catch (e) {
+    console.error("Google sync after booking failed:", e);
+  }
   return appointment;
 }
 

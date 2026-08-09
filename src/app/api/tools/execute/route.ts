@@ -22,6 +22,53 @@ const normalizePhone = (p: string) => p.replace(/[^\d]/g, "").slice(-9);
 // Customer memory: recognise returning callers from OUR contacts + call
 // history, and remember new ones — the workspace's own CRM, no external
 // system needed.
+// find_patient (built-in): identify an existing patient by name, then phone
+// only when several share the name — per the booking policy.
+async function findPatient(userId: string, name: string, phone: string): Promise<string> {
+  if (!name && !phone) return "Ask for the patient's name first, then call find_patient again.";
+  const contacts = await listContacts(userId);
+  const q = name.toLowerCase();
+  let matches = name
+    ? contacts.filter((c) => {
+        const full = c.name.toLowerCase();
+        return full === q || full.includes(q) || q.includes(full.split(" ")[0]);
+      })
+    : contacts;
+  if (phone) {
+    const digits = normalizePhone(phone);
+    if (digits.length >= 7) {
+      const byPhone = matches.filter((c) => normalizePhone(c.phone) === digits);
+      matches = byPhone.length > 0 ? byPhone : matches.filter((c) => normalizePhone(c.phone) === digits);
+    }
+  }
+  if (matches.length === 0) {
+    return `No existing patient named "${name}" found — treat them as a NEW patient (don't mention records).`;
+  }
+  if (matches.length > 1) {
+    return `${matches.length} patients match the name "${name}". Ask for their full phone number, then call find_patient again with both name and phone.`;
+  }
+  const c = matches[0];
+  const calls = (await listCalls(userId))
+    .filter((call) => normalizePhone(call.callerNumber) === normalizePhone(c.phone) && normalizePhone(c.phone).length >= 7)
+    .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+  const lastCall = calls[0];
+  const upcoming = await findUpcomingAppointment(userId, c.name, c.phone);
+  const parts = [
+    `Found exactly one patient: ${c.name}${c.phone ? ` (${c.phone})` : ""}.`,
+    c.metadata?.email ? `Email: ${c.metadata.email}.` : "",
+    lastCall
+      ? `Last contact: ${new Date(lastCall.startedAt).toLocaleDateString()} — ${lastCall.summary?.slice(0, 140) ?? "no summary"}.`
+      : "No previous call history.",
+    upcoming
+      ? `Upcoming appointment: ${new Date(upcoming.startsAt).toLocaleString()}${upcoming.doctor ? ` with ${upcoming.doctor}` : ""} (${upcoming.status}).`
+      : "No upcoming appointment on file.",
+    upcoming
+      ? "Ask whether they want to keep/change that appointment or book a new one."
+      : "Ask whether they want to book a new appointment.",
+  ].filter(Boolean);
+  return parts.join(" ");
+}
+
 async function lookupCustomer(
   userId: string,
   args: Record<string, unknown>,
@@ -164,8 +211,13 @@ export async function POST(request: Request) {
       try {
         if (toolId === "builtin_calendar") {
           const fn = call.function?.name ?? "";
-          const name = String(args.patient_name ?? "").trim();
+          const name = String(args.patient_name ?? args.name ?? "").trim();
           const phone = String(args.phone ?? "").trim() || callerNumber;
+
+          if (fn === "find_patient") {
+            const result = await findPatient(agent.userId, String(args.name ?? "").trim(), String(args.phone ?? "").trim());
+            return { toolCallId: call.id, result };
+          }
           if (fn === "book_appointment") {
             const when = String(args.datetime ?? "");
             if (!name || Number.isNaN(Date.parse(when))) {
@@ -278,8 +330,11 @@ export async function POST(request: Request) {
 
         return { toolCallId: call.id, result: "This tool has no server action." };
       } catch (e) {
-        console.error("Tool execution failed:", e);
-        return { toolCallId: call.id, result: "The action failed — apologise and offer a follow-up." };
+        console.error("Tool execution failed:", { tool: tool.type, fn: call.function?.name, error: e });
+        return {
+          toolCallId: call.id,
+          result: `The action failed (${(e as Error).message.slice(0, 180)}) — apologise, do not claim success, and offer a callback.`,
+        };
       }
     })
   );

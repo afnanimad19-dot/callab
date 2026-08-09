@@ -300,12 +300,30 @@ export function buildVapiTools(agent: Agent): unknown[] {
     }
   }
 
-  // Built-in appointment tools — every agent can book, reschedule and cancel
-  // appointments. Results land on the Calendar tab, create Contacts, and sync
-  // to Google Calendar when the workspace has connected one.
+  // Built-in appointment tools — every agent can identify patients and book,
+  // reschedule and cancel appointments. Results land on the Calendar tab,
+  // create Contacts, and sync to Google Calendar when connected.
   if (site) {
     const calServer = executeServer("builtin_calendar");
     tools.push(
+      {
+        type: "function",
+        async: false,
+        function: {
+          name: "find_patient",
+          description:
+            "Look up an existing patient by name (and phone number if needed). Use when a caller says they are an existing patient and has given their name. Returns whether zero, one, or multiple patients match — with visit history and upcoming appointment when the match is unique.",
+          parameters: {
+            type: "object",
+            properties: {
+              name: { type: "string", description: "The patient's name as they said it" },
+              phone: { type: "string", description: "The patient's phone number — only after asking for it to disambiguate multiple matches" },
+            },
+            required: [],
+          },
+        },
+        server: calServer,
+      },
       {
         type: "function",
         async: false,
@@ -379,9 +397,24 @@ export async function syncAgentToVapi(
 ): Promise<string | null> {
   if (!vapiConfigured()) return null;
 
-  const systemPrompt = knowledgeText
-    ? `${agent.systemPrompt}\n\n${knowledgeText}`
-    : agent.systemPrompt;
+  // Standard patient-identification & booking policy, appended to every
+  // agent so the conversation order is consistent: new-vs-existing first,
+  // name-only lookup, phone only to disambiguate, then booking.
+  const BOOKING_POLICY = `
+# PATIENT IDENTIFICATION & BOOKING POLICY (always follow)
+1. NEVER ask for the caller's phone number at the start of the call. Open by helping with what they called about.
+2. When the caller wants an appointment (or mentions being a patient), first ask: are they a NEW patient or an EXISTING patient?
+3. EXISTING patient: ask for their NAME only, then call the find_patient tool with that name.
+   - If multiple patients match, ask for their full phone number and call find_patient again with name and phone.
+   - If exactly one matches, greet them back by name, mention their last visit or upcoming appointment from the tool result, and ask whether they want to continue with / change the previous appointment or book a new one.
+   - If none match, say you couldn't find them and continue as a new patient.
+4. NEW patient: first ask about their concern (pain, symptoms, questions) and help them. When they're ready to book, collect: full name, preferred date and time — and only then their phone number to confirm the booking.
+5. To book, call book_appointment with the collected details. To move or cancel an existing one, use reschedule_appointment / cancel_appointment.
+6. After the tool succeeds, confirm the appointment details aloud (day, date, time, doctor). If a tool returns an error, apologise briefly, do NOT claim the booking succeeded, and offer to have the clinic call them back.`;
+
+  const systemPrompt =
+    (knowledgeText ? `${agent.systemPrompt}\n\n${knowledgeText}` : agent.systemPrompt) +
+    BOOKING_POLICY;
 
   const adv = agent.advanced;
   const endCallPhrases = (adv?.endCallPhrases ?? "")
@@ -713,6 +746,42 @@ export async function getCallRecording(callId: string): Promise<string | null> {
     return found[0] ?? null;
   } catch (e) {
     console.error("Recording fetch failed:", e);
+    return null;
+  }
+}
+
+// Full call details from Vapi: fresh recording URL + the COMPLETE transcript
+// (the browser SDK can miss late turns; Vapi's artifact.messages is
+// authoritative). Used to backfill test-call logs.
+export async function getCallDetails(callId: string): Promise<{
+  recordingUrl: string | null;
+  transcript: TranscriptTurn[];
+  durationSec: number;
+} | null> {
+  if (!vapiConfigured()) return null;
+  try {
+    const call = (await vapi(`/call/${callId}`)) as {
+      startedAt?: string;
+      endedAt?: string;
+      artifact?: {
+        messages?: { role?: string; message?: string; secondsFromStart?: number }[];
+      };
+    };
+    const transcript: TranscriptTurn[] = (call.artifact?.messages ?? [])
+      .filter((m) => (m.role === "user" || m.role === "bot" || m.role === "assistant") && m.message)
+      .map((m) => ({
+        speaker: m.role === "user" ? ("caller" as const) : ("agent" as const),
+        text: String(m.message).slice(0, 4000),
+        at: Math.max(0, Math.round(Number(m.secondsFromStart) || 0)),
+      }));
+    const durationSec =
+      call.startedAt && call.endedAt
+        ? Math.max(0, Math.round((Date.parse(call.endedAt) - Date.parse(call.startedAt)) / 1000))
+        : 0;
+    const recordingUrl = await getCallRecording(callId);
+    return { recordingUrl, transcript, durationSec };
+  } catch (e) {
+    console.error("Call details fetch failed:", e);
     return null;
   }
 }

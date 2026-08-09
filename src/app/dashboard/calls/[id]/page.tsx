@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { Phone, CheckCircle2, Info, MessageSquare, Play } from "lucide-react";
 import { getSession } from "@/lib/auth";
 import { findAgent, findCall, listCampaigns, updateCall } from "@/lib/db";
-import { getCallRecording } from "@/lib/vapi";
+import { getCallDetails } from "@/lib/vapi";
 import AudioPlayer from "@/components/dashboard/AudioPlayer";
 
 export const metadata = { title: "Call Details — VoiceLine AI" };
@@ -43,14 +43,26 @@ export default async function CallDetailPage({
   const call = await findCall(session.userId, id);
   if (!call) notFound();
 
-  // Recording backfill: Vapi's recording becomes available shortly after a
-  // call ends, sometimes after our log entry was written. Fetch it on view
-  // and persist so the player works from then on.
-  if (!call.recordingUrl && call.vapiCallId) {
-    const url = await getCallRecording(call.vapiCallId);
-    if (url) {
-      call.recordingUrl = url;
-      await updateCall(session.userId, call.id, { recordingUrl: url });
+  // Backfill on view: Vapi's recording AND full transcript become available
+  // shortly after a call ends, sometimes after our log entry was written.
+  // Fetch both and persist, so partial browser-side transcripts heal too.
+  if (call.vapiCallId && (!call.recordingUrl || call.transcript.length < 2)) {
+    const details = await getCallDetails(call.vapiCallId);
+    if (details) {
+      const patch: Partial<typeof call> = {};
+      if (!call.recordingUrl && details.recordingUrl) {
+        call.recordingUrl = details.recordingUrl;
+        patch.recordingUrl = details.recordingUrl;
+      }
+      if (details.transcript.length > call.transcript.length) {
+        call.transcript = details.transcript;
+        patch.transcript = details.transcript;
+      }
+      if (details.durationSec > call.durationSec) {
+        call.durationSec = details.durationSec;
+        patch.durationSec = details.durationSec;
+      }
+      if (Object.keys(patch).length) await updateCall(session.userId, call.id, patch);
     }
   }
 
