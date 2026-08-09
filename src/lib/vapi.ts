@@ -42,6 +42,10 @@ async function vapi(path: string, init?: RequestInit) {
 // Keyed by agent id so the editor can show "tools didn't sync — here's why".
 export const lastToolSyncError = new Map<string, string>();
 
+// Tools skipped because they point at a placeholder URL (example.com etc.),
+// keyed by agent id — surfaced in diagnostics so the user knows to fix them.
+export const lastSkippedTools = new Map<string, string[]>();
+
 // Read the live assistant back from Vapi (id, tool names, model) so the UI
 // and diagnostics can show what ACTUALLY exists on Vapi's side.
 export async function getVapiAssistant(assistantId: string): Promise<{
@@ -124,6 +128,16 @@ export function buildVapiTools(agent: Agent): unknown[] {
       ? { headers: { "x-vl-secret": process.env.VAPI_WEBHOOK_SECRET } }
       : {}),
   });
+
+  // A webhook/custom tool is only usable if it points at a REAL reachable
+  // https URL. Placeholder URLs (example.com, localhost, empty) get skipped
+  // so they never 405 mid-call — the agent falls back to the built-in
+  // booking tools, which store into our own Calendar + Contacts.
+  const skippedPlaceholderTools: string[] = [];
+  const isRealUrl = (url?: string): boolean => {
+    if (!url || !/^https:\/\/.+/i.test(url)) return false;
+    return !/(^https?:\/\/)?(www\.)?(example\.(com|org|net)|localhost|127\.0\.0\.1|your-)/i.test(url);
+  };
 
   for (const t of agent.tools ?? []) {
     const cfg = t.config ?? {};
@@ -208,7 +222,10 @@ export function buildVapiTools(agent: Agent): unknown[] {
       }
       case "custom": {
         // Callab-style custom tool: server URL + user-defined properties.
-        if (!cfg.serverUrl) break;
+        if (!isRealUrl(cfg.serverUrl)) {
+          if (cfg.serverUrl) skippedPlaceholderTools.push(t.name);
+          break;
+        }
         let props: { name: string; type?: string; description?: string; required?: boolean }[] = [];
         try {
           props = JSON.parse(cfg.properties ?? "[]");
@@ -235,7 +252,10 @@ export function buildVapiTools(agent: Agent): unknown[] {
         break;
       }
       case "live_webhook": {
-        if (!cfg.serverUrl) break;
+        if (!isRealUrl(cfg.serverUrl)) {
+          if (cfg.serverUrl) skippedPlaceholderTools.push(t.name);
+          break;
+        }
         tools.push({
           type: "function",
           async: false,
@@ -252,7 +272,10 @@ export function buildVapiTools(agent: Agent): unknown[] {
         break;
       }
       case "zapier": {
-        if (!cfg.zapierUrl) break;
+        if (!isRealUrl(cfg.zapierUrl)) {
+          if (cfg.zapierUrl) skippedPlaceholderTools.push(t.name);
+          break;
+        }
         let fields: { name: string; description: string }[] = [];
         try {
           fields = JSON.parse(cfg.fields ?? "[]");
@@ -429,6 +452,11 @@ export function buildVapiTools(agent: Agent): unknown[] {
     );
   }
 
+  if (skippedPlaceholderTools.length) {
+    lastSkippedTools.set(agent.id, skippedPlaceholderTools);
+  } else {
+    lastSkippedTools.delete(agent.id);
+  }
   return tools;
 }
 
@@ -574,6 +602,13 @@ export async function syncAgentToVapi(
   // editor can show WHY tools didn't attach.
   const model = payload.model as Record<string, unknown> & { tools?: { type?: string }[] };
   lastToolSyncError.delete(agent.id);
+  const skipped = lastSkippedTools.get(agent.id);
+  if (skipped?.length) {
+    lastToolSyncError.set(
+      agent.id,
+      `These tools point at placeholder URLs (example.com…) and were skipped so they can't fail calls: ${skipped.join(", ")}. Either set a real https URL on each, or delete them and use the built-in booking (book_appointment / find_patient), which saves into your Calendar and Contacts automatically.`
+    );
+  }
   try {
     const id = await push(payload);
     return id;

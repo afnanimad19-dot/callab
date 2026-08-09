@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findAgent, listAgents, listPhoneNumbers, updateAgent } from "@/lib/db";
 import {
-  getVapiAssistant, lastToolSyncError, listVapiNumbers, syncAgentToVapi,
-  vapiConfigured,
+  getVapiAssistant, lastToolSyncError, lastSkippedTools, listVapiNumbers,
+  syncAgentToVapi, vapiConfigured,
 } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
 
@@ -41,6 +41,7 @@ export async function GET(request: Request) {
         vapiTools: string[];
         missingTools: string[];
         toolSyncError: string | null;
+        skippedTools: string[];
       }
     | null = null;
 
@@ -75,6 +76,7 @@ export async function GET(request: Request) {
         vapiTools,
         missingTools: [...new Set(expected)].filter((t) => !vapiTools.includes(t)),
         toolSyncError: lastToolSyncError.get(agent.id) ?? null,
+        skippedTools: lastSkippedTools.get(agent.id) ?? [],
       };
     }
   }

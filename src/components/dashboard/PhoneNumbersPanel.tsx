@@ -317,7 +317,7 @@ function AssignAgentModal({
     if (res.ok) {
       if (unassign) toast(`${number.number} unassigned.`);
       else if (data.routed) toast(`Inbound calls to ${number.number} now go to this agent.`);
-      else toast("Agent assigned. Link the number to Vapi to route inbound calls.");
+      else toastError(data.warning ?? "Agent assigned, but the number isn't linked to Vapi — calls won't ring yet.");
       onDone();
     } else {
       setError(data.error ?? "Could not assign the agent.");

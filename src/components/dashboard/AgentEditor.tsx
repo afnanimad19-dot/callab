@@ -2630,6 +2630,7 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
       vapiTools: string[];
       missingTools: string[];
       toolSyncError: string | null;
+      skippedTools?: string[];
     } | null;
   } | null>(null);
   const [busy, setBusy] = useState(true);
@@ -2693,7 +2694,17 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
                     </div>
                   </div>
                 )}
-                {report.toolSyncError && (
+                {report.skippedTools && report.skippedTools.length > 0 && (
+                  <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2.5">
+                    <p className="text-xs font-semibold text-amber-800">Tools skipped (placeholder URLs)</p>
+                    <p className="mt-1 break-words text-xs text-amber-800">
+                      These point at example.com and were skipped so they can&apos;t fail calls:{" "}
+                      <span className="font-semibold">{report.skippedTools.join(", ")}</span>. Give each a real https
+                      URL, or delete them — the built-in booking below already saves to your Calendar &amp; Contacts.
+                    </p>
+                  </div>
+                )}
+                {report.toolSyncError && !report.skippedTools?.length && (
                   <div className="rounded-lg border border-signal-red/40 bg-signal-red/10 px-3 py-2.5">
                     <p className="text-xs font-semibold text-signal-red">Why tools didn&apos;t attach</p>
                     <p className="mt-1 break-words text-xs text-signal-red">{report.toolSyncError}</p>

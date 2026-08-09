@@ -54,14 +54,19 @@ export async function PATCH(
         );
       }
     }
+    const routed = Boolean(record.vapiPhoneNumberId && assistantId);
     const updated = await updatePhoneNumber(session.userId, id, {
       agentName: agent.name,
-      status: "active",
+      // Only truly "active" (calls will ring) once the number is linked in Vapi.
+      status: routed ? "active" : "unassigned",
       updatedAt: new Date().toISOString(),
     });
     return NextResponse.json({
       phoneNumber: updated,
-      routed: Boolean(record.vapiPhoneNumberId && assistantId),
+      routed,
+      warning: routed
+        ? undefined
+        : "The agent is assigned, but this number is NOT linked to the voice pipeline, so inbound calls won't ring yet. Remove it and re-add it with its Twilio/SIP credentials.",
     });
   }
 
