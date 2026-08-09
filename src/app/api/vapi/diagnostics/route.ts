@@ -23,15 +23,22 @@ export async function GET(request: Request) {
     configured ? listVapiNumbers() : Promise.resolve([]),
   ]);
 
-  // Cross-check: which of our numbers are actually present in Vapi.
-  const vapiDigits = new Set(vapiNumbers.map((n) => n.number.replace(/[^\d]/g, "").slice(-9)));
-  const numberStatus = numbers.map((n) => ({
-    number: n.number,
-    provider: n.provider,
-    agent: n.agentName || "(unassigned)",
-    linkedInApp: Boolean(n.vapiPhoneNumberId),
-    presentInVapi: vapiDigits.has(n.number.replace(/[^\d]/g, "").slice(-9)),
-  }));
+  // Cross-check: which of our numbers are actually present in Vapi AND
+  // whether the Vapi number has an assistant assigned (required for inbound
+  // calls to be answered — a missing assignment is the "silent call" bug).
+  const byDigits = new Map(vapiNumbers.map((n) => [n.number.replace(/[^\d]/g, "").slice(-9), n]));
+  const numberStatus = numbers.map((n) => {
+    const vn = byDigits.get(n.number.replace(/[^\d]/g, "").slice(-9));
+    return {
+      number: n.number,
+      provider: n.provider,
+      agent: n.agentName || "(unassigned)",
+      linkedInApp: Boolean(n.vapiPhoneNumberId),
+      presentInVapi: Boolean(vn),
+      // Will inbound calls actually be answered? Only if Vapi's number has an assistant.
+      inboundReady: Boolean(vn?.assistantId),
+    };
+  });
 
   let agentReport:
     | {
@@ -61,12 +68,16 @@ export async function GET(request: Request) {
         console.error("Diagnostics sync failed:", e);
       }
       const live = assistantId ? await getVapiAssistant(assistantId) : null;
+      // end_call / transfer_call attach as Vapi type-tools (endCall/transferCall),
+      // not by our internal name — map them so they aren't false "missing".
       const expected = [
         "book_appointment",
         "reschedule_appointment",
         "cancel_appointment",
         "find_patient",
-        ...(agent.tools ?? []).map((t) => t.name),
+        ...(agent.tools ?? []).map((t) =>
+          t.type === "end_call" ? "endCall" : t.type === "transfer_call" ? "transferCall" : t.name
+        ),
       ];
       const vapiTools = live?.toolNames ?? [];
       agentReport = {

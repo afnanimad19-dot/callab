@@ -361,8 +361,32 @@ export function buildVapiTools(agent: Agent): unknown[] {
         });
         break;
       }
+      case "end_call": {
+        // Vapi's built-in hang-up capability, as a real tool so it shows and works.
+        tools.push({ type: "endCall" });
+        break;
+      }
+      case "transfer_call": {
+        const number = cfg.phoneNumber?.trim();
+        const sip = cfg.sip?.trim();
+        if (number) {
+          tools.push({
+            type: "transferCall",
+            destinations: [{ type: "number", number, message: t.aiResponse || "Please hold while I transfer you." }],
+          });
+        } else if (sip) {
+          tools.push({
+            type: "transferCall",
+            destinations: [{ type: "sip", sipUri: sip.startsWith("sip:") ? sip : `sip:${sip}`, message: t.aiResponse || "Please hold while I transfer you." }],
+          });
+        } else {
+          // A transfer tool with no destination can't work — flag it clearly.
+          skippedPlaceholderTools.push(`${t.name} (no transfer destination set)`);
+        }
+        break;
+      }
       default:
-        break; // end_call / transfer_call / knowledge_base map elsewhere
+        break; // knowledge_base maps into the system prompt, not a tool
     }
   }
 
@@ -499,10 +523,11 @@ export async function syncAgentToVapi(
   );
 
   const payload = {
-    // Conversation tools: End Call lets the model hang up on its own.
-    ...(agent.tools?.some((t) => t.name === "end_call" || t.type === "end_call")
-      ? { endCallFunctionEnabled: true }
-      : {}),
+    // The assistant must greet first on INBOUND phone calls, otherwise the
+    // caller hears silence until they speak — the "no one was speaking" bug.
+    firstMessageMode: "assistant-speaks-first",
+    // End Call / Transfer are attached as real tools in buildVapiTools; keep
+    // forwardingPhoneNumber as a belt-and-braces fallback for transfers.
     ...(transferTool
       ? { forwardingPhoneNumber: transferTool.config!.phoneNumber }
       : {}),

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { deletePhoneNumber, findAgent, listPhoneNumbers, updateAgent, updatePhoneNumber } from "@/lib/db";
-import { assignNumberToAssistant, syncAgentToVapi } from "@/lib/vapi";
+import { assignNumberToAssistant, listVapiNumbers, syncAgentToVapi } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
 
 // Assign (or unassign) an agent to a number. With a Vapi-linked number this
@@ -44,9 +44,14 @@ export async function PATCH(
         console.error("Sync before number assignment failed:", e);
       }
     }
+    let verified = false;
     if (record.vapiPhoneNumberId && assistantId) {
       try {
         await assignNumberToAssistant(record.vapiPhoneNumberId, assistantId);
+        // Read the number back from Vapi to CONFIRM the assistant stuck —
+        // an assignment that didn't persist is the silent-inbound-call cause.
+        const numbers = await listVapiNumbers();
+        verified = numbers.some((n) => n.id === record.vapiPhoneNumberId && n.assistantId === assistantId);
       } catch (e) {
         return NextResponse.json(
           { error: `Could not route the number to this agent: ${(e as Error).message.slice(0, 200)}` },
@@ -54,7 +59,7 @@ export async function PATCH(
         );
       }
     }
-    const routed = Boolean(record.vapiPhoneNumberId && assistantId);
+    const routed = Boolean(record.vapiPhoneNumberId && assistantId && verified);
     const updated = await updatePhoneNumber(session.userId, id, {
       agentName: agent.name,
       // Only truly "active" (calls will ring) once the number is linked in Vapi.
@@ -66,7 +71,9 @@ export async function PATCH(
       routed,
       warning: routed
         ? undefined
-        : "The agent is assigned, but this number is NOT linked to the voice pipeline, so inbound calls won't ring yet. Remove it and re-add it with its Twilio/SIP credentials.",
+        : record.vapiPhoneNumberId
+          ? "The agent was assigned in Vapi but the assignment could not be verified — open Vapi Diagnostics and re-check. If it stays unassigned, the number's inbound routing may be blocked in Twilio."
+          : "This number isn't linked to the voice pipeline, so inbound calls won't ring. Remove it and re-add it with its Twilio/SIP credentials.",
     });
   }
 

@@ -2621,7 +2621,7 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
     hint?: string;
     siteUrl: string | null;
     siteUrlOk: boolean;
-    numbers: { number: string; provider: string; agent: string; linkedInApp: boolean; presentInVapi: boolean }[];
+    numbers: { number: string; provider: string; agent: string; linkedInApp: boolean; presentInVapi: boolean; inboundReady?: boolean }[];
     vapiNumberCount: number;
     agentReport: {
       name: string;
@@ -2723,8 +2723,10 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
                     <div key={i} className="flex items-center justify-between rounded-lg border border-ink-700 px-3 py-2 text-xs">
                       <span className="font-mono">{n.number} <span className="text-ink-400">· {n.agent}</span></span>
                       <span className="flex items-center gap-2">
-                        <span className={n.linkedInApp ? "text-emerald-600" : "text-signal-red"}>{n.linkedInApp ? "linked" : "not linked"}</span>
                         <span className={n.presentInVapi ? "text-emerald-600" : "text-signal-red"}>{n.presentInVapi ? "in Vapi" : "not in Vapi"}</span>
+                        <span className={n.inboundReady ? "text-emerald-600" : "text-signal-red"} title="Whether the Vapi number has an assistant assigned — required for inbound calls to be answered">
+                          {n.inboundReady ? "answers calls" : "no agent in Vapi"}
+                        </span>
                       </span>
                     </div>
                   ))}
@@ -2733,8 +2735,9 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
             </div>
 
             <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">
-              After changing environment variables in Netlify, click the re-check button above (it re-syncs this agent).
-              For inbound calls to ring, the number must show both &ldquo;linked&rdquo; and &ldquo;in Vapi&rdquo;.
+              For an inbound call to be answered, the number must show both &ldquo;in Vapi&rdquo; and &ldquo;answers
+              calls&rdquo;. If it says &ldquo;no agent in Vapi&rdquo;, re-assign the agent in Phone Numbers → three-dots →
+              Assign agent. After changing Netlify env vars, click re-check above.
             </p>
           </div>
         )}
