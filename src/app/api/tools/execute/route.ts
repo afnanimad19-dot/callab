@@ -163,6 +163,42 @@ interface VapiToolCall {
   function?: { name?: string; arguments?: Record<string, unknown> | string };
 }
 
+// Resolve a datetime the agent passed — an ISO string ideally, but also
+// simple relative words as a safety net ("today", "tomorrow", weekday names).
+// Returns an ISO string or null.
+function resolveWhen(raw: string): string | null {
+  const s = raw.trim();
+  if (!s) return null;
+  const direct = Date.parse(s);
+  if (!Number.isNaN(direct)) return new Date(direct).toISOString();
+
+  const now = new Date();
+  const lower = s.toLowerCase();
+  const timeMatch = lower.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
+  let hour = 10, minute = 0;
+  if (timeMatch) {
+    hour = parseInt(timeMatch[1], 10);
+    minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
+    if (timeMatch[3] === "pm" && hour < 12) hour += 12;
+    if (timeMatch[3] === "am" && hour === 12) hour = 0;
+  }
+  const target = new Date(now);
+  target.setHours(hour, minute, 0, 0);
+  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+  const wd = days.findIndex((d) => lower.includes(d));
+  if (lower.includes("today")) { /* target = today */ }
+  else if (lower.includes("tomorrow")) target.setDate(target.getDate() + 1);
+  else if (wd >= 0) {
+    let diff = (wd - now.getDay() + 7) % 7;
+    if (diff === 0 || lower.includes("next")) diff += 7 * (diff === 0 ? 1 : 0);
+    if (lower.includes("next") && diff <= 7) diff = ((wd - now.getDay() + 7) % 7) + 7;
+    target.setDate(now.getDate() + (diff === 0 ? 7 : diff));
+  } else {
+    return null; // couldn't resolve
+  }
+  return target.toISOString();
+}
+
 function parseArgs(call: VapiToolCall): Record<string, unknown> {
   const raw = call.function?.arguments;
   if (!raw) return {};
@@ -219,37 +255,40 @@ export async function POST(request: Request) {
             return { toolCallId: call.id, result };
           }
           if (fn === "book_appointment") {
-            const when = String(args.datetime ?? "");
-            if (!name || Number.isNaN(Date.parse(when))) {
-              return { toolCallId: call.id, result: "Missing patient name or a valid date/time — ask and try again." };
+            if (!name) {
+              return { toolCallId: call.id, result: "ERROR: no patient name. Ask for the patient's name, then call book_appointment again. Do NOT tell the caller it is booked." };
+            }
+            const when = resolveWhen(String(args.datetime ?? ""));
+            if (!when) {
+              return { toolCallId: call.id, result: "ERROR: the date/time was not understood. Ask the caller for a specific day and time, compute the absolute date, and call book_appointment again. Do NOT tell the caller it is booked yet." };
             }
             const apt = await bookAppointment(agent.userId, {
               patientName: name,
               phone,
               doctor: String(args.doctor ?? "").trim() || undefined,
               service: String(args.service ?? "").trim() || undefined,
-              startsAt: new Date(when).toISOString(),
+              startsAt: when,
               notes: String(args.notes ?? "").trim() || undefined,
               source: "call",
             });
             return {
               toolCallId: call.id,
-              result: `Appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Confirm it with the caller.`,
+              result: `SUCCESS: appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Read this exact day, date and time back to the caller to confirm.`,
             };
           }
           if (fn === "reschedule_appointment") {
-            const when = String(args.new_datetime ?? "");
-            if (Number.isNaN(Date.parse(when))) {
-              return { toolCallId: call.id, result: "Ask for the new date and time first." };
+            const when = resolveWhen(String(args.new_datetime ?? ""));
+            if (!when) {
+              return { toolCallId: call.id, result: "ERROR: ask for a specific new date and time, then call reschedule_appointment again with an absolute date." };
             }
             const existing = await findUpcomingAppointment(agent.userId, name || undefined, phone);
             if (!existing) {
               return { toolCallId: call.id, result: "No existing appointment found for that patient — offer to book a new one." };
             }
-            await rescheduleAppointment(agent.userId, existing, new Date(when).toISOString());
+            await rescheduleAppointment(agent.userId, existing, when);
             return {
               toolCallId: call.id,
-              result: `Appointment moved to ${new Date(when).toLocaleString()} for ${existing.patientName}.`,
+              result: `SUCCESS: appointment moved to ${new Date(when).toLocaleString()} for ${existing.patientName}. Read the new day, date and time back to confirm.`,
             };
           }
           if (fn === "cancel_appointment") {

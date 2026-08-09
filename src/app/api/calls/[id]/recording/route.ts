@@ -81,11 +81,19 @@ export async function GET(
   }
 
   console.error("Recording unavailable:", { callId: id, vapiCallId: call.vapiCallId, vapiLookup, attempts });
+  // If every attempt hit an R2/custom-storage host with 400/403, the call was
+  // recorded into the user's OWN private bucket (Vapi HIPAA / custom storage),
+  // which we can't stream without their storage credentials.
+  const hipaa = attempts.some(
+    (a) => /r2\.cloudflarestorage|s3\.|blob\.core\.windows|storage\.googleapis/i.test(a.url) && /HTTP 40[03]/.test(a.status)
+  );
   return NextResponse.json(
     {
-      error: call.vapiCallId
-        ? "The recording isn't ready on Vapi yet — try again in a minute."
-        : "No recording available for this call.",
+      error: hipaa
+        ? "This recording is stored in your own private storage bucket (Vapi HIPAA / custom storage), so it can't be played here. In Vapi → Org Settings, turn OFF HIPAA/custom storage (use Vapi's default storage) for recordings to be playable in the app."
+        : call.vapiCallId
+          ? "The recording isn't ready on Vapi yet — try again in a minute."
+          : "No recording available for this call.",
       vapiCallId: call.vapiCallId ?? null,
       vapiLookup,
       attempts,

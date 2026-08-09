@@ -496,6 +496,12 @@ export async function syncAgentToVapi(
   // agent so the conversation order is consistent: new-vs-existing first,
   // name-only lookup, phone only to disambiguate, then booking.
   const BOOKING_POLICY = `
+# DATE & TIME (critical)
+- The current date and time is {{"now" | date: "%A, %B %e, %Y at %l:%M %p"}}. Trust this, never guess the date.
+- Resolve every relative time the caller says ("today", "tomorrow", "next Monday", "this afternoon") against that current date.
+- When you call book_appointment / reschedule_appointment, ALWAYS pass an absolute ISO 8601 datetime you computed yourself, e.g. 2026-08-10T14:00:00 — never a word like "tomorrow".
+- Before booking, read the exact day, date and time back to the caller and get a yes.
+
 # PATIENT IDENTIFICATION & BOOKING POLICY (always follow)
 1. NEVER ask for the caller's phone number at the start of the call. Open by helping with what they called about.
 2. When the caller wants an appointment (or mentions being a patient), first ask: are they a NEW patient or an EXISTING patient?
@@ -831,42 +837,40 @@ export async function getCallRecording(callId: string): Promise<string | null> {
       recordingUrl?: string;
       stereoRecordingUrl?: string;
     };
-    const known =
-      call.artifact?.recordingUrl ??
-      call.artifact?.stereoRecordingUrl ??
-      call.artifact?.recording?.stereoUrl ??
-      call.artifact?.recording?.url ??
-      call.artifact?.recording?.mono?.combinedUrl ??
-      call.recordingUrl ??
-      call.stereoRecordingUrl ??
-      null;
-    if (known) return known;
-    // Vapi has moved the recording field between versions — as a last resort,
-    // deep-scan the payload for anything that looks like a recording URL
-    // (audio extension, Vapi storage host, or a "recording" path).
-    const found: string[] = [];
+    // Gather EVERY string in the payload that looks like a recording URL,
+    // then pick a COMPLETE one. A URL is only usable if it has an audio file
+    // extension or a real object key — a bare bucket prefix ending in "-"
+    // (seen with HIPAA/custom R2 storage) returns HTTP 400 and must be
+    // rejected, which was the "recording won't load" bug.
+    const candidates: string[] = [];
     (function scan(v: unknown) {
       if (typeof v === "string") {
-        if (
-          /^https?:\/\//i.test(v) &&
-          (/\.(wav|mp3|ogg|m4a|flac|webm)(\?|$)/i.test(v) ||
-            /storage\.vapi\.ai/i.test(v) ||
-            /recording/i.test(v))
-        ) {
-          found.push(v);
+        if (/^https?:\/\//i.test(v) && (/\.(wav|mp3|ogg|m4a|flac|webm)/i.test(v) || /recording/i.test(v))) {
+          candidates.push(v);
         }
       } else if (Array.isArray(v)) v.forEach(scan);
       else if (v && typeof v === "object") Object.values(v).forEach(scan);
     })(call);
-    if (found.length === 0) {
+
+    const looksComplete = (u: string) =>
+      /\.(wav|mp3|ogg|m4a|flac|webm)(\?|$)/i.test(u) && !/\/[^/]*-$/.test(u.split("?")[0]);
+    const isSigned = (u: string) => /[?&](x-amz-signature|signature|se=|sig=|token=)/i.test(u);
+
+    // Best first: complete filename + a signature; then complete; then signed.
+    const ranked = [...new Set(candidates)].sort((a, b) => {
+      const score = (u: string) => (looksComplete(u) ? 2 : 0) + (isSigned(u) ? 1 : 0);
+      return score(b) - score(a);
+    });
+    const best = ranked.find((u) => looksComplete(u)) ?? ranked.find((u) => isSigned(u)) ?? null;
+
+    if (!best) {
       console.error(
-        `No recording URL in Vapi call ${callId} — payload keys:`,
-        JSON.stringify(Object.keys(call as object)),
-        "artifact keys:",
-        JSON.stringify(Object.keys((call as { artifact?: object }).artifact ?? {}))
+        `No COMPLETE recording URL for Vapi call ${callId}. Candidates:`,
+        JSON.stringify(candidates.slice(0, 4)),
+        "— likely HIPAA/custom storage returning a bucket prefix without a signed object URL."
       );
     }
-    return found[0] ?? null;
+    return best;
   } catch (e) {
     console.error("Recording fetch failed:", e);
     return null;
