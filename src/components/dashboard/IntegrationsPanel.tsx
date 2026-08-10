@@ -255,8 +255,8 @@ export default function IntegrationsPanel({
 
       {/* Platform connections */}
       <div>
-        <h2 className="text-base font-semibold">Platform connections</h2>
-        <p className="text-sm text-ink-400">Read from your environment variables — keys are never stored in the database.</p>
+        <h2 className="text-base font-semibold">Connected services</h2>
+        <p className="text-sm text-ink-400">Connect the outside services your agents use.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {google && <GoogleCalendarCard google={google} />}
           {platforms.map((p) => (

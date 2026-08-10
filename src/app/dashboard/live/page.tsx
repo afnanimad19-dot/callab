@@ -14,8 +14,7 @@ export default function LivePage() {
           </span>
         </h1>
         <p className="mt-1 text-sm text-ink-400">
-          Streaming transcripts of every active call. Calls that need attention are
-          flagged automatically. (Simulated feed until telephony is connected — see README.)
+          Every call your agents are handling right now, with a live timer and status.
         </p>
       </div>
       <LiveConsole />

@@ -16,7 +16,11 @@ export default async function IntegrationsPage() {
     process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   );
 
-  const platforms = [
+  // Internal infrastructure (the voice engine + database) that runs the
+  // product. Customers should never see these — they're implementation
+  // details, not integrations a customer connects. Kept here (behind a flag)
+  // so operators can still check their status when SHOW_INTERNAL_INTEGRATIONS=1.
+  const internalPlatforms = [
     {
       name: "Vapi",
       detail:
@@ -38,6 +42,8 @@ export default async function IntegrationsPage() {
       hint: "Planned — actions phase of the roadmap.",
     },
   ];
+  const platforms =
+    process.env.SHOW_INTERNAL_INTEGRATIONS === "1" ? internalPlatforms : [];
 
   const user = await findUserById(session.userId);
   const google = {

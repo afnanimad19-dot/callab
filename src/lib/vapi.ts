@@ -85,6 +85,52 @@ export async function listVapiNumbers(): Promise<{ id: string; number: string; a
   }
 }
 
+// Live monitoring: the calls Vapi currently has ON THE LINE. Vapi marks calls
+// queued → ringing → in-progress → forwarding → ended; we surface everything
+// that hasn't ended yet. Each carries a monitor.listenUrl (a live audio
+// WebSocket) that the Vapi dashboard uses to listen in.
+export interface ActiveVapiCall {
+  id: string;
+  assistantId?: string;
+  status: string;
+  customerNumber?: string;
+  startedAt?: string;
+  createdAt?: string;
+  listenUrl?: string;
+  controlUrl?: string;
+}
+const ACTIVE_STATUSES = new Set(["queued", "ringing", "in-progress", "forwarding"]);
+export async function listActiveVapiCalls(): Promise<ActiveVapiCall[]> {
+  if (!vapiConfigured()) return [];
+  try {
+    const list = (await vapi("/call?limit=100")) as Array<{
+      id: string;
+      status?: string;
+      assistantId?: string;
+      assistant?: { id?: string };
+      customer?: { number?: string };
+      startedAt?: string;
+      createdAt?: string;
+      monitor?: { listenUrl?: string; controlUrl?: string };
+    }>;
+    return (Array.isArray(list) ? list : [])
+      .filter((c) => c.status && ACTIVE_STATUSES.has(c.status))
+      .map((c) => ({
+        id: c.id,
+        assistantId: c.assistantId ?? c.assistant?.id,
+        status: c.status ?? "in-progress",
+        customerNumber: c.customer?.number,
+        startedAt: c.startedAt,
+        createdAt: c.createdAt,
+        listenUrl: c.monitor?.listenUrl,
+        controlUrl: c.monitor?.controlUrl,
+      }));
+  } catch (e) {
+    console.error("listActiveVapiCalls failed:", e);
+    return [];
+  }
+}
+
 // --- Tool building ----------------------------------------------------------
 // Turns the agent's configured tools into REAL Vapi tools that execute
 // mid-call. Live Webhooks and Zapier point straight at the external URL;
@@ -513,9 +559,20 @@ export async function syncAgentToVapi(
 5. To book, call book_appointment with the collected details. To move or cancel an existing one, use reschedule_appointment / cancel_appointment.
 6. After the tool succeeds, confirm the appointment details aloud (day, date, time, doctor). If a tool returns an error, apologise briefly, do NOT claim the booking succeeded, and offer to have the clinic call them back.`;
 
+  // Honesty / scope guardrail so the agent answers from what it actually
+  // knows and never over-promises to a caller.
+  const SCOPE_GUARDRAIL = `
+# WHAT YOU KNOW AND WHAT YOU DON'T (always follow)
+- Answer questions using ONLY the information in your knowledge base and the details in these instructions. If the knowledge base has a website or documents, rely on those facts.
+- Never invent services, prices, availability, doctors, insurance details, medical advice, or policies that are not in your knowledge. If you are not sure, say you're not certain and offer to take a message or have the clinic follow up.
+- You can ONLY do these things: answer questions from your knowledge, and use the tools you've been given (for example booking, rescheduling, cancelling, looking up a patient, transferring the call, or ending the call). You cannot do anything outside that.
+- If a caller asks for something you cannot do (for example prescriptions, medical diagnosis, emergencies, payments over the phone, or anything not in your knowledge or tools), tell them plainly that you can't help with that specific thing, briefly list what you CAN help with, and offer to connect them to a person or take a message.
+- For any medical emergency, tell the caller to hang up and call their local emergency number immediately.`;
+
   const systemPrompt =
     (knowledgeText ? `${agent.systemPrompt}\n\n${knowledgeText}` : agent.systemPrompt) +
-    BOOKING_POLICY;
+    BOOKING_POLICY +
+    SCOPE_GUARDRAIL;
 
   const adv = agent.advanced;
   const endCallPhrases = (adv?.endCallPhrases ?? "")

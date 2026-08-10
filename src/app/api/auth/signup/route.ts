@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import {
-  createUser,
-  findUserByEmail,
-  insertAgents,
-  insertCalls,
-  insertCampaigns,
-  insertContacts,
-  insertKnowledgeBases,
-  insertPhoneNumbers,
-  insertWebhooks,
-  newId,
-} from "@/lib/db";
+import { createUser, findUserByEmail, newId } from "@/lib/db";
 import {
   createSessionToken,
   sessionCookieOptions,
   SESSION_COOKIE,
 } from "@/lib/auth";
-import { seedDemoData } from "@/lib/demo-data";
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => null);
@@ -69,22 +57,9 @@ export async function POST(request: Request) {
     );
   }
 
-  // Seed demo data in bulk (one request per table). Non-fatal: if it fails,
-  // the account still exists and the dashboard just starts empty.
-  try {
-    const demo = seedDemoData(user.id);
-    await Promise.all([
-      insertAgents(demo.agents),
-      insertCalls(demo.calls),
-      insertCampaigns(demo.campaigns),
-      insertContacts(demo.contacts),
-      insertPhoneNumbers(demo.phoneNumbers),
-      insertWebhooks(demo.webhooks),
-      insertKnowledgeBases(demo.knowledgeBases),
-    ]);
-  } catch (e) {
-    console.error("Demo seeding failed (account still created):", e);
-  }
+  // New accounts start completely empty — every stat on the dashboard reflects
+  // this customer's real calls, contacts and campaigns from day one. No sample
+  // or placeholder records are created.
 
   const token = await createSessionToken({
     userId: user.id,

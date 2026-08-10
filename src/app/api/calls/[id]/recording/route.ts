@@ -70,14 +70,40 @@ export async function GET(
     const type =
       upstream.headers.get("content-type") ??
       (url.includes(".mp3") ? "audio/mpeg" : "audio/wav");
-    const headers = new Headers({
+    // Buffer the whole recording, then serve it with byte-range support.
+    // Streaming the upstream body directly (Accept-Ranges: none) left the
+    // <audio> element unable to learn its duration or seek — so the waveform
+    // never advanced and clicks did nothing. Recordings are only a few MB, so
+    // buffering is cheap and gives the browser a fully seekable file.
+    const full = Buffer.from(await upstream.arrayBuffer());
+    const total = full.length;
+    const rangeHeader = request.headers.get("range");
+    const commonHeaders = {
       "Content-Type": type,
+      "Accept-Ranges": "bytes",
       "Cache-Control": "no-store",
-      "Accept-Ranges": "none",
+    };
+    if (rangeHeader) {
+      const m = /bytes=(\d*)-(\d*)/.exec(rangeHeader);
+      let start = m && m[1] ? parseInt(m[1], 10) : 0;
+      let end = m && m[2] ? parseInt(m[2], 10) : total - 1;
+      if (!Number.isFinite(start) || start < 0) start = 0;
+      if (!Number.isFinite(end) || end >= total) end = total - 1;
+      if (start > end) start = 0;
+      const chunk = full.subarray(start, end + 1);
+      return new Response(chunk, {
+        status: 206,
+        headers: {
+          ...commonHeaders,
+          "Content-Range": `bytes ${start}-${end}/${total}`,
+          "Content-Length": String(chunk.length),
+        },
+      });
+    }
+    return new Response(full, {
+      status: 200,
+      headers: { ...commonHeaders, "Content-Length": String(total) },
     });
-    const length = upstream.headers.get("content-length");
-    if (length) headers.set("Content-Length", length);
-    return new Response(upstream.body, { status: 200, headers });
   }
 
   console.error("Recording unavailable:", { callId: id, vapiCallId: call.vapiCallId, vapiLookup, attempts });

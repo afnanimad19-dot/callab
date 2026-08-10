@@ -201,6 +201,7 @@ export default async function CallDetailPage({
                   : (call.recordingUrl as string)
               }
               seedKey={call.id}
+              durationHint={call.durationSec}
             />
           </div>
         ) : (
@@ -215,9 +216,9 @@ export default async function CallDetailPage({
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-ink-600 text-ink-300">
               <Play className="h-4 w-4" />
             </span>
-            <div className="flex h-8 flex-1 items-center gap-[2px] overflow-hidden" aria-hidden>
+            <div className="flex h-8 flex-1 items-center gap-[2px]" aria-hidden>
               {bars.map((h, i) => (
-                <span key={i} className="w-[3px] rounded-full bg-ink-500/40" style={{ height: `${h}%` }} />
+                <span key={i} className="min-w-[2px] flex-1 rounded-full bg-ink-500/40" style={{ height: `${h}%` }} />
               ))}
             </div>
             <span className="shrink-0 text-xs text-ink-500">No recording</span>

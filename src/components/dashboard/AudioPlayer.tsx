@@ -15,19 +15,23 @@ function fmt(sec: number) {
 export default function AudioPlayer({
   src,
   seedKey,
+  durationHint,
 }: {
   src: string;
   seedKey: string; // deterministic waveform shape per call
+  durationHint?: number; // known call length (sec) — used until metadata loads
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const waveRef = useRef<HTMLDivElement>(null);
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0); // 0..1
   const [current, setCurrent] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [duration, setDuration] = useState(durationHint && durationHint > 0 ? durationHint : 0);
   const [error, setError] = useState(false);
 
-  const bars = Array.from({ length: 90 }, (_, i) => {
+  // ~72 deterministic bars; each stretches to fill the track (flex-1) so the
+  // waveform spans the full width up to the time readouts.
+  const bars = Array.from({ length: 72 }, (_, i) => {
     const seed = (seedKey.charCodeAt(i % seedKey.length) * (i + 7)) % 100;
     return 20 + (seed % 70);
   });
@@ -36,11 +40,22 @@ export default function AudioPlayer({
     const audio = new Audio(src);
     audio.preload = "metadata";
     audioRef.current = audio;
+    // Prefer the element's real duration; fall back to the known call length
+    // when the stream can't report it yet, so progress still advances.
+    const effDuration = () =>
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : durationHint && durationHint > 0
+          ? durationHint
+          : 0;
     const onTime = () => {
       setCurrent(audio.currentTime);
-      if (audio.duration) setProgress(audio.currentTime / audio.duration);
+      const d = effDuration();
+      if (d) setProgress(Math.min(1, audio.currentTime / d));
     };
-    const onMeta = () => setDuration(audio.duration);
+    const onMeta = () => {
+      if (Number.isFinite(audio.duration) && audio.duration > 0) setDuration(audio.duration);
+    };
     const onEnd = () => {
       setPlaying(false);
       setProgress(1);
@@ -73,11 +88,23 @@ export default function AudioPlayer({
   function seek(e: React.MouseEvent<HTMLDivElement>) {
     const audio = audioRef.current;
     const el = waveRef.current;
-    if (!audio || !el || !audio.duration) return;
+    if (!audio || !el) return;
+    const d =
+      Number.isFinite(audio.duration) && audio.duration > 0
+        ? audio.duration
+        : durationHint && durationHint > 0
+          ? durationHint
+          : 0;
+    if (!d) return;
     const rect = el.getBoundingClientRect();
     const ratio = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-    audio.currentTime = ratio * audio.duration;
+    try {
+      audio.currentTime = ratio * d;
+    } catch {
+      /* stream not seekable yet */
+    }
     setProgress(ratio);
+    setCurrent(ratio * d);
   }
 
   if (error) {
@@ -104,7 +131,7 @@ export default function AudioPlayer({
       <div
         ref={waveRef}
         onClick={seek}
-        className="flex h-9 flex-1 cursor-pointer items-center gap-[2px] overflow-hidden"
+        className="flex h-9 flex-1 cursor-pointer items-center gap-[2px]"
         role="slider"
         aria-label="Seek"
         aria-valuemin={0}
@@ -116,7 +143,7 @@ export default function AudioPlayer({
           return (
             <span
               key={i}
-              className={`w-[3px] rounded-full transition-colors duration-150 ${
+              className={`min-w-[2px] flex-1 rounded-full transition-colors duration-150 ${
                 played ? "bg-[#301C3F]" : "bg-ink-600/50"
               }`}
               style={{ height: `${h}%` }}
