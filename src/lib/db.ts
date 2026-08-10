@@ -111,6 +111,12 @@ export interface Agent {
   revisions?: AgentRevision[]; // most recent first, capped
   voiceId?: string; // ElevenLabs voice id (overrides the named VOICE_MAP)
   knowledgeBaseIds?: string[]; // attached Knowledge Base resources
+  // Voice engine (see lib/voice-presets). speedPreset is the one-click bundle;
+  // the individual fields override it when set.
+  speedPreset?: import("./voice-presets").SpeedPreset;
+  llmModel?: string; // "provider:model", e.g. "openai:gpt-4o"
+  voiceModel?: string; // ElevenLabs model, e.g. "eleven_turbo_v2_5"
+  transcriberModel?: string; // Deepgram model, e.g. "nova-2"
 }
 
 export interface TranscriptTurn {

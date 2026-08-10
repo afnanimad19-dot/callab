@@ -9,6 +9,7 @@
 // Vapi dashboard under Provider Keys — we only reference providers by name.
 
 import type { Agent, Call, TranscriptTurn } from "./db";
+import { resolveEngine } from "./voice-presets";
 
 const BASE = "https://api.vapi.ai";
 
@@ -656,6 +657,9 @@ export async function syncAgentToVapi(
     SCOPE_GUARDRAIL +
     LANGUAGE_POLICY;
 
+  // LLM + TTS + transcriber models from the agent's engine preset/overrides.
+  const engine = resolveEngine(agent);
+
   const adv = agent.advanced;
   const endCallPhrases = (adv?.endCallPhrases ?? "")
     .split(",")
@@ -729,10 +733,9 @@ export async function syncAgentToVapi(
     name: agent.name,
     firstMessage: agent.greeting,
     model: {
-      // If Vapi rejects this model id, change it here to a model string Vapi
-      // accepts for the anthropic provider — the rest of the flow is unchanged.
-      provider: "anthropic",
-      model: "claude-3-5-sonnet-20241022",
+      // LLM comes from the agent's engine preset / override (editor).
+      provider: engine.provider,
+      model: engine.model,
       messages: [{ role: "system", content: systemPrompt }],
       ...(buildVapiTools(agent).length ? { tools: buildVapiTools(agent) } : {}),
     },
@@ -741,14 +744,13 @@ export async function syncAgentToVapi(
       // voiceId is the real ElevenLabs voice picked in the editor; the named
       // VOICE_MAP is the fallback for agents created before voice previews.
       voiceId: agent.voiceId || (VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"]),
-      // Multilingual model: the SAME voice can speak 30+ languages (Arabic,
-      // Urdu, Hindi, Turkish, French, Spanish, Italian…), so the agent replies
-      // in whatever language the caller uses.
-      model: "eleven_turbo_v2_5",
+      // Multilingual TTS model — the SAME voice can speak 30+ languages, so the
+      // agent replies in whatever language the caller uses.
+      model: engine.voiceModel,
     },
     // "multi" lets the transcriber detect and follow the caller's language
     // (and code-switching) instead of assuming English.
-    transcriber: { provider: "deepgram", model: "nova-2", language: "multi" },
+    transcriber: { provider: "deepgram", model: engine.transcriberModel, language: "multi" },
     // Per-assistant server URL: Vapi POSTs the end-of-call report here after
     // EVERY call (inbound phone, outbound, web) so it lands in Call Logs and
     // the dashboard charts — without relying on the account-level Server URL

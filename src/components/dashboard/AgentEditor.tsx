@@ -66,6 +66,9 @@ import type { AgentAdvanced, AgentOutcome, AgentTool } from "@/lib/agent-default
 import { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "@/lib/agent-defaults";
 import { toast, toastError } from "@/components/Toast";
 import { PhoneTestCallModal, WebCallModal } from "@/components/dashboard/TestCallModals";
+import {
+  SPEED_PRESETS, LLM_OPTIONS, TRANSCRIBER_OPTIONS, VOICE_MODEL_OPTIONS, presetConfig, type SpeedPreset,
+} from "@/lib/voice-presets";
 
 const VOICES = [
   "Nova (female, warm)",
@@ -92,6 +95,10 @@ type Draft = {
   tools: AgentTool[];
   voiceId: string;
   knowledgeBaseIds: string[];
+  speedPreset: SpeedPreset;
+  llmModel: string;
+  voiceModel: string;
+  transcriberModel: string;
 };
 
 function draftFrom(agent: Partial<Agent>): Draft {
@@ -131,6 +138,10 @@ function draftFrom(agent: Partial<Agent>): Draft {
     tools,
     voiceId: agent.voiceId ?? "",
     knowledgeBaseIds: agent.knowledgeBaseIds ?? [],
+    speedPreset: agent.speedPreset ?? "balanced",
+    llmModel: agent.llmModel ?? "",
+    voiceModel: agent.voiceModel ?? "",
+    transcriberModel: agent.transcriberModel ?? "",
   };
 }
 
@@ -689,6 +700,64 @@ export default function AgentEditor({
               <select className="field" value={draft.backgroundAudio} onChange={(e) => set("backgroundAudio", e.target.value)}>
                 {BACKGROUND_AUDIO.map((b) => <option key={b}>{b}</option>)}
               </select>
+            </div>
+          </div>
+
+          {/* Voice engine: one-click preset + individual model overrides. */}
+          <div className="mt-5 border-t border-ink-700/60 pt-5">
+            <p className="text-sm font-semibold">Intelligence &amp; speed</p>
+            <p className="mb-3 text-xs text-ink-400">
+              Pick a preset, or fine-tune the brain, voice model and transcriber below. Higher intelligence is smarter; faster/cheaper models cost less per minute.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {SPEED_PRESETS.map((p) => {
+                const active = (draft.speedPreset ?? "balanced") === p.key;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      const cfg = presetConfig(p.key);
+                      setDraft((d) => ({
+                        ...d,
+                        speedPreset: p.key as SpeedPreset,
+                        llmModel: cfg.llm,
+                        voiceModel: cfg.voiceModel,
+                        transcriberModel: cfg.transcriberModel,
+                      }));
+                    }}
+                    className={`rounded-xl border p-3 text-left transition ${
+                      active ? "border-[#301C3F] bg-[#301C3F]/5" : "border-ink-700 hover:bg-ink-800"
+                    }`}
+                  >
+                    <span className="block text-sm font-semibold">{p.label}</span>
+                    <span className="mt-0.5 block text-[11px] leading-snug text-ink-400">{p.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-3">
+              <div>
+                <label className="label">Model (brain)</label>
+                <select className="field" value={draft.llmModel || presetConfig(draft.speedPreset as SpeedPreset).llm}
+                  onChange={(e) => set("llmModel", e.target.value)}>
+                  {LLM_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Voice model</label>
+                <select className="field" value={draft.voiceModel || presetConfig(draft.speedPreset as SpeedPreset).voiceModel}
+                  onChange={(e) => set("voiceModel", e.target.value)}>
+                  {VOICE_MODEL_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="label">Transcriber (ears)</label>
+                <select className="field" value={draft.transcriberModel || presetConfig(draft.speedPreset as SpeedPreset).transcriberModel}
+                  onChange={(e) => set("transcriberModel", e.target.value)}>
+                  {TRANSCRIBER_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              </div>
             </div>
           </div>
         </Section>

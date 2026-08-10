@@ -66,6 +66,13 @@ export async function PATCH(request: Request, { params }: Params) {
   if (typeof body?.voiceId === "string") {
     patch.voiceId = body.voiceId.slice(0, 60);
   }
+  // Voice engine (LLM / TTS / transcriber preset + overrides).
+  if (["balanced", "high_intelligence", "ultra_fast", "cost_saver"].includes(body?.speedPreset)) {
+    patch.speedPreset = body.speedPreset;
+  }
+  if (typeof body?.llmModel === "string") patch.llmModel = body.llmModel.slice(0, 80);
+  if (typeof body?.voiceModel === "string") patch.voiceModel = body.voiceModel.slice(0, 60);
+  if (typeof body?.transcriberModel === "string") patch.transcriberModel = body.transcriberModel.slice(0, 40);
   // Flow Designer save: store the graph and compile it into the same
   // primitives single-prompt agents use, so Vapi sync and extraction work.
   if (body?.flow !== undefined) {

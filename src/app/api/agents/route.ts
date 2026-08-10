@@ -55,6 +55,12 @@ export async function POST(request: Request) {
     knowledgeBaseIds: Array.isArray(body?.knowledgeBaseIds)
       ? body.knowledgeBaseIds.map(String).slice(0, 20)
       : [],
+    speedPreset: ["balanced", "high_intelligence", "ultra_fast", "cost_saver"].includes(body?.speedPreset)
+      ? body.speedPreset
+      : "balanced",
+    llmModel: typeof body?.llmModel === "string" ? body.llmModel.slice(0, 80) : undefined,
+    voiceModel: typeof body?.voiceModel === "string" ? body.voiceModel.slice(0, 60) : undefined,
+    transcriberModel: typeof body?.transcriberModel === "string" ? body.transcriberModel.slice(0, 40) : undefined,
   });
 
   // Best-effort Vapi sync; the agent still saves if Vapi isn't configured.
