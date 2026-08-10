@@ -1,8 +1,26 @@
 import { NextResponse } from "next/server";
+import crypto from "crypto";
 import { findUserByChannelId } from "@/lib/db";
 import {
   generateAgentReply, recordMessage, sendChannelText, upsertConversation,
 } from "@/lib/channels";
+
+// Optional: confirm the POST really came from Meta using the app secret.
+// Only enforced when META_APP_SECRET is set — otherwise skipped, so existing
+// setups keep working. Meta signs the raw body as sha256=<hmac>.
+function signatureValid(rawBody: string, header: string | null): boolean {
+  const secret = process.env.META_APP_SECRET;
+  if (!secret) return true; // not configured → don't block
+  if (!header) return false;
+  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  try {
+    const a = Buffer.from(header);
+    const b = Buffer.from(expected);
+    return a.length === b.length && crypto.timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
 
 // Meta webhook receiver for WhatsApp Cloud API, Messenger, and Instagram DM.
 // Point the app's webhook at  https://<your-site>/api/channels/webhook  and
@@ -30,7 +48,18 @@ interface WaMessage {
 }
 
 export async function POST(request: Request) {
-  const body = await request.json().catch(() => null);
+  // Read the raw body so the signature (computed over raw bytes) can be checked.
+  const raw = await request.text();
+  if (!signatureValid(raw, request.headers.get("x-hub-signature-256"))) {
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: any = null;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = null;
+  }
   if (!body?.object) return NextResponse.json({ ok: true });
 
   try {
