@@ -16,6 +16,33 @@ import {
   findUpcomingAppointment,
   rescheduleAppointment,
 } from "@/lib/appointments";
+import { buildKnowledgeText } from "@/lib/knowledge";
+
+// Answer a knowledge-base query: pull the agent's knowledge text and return the
+// passages most relevant to what the caller asked. Simple keyword scoring keeps
+// the reply short so the model quotes the right facts instead of the whole doc.
+async function searchKnowledge(agent: Agent, query: string): Promise<string> {
+  const text = await buildKnowledgeText(agent.userId, agent.knowledgeBaseIds);
+  if (!text || !text.trim()) {
+    return "The knowledge base is empty for this agent. Answer from your general instructions or offer to take a message.";
+  }
+  const q = query.toLowerCase();
+  const terms = [...new Set(q.split(/[^a-z0-9]+/).filter((w) => w.length > 2))];
+  // Split into paragraphs, score each by how many query terms it contains.
+  const paras = text.split(/\n{2,}|\r?\n(?=[A-Z0-9#*-])/).map((p) => p.trim()).filter(Boolean);
+  if (terms.length === 0 || paras.length <= 3) return text.slice(0, 3500);
+  const scored = paras
+    .map((p) => {
+      const lower = p.toLowerCase();
+      const score = terms.reduce((s, t) => s + (lower.includes(t) ? 1 : 0), 0);
+      return { p, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 6);
+  if (scored.length === 0) return text.slice(0, 3500);
+  return scored.map((x) => x.p).join("\n\n").slice(0, 3500);
+}
 
 const normalizePhone = (p: string) => p.replace(/[^\d]/g, "").slice(-9);
 
@@ -310,6 +337,12 @@ export async function POST(request: Request) {
             fn === "save_customer"
               ? await saveCustomer(agent.userId, args, callerNumber)
               : await lookupCustomer(agent.userId, args, callerNumber);
+          return { toolCallId: call.id, result };
+        }
+
+        if (tool.type === "knowledge_base") {
+          const query = String(args.query ?? args.question ?? "").trim();
+          const result = await searchKnowledge(agent, query || "overview");
           return { toolCallId: call.id, result };
         }
 

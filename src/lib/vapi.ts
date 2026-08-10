@@ -478,8 +478,32 @@ export function buildVapiTools(agent: Agent): unknown[] {
         }
         break;
       }
+      case "knowledge_base": {
+        // Real Vapi tool so the agent can look things up mid-call AND it shows
+        // as an active tool. The knowledge is ALSO injected into the system
+        // prompt (below), so the agent has it either way.
+        if (!site) break;
+        tools.push({
+          type: "function",
+          async: false,
+          function: {
+            name: "knowledge_base",
+            description:
+              "Search this business's knowledge base — services, prices, hours, location, policies, FAQs, and any documents or website content added for this agent. Call this whenever the caller asks a question about the business and answer from what it returns.",
+            parameters: {
+              type: "object",
+              properties: {
+                query: { type: "string", description: "What the caller is asking about, in a few words" },
+              },
+              required: ["query"],
+            },
+          },
+          server: executeServer(t.id),
+        });
+        break;
+      }
       default:
-        break; // knowledge_base maps into the system prompt, not a tool
+        break;
     }
   }
 
