@@ -1,5 +1,6 @@
 "use client";
-import { Search, RefreshCw, Play, Download } from "lucide-react";
+import { Search, RefreshCw, Play, Download, CloudDownload } from "lucide-react";
+import { toast, toastError } from "@/components/Toast";
 
 // Call Logs: searchable, filterable, paginated table with CSV export.
 // Clicking a row (or its recording icon) opens the call detail page.
@@ -35,8 +36,29 @@ export default function CallLogsTable({
   const [campaign, setCampaign] = useState("all");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(15);
+  const [syncing, setSyncing] = useState(false);
 
   const campaignName = (id?: string) => campaigns.find((c) => c.id === id)?.name ?? "-";
+
+  // Pull any calls Vapi has that aren't logged yet (recovers phone calls whose
+  // end-of-call webhook was missed).
+  async function syncFromVapi() {
+    setSyncing(true);
+    const res = await fetch("/api/calls/sync", { method: "POST" });
+    setSyncing(false);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      if (data.imported > 0) {
+        toast(`Recovered ${data.imported} call${data.imported === 1 ? "" : "s"} from the voice pipeline.`);
+        router.refresh();
+      } else {
+        toast("Call Logs are already up to date.");
+      }
+    } else {
+      const data = await res.json().catch(() => ({}));
+      toastError(data.error ?? "Could not sync calls.");
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -83,7 +105,12 @@ export default function CallLogsTable({
           <h1 className="text-2xl font-bold tracking-tight">Call Logs</h1>
           <p className="mt-1 text-sm text-ink-400">View and manage your AI agent calls</p>
         </div>
-        <button onClick={exportCsv} className="btn-secondary flex items-center gap-1.5"><Download className="h-4 w-4" /> Export CSV</button>
+        <div className="flex items-center gap-2">
+          <button onClick={syncFromVapi} disabled={syncing} className="btn-secondary flex items-center gap-1.5 disabled:opacity-60">
+            <CloudDownload className="h-4 w-4" /> {syncing ? "Syncing…" : "Sync from Vapi"}
+          </button>
+          <button onClick={exportCsv} className="btn-secondary flex items-center gap-1.5"><Download className="h-4 w-4" /> Export CSV</button>
+        </div>
       </div>
 
       {/* Toolbar */}

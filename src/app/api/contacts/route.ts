@@ -1,6 +1,20 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createContact, insertContacts, newId, Contact } from "@/lib/db";
+import { createContact, deleteContact, insertContacts, listContacts, newId, Contact } from "@/lib/db";
+
+// Bulk delete: { ids: [...] }. Only removes contacts owned by the caller.
+export async function DELETE(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => ({}));
+  const ids: string[] = Array.isArray(body?.ids) ? body.ids.map(String) : [];
+  if (ids.length === 0) return NextResponse.json({ error: "No ids provided." }, { status: 400 });
+
+  const owned = new Set((await listContacts(session.userId)).map((c) => c.id));
+  const toDelete = ids.filter((id) => owned.has(id));
+  await Promise.all(toDelete.map((id) => deleteContact(id)));
+  return NextResponse.json({ deleted: toDelete.length });
+}
 
 export async function POST(request: Request) {
   const session = await getSession();

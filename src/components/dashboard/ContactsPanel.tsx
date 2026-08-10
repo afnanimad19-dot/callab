@@ -1,7 +1,7 @@
 "use client";
-import { Search, RefreshCw, Pencil, Trash2, Upload, Download } from "lucide-react";
+import { Search, RefreshCw, Pencil, Trash2, Upload, Download, X } from "lucide-react";
 import RowMenu from "./RowMenu";
-import { toast } from "@/components/Toast";
+import { toast, toastError } from "@/components/Toast";
 
 // Contacts: Import / Export / Add Contact toolbar, searchable paginated
 // table with select checkboxes, source/category/tag badges, per-row menu,
@@ -50,13 +50,43 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
   const [addOpen, setAddOpen] = useState(false);
   const [editing, setEditing] = useState<Contact | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+
+  const sources = useMemo(
+    () => [...new Set(contacts.map((c) => c.source).filter(Boolean) as string[])],
+    [contacts]
+  );
+  const categories = useMemo(
+    () => [...new Set(contacts.map((c) => c.category).filter(Boolean) as string[])],
+    [contacts]
+  );
+  const tags = useMemo(
+    () => [...new Set(contacts.map((c) => c.tag).filter(Boolean))],
+    [contacts]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return contacts
       .filter((c) => !q || `${c.name} ${c.phone} ${c.tag} ${c.category ?? ""}`.toLowerCase().includes(q))
+      .filter((c) => sourceFilter === "all" || (c.source ?? "Manual") === sourceFilter)
+      .filter((c) => categoryFilter === "all" || (c.category ?? "") === categoryFilter)
+      .filter((c) => tagFilter === "all" || c.tag === tagFilter)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }, [contacts, query]);
+  }, [contacts, query, sourceFilter, categoryFilter, tagFilter]);
+
+  const anyFilter =
+    Boolean(query) || sourceFilter !== "all" || categoryFilter !== "all" || tagFilter !== "all";
+  function clearFilters() {
+    setQuery("");
+    setSourceFilter("all");
+    setCategoryFilter("all");
+    setTagFilter("all");
+    setPage(1);
+  }
 
   const pages = Math.max(1, Math.ceil(filtered.length / perPage));
   const current = Math.min(page, pages);
@@ -71,8 +101,39 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
 
   function toggleAll() {
     setChecked((prev) =>
-      prev.size === rows.length ? new Set() : new Set(rows.map((r) => r.id))
+      rows.every((r) => prev.has(r.id)) && prev.size >= rows.length
+        ? new Set()
+        : new Set(rows.map((r) => r.id))
     );
+  }
+
+  // Select every contact matching the current filters (across all pages).
+  function selectAllFiltered() {
+    setChecked(new Set(filtered.map((c) => c.id)));
+  }
+  function deselectAll() {
+    setChecked(new Set());
+  }
+
+  async function deleteSelected() {
+    const ids = [...checked];
+    if (ids.length === 0) return;
+    if (!confirm(`Delete ${ids.length} selected contact${ids.length === 1 ? "" : "s"}? This can't be undone.`)) return;
+    setDeleting(true);
+    const res = await fetch("/api/contacts", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids }),
+    });
+    setDeleting(false);
+    if (res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast(`${data.deleted ?? ids.length} contact${(data.deleted ?? ids.length) === 1 ? "" : "s"} deleted.`);
+      setChecked(new Set());
+      router.refresh();
+    } else {
+      toastError("Could not delete the selected contacts.");
+    }
   }
 
   return (
@@ -94,15 +155,54 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="card flex items-center gap-3 !p-4">
-        <div className="relative flex-1">
+      {/* Search + filters */}
+      <div className="card flex flex-wrap items-center gap-3 !p-4">
+        <div className="relative min-w-[200px] flex-1">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-4 w-4" /></span>
           <input className="field !pl-10" placeholder="Search contacts..." value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }} />
         </div>
+        <select className="field !w-auto !py-2.5" value={sourceFilter}
+          onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}>
+          <option value="all">All sources</option>
+          {sources.map((s) => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select className="field !w-auto !py-2.5" value={categoryFilter}
+          onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }}>
+          <option value="all">All categories</option>
+          {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <select className="field !w-auto !py-2.5" value={tagFilter}
+          onChange={(e) => { setTagFilter(e.target.value); setPage(1); }}>
+          <option value="all">All tags</option>
+          {tags.map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        {anyFilter && (
+          <button onClick={clearFilters} className="btn-secondary flex items-center gap-1.5 !px-3.5 !py-2.5 !text-xs">
+            <X className="h-3.5 w-3.5" /> Clear
+          </button>
+        )}
         <button onClick={() => router.refresh()} aria-label="Refresh" className="btn-secondary !px-3.5 !py-2.5"><RefreshCw className="h-4 w-4" /></button>
       </div>
+
+      {/* Bulk-action bar — appears when contacts are selected */}
+      {checked.size > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-accent-500/40 bg-accent-500/10 px-4 py-3 text-sm">
+          <span className="font-medium">{checked.size} selected</span>
+          <span className="text-ink-500">·</span>
+          <button onClick={selectAllFiltered} className="font-medium text-accent-400 hover:underline">
+            Select all {filtered.length}
+          </button>
+          <button onClick={deselectAll} className="font-medium text-ink-300 hover:underline">
+            Deselect all
+          </button>
+          <div className="flex-1" />
+          <button onClick={deleteSelected} disabled={deleting}
+            className="flex items-center gap-1.5 rounded-lg bg-signal-red px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-110 disabled:opacity-60">
+            <Trash2 className="h-3.5 w-3.5" /> {deleting ? "Deleting…" : `Delete ${checked.size}`}
+          </button>
+        </div>
+      )}
 
       {/* Table */}
       <div className="card overflow-x-auto !p-0">
@@ -111,7 +211,7 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
             <tr className="border-b border-ink-700 text-left text-xs uppercase tracking-wide text-ink-400">
               <th className="w-10 px-4 py-3">
                 <input type="checkbox" className="h-4 w-4 accent-accent-500"
-                  checked={rows.length > 0 && checked.size === rows.length} onChange={toggleAll} />
+                  checked={rows.length > 0 && rows.every((r) => checked.has(r.id))} onChange={toggleAll} />
               </th>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Phone</th>

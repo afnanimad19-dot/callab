@@ -682,6 +682,7 @@ export async function findCall(userId: string, id: string) {
   return (await store.list<Call>("calls", userId)).find((c) => c.id === id);
 }
 export const insertCalls = (calls: Call[]) => store.insertMany("calls", calls);
+export const deleteCall = (id: string) => store.remove("calls", id);
 export async function updateCall(userId: string, id: string, patch: Partial<Call>) {
   if (!(await findCall(userId, id))) return undefined;
   return store.update<Call>("calls", id, patch);
@@ -690,6 +691,7 @@ export async function updateCall(userId: string, id: string, patch: Partial<Call
 export const listCampaigns = (userId: string) => store.list<Campaign>("campaigns", userId);
 export const createCampaign = (c: Campaign) => store.insert("campaigns", c);
 export const insertCampaigns = (rows: Campaign[]) => store.insertMany("campaigns", rows);
+export const deleteCampaign = (id: string) => store.remove("campaigns", id);
 export async function updateCampaign(userId: string, id: string, patch: Partial<Campaign>) {
   const exists = (await listCampaigns(userId)).some((c) => c.id === id);
   if (!exists) return undefined;

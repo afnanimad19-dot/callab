@@ -131,6 +131,53 @@ export async function listActiveVapiCalls(): Promise<ActiveVapiCall[]> {
   }
 }
 
+// Recently-ENDED calls in the Vapi account, used to backfill Call Logs when a
+// webhook was missed (e.g. an inbound call placed before the assistant carried
+// a server URL). Returns everything needed to build a Call row.
+export interface RecentVapiCall {
+  id: string;
+  assistantId?: string;
+  direction: "inbound" | "outbound";
+  customerNumber?: string;
+  startedAt?: string;
+  endedAt?: string;
+  endedReason?: string;
+  summary?: string;
+}
+export async function listRecentVapiCalls(): Promise<RecentVapiCall[]> {
+  if (!vapiConfigured()) return [];
+  try {
+    const list = (await vapi("/call?limit=100")) as Array<{
+      id: string;
+      status?: string;
+      type?: string;
+      assistantId?: string;
+      assistant?: { id?: string };
+      customer?: { number?: string };
+      startedAt?: string;
+      endedAt?: string;
+      endedReason?: string;
+      analysis?: { summary?: string };
+      summary?: string;
+    }>;
+    return (Array.isArray(list) ? list : [])
+      .filter((c) => c.status === "ended" || c.endedAt)
+      .map((c) => ({
+        id: c.id,
+        assistantId: c.assistantId ?? c.assistant?.id,
+        direction: (c.type ?? "").toLowerCase().includes("outbound") ? "outbound" : "inbound",
+        customerNumber: c.customer?.number,
+        startedAt: c.startedAt,
+        endedAt: c.endedAt,
+        endedReason: c.endedReason,
+        summary: c.analysis?.summary ?? c.summary,
+      }));
+  } catch (e) {
+    console.error("listRecentVapiCalls failed:", e);
+    return [];
+  }
+}
+
 // --- Tool building ----------------------------------------------------------
 // Turns the agent's configured tools into REAL Vapi tools that execute
 // mid-call. Live Webhooks and Zapier point straight at the external URL;
@@ -661,8 +708,24 @@ export async function syncAgentToVapi(
       voiceId: agent.voiceId || (VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"]),
     },
     transcriber: { provider: "deepgram", model: "nova-2" },
-    // Post-call summary/analysis, sent to our webhook (configure Server URL
-    // in the Vapi dashboard, or pass server.url per-assistant here).
+    // Per-assistant server URL: Vapi POSTs the end-of-call report here after
+    // EVERY call (inbound phone, outbound, web) so it lands in Call Logs and
+    // the dashboard charts — without relying on the account-level Server URL
+    // being set in the Vapi dashboard. This is what makes real phone calls
+    // show up. It always points at the CURRENT site, so changing the domain
+    // just means re-syncing agents (Integrations → Re-sync agents to Vapi).
+    ...(siteUrl()
+      ? {
+          server: {
+            url: `${siteUrl()}/api/vapi/webhook`,
+            ...(process.env.VAPI_WEBHOOK_SECRET
+              ? { secret: process.env.VAPI_WEBHOOK_SECRET }
+              : {}),
+          },
+          serverMessages: ["end-of-call-report"],
+        }
+      : {}),
+    // Post-call summary/analysis, sent to our webhook.
     analysisPlan: {
       summaryPrompt:
         "Summarize the call in 1-2 sentences: what the caller wanted and how it was resolved.",

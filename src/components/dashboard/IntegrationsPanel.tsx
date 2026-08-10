@@ -36,6 +36,7 @@ import {
 import { toast, toastError } from "@/components/Toast";
 import type { Integration, IntegrationFlowStep, IntegrationVariable } from "@/lib/db";
 import RowMenu from "./RowMenu";
+import MaintenanceCard from "./MaintenanceCard";
 
 interface Platform {
   name: string;
@@ -275,6 +276,8 @@ export default function IntegrationsPanel({
           ))}
         </div>
       </div>
+
+      <MaintenanceCard />
 
       {/* Template chooser */}
       {chooser && (
