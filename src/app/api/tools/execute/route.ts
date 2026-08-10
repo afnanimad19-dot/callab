@@ -292,6 +292,7 @@ export async function POST(request: Request) {
             const apt = await bookAppointment(agent.userId, {
               patientName: name,
               phone,
+              email: String(args.email ?? "").trim() || undefined,
               doctor: String(args.doctor ?? "").trim() || undefined,
               service: String(args.service ?? "").trim() || undefined,
               startsAt: when,

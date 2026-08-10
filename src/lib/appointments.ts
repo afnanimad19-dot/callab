@@ -4,7 +4,7 @@
 
 import {
   Appointment, createAppointment, createContact, listAppointments,
-  listContacts, newId, updateAppointment,
+  listContacts, newId, updateAppointment, updateContact,
 } from "./db";
 import { syncAppointmentToGoogle } from "./gcal";
 
@@ -13,16 +13,26 @@ const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 export async function ensureContact(
   userId: string,
   name: string,
-  phone?: string
+  phone?: string,
+  email?: string
 ): Promise<string | undefined> {
   if (!name.trim()) return undefined;
+  const cleanEmail = email?.trim();
   const contacts = await listContacts(userId);
   const existing = contacts.find(
     (c) =>
       (phone && norm(c.phone) === norm(phone) && norm(phone).length >= 7) ||
       c.name.trim().toLowerCase() === name.trim().toLowerCase()
   );
-  if (existing) return existing.id;
+  if (existing) {
+    // Backfill the email if we now have one and the contact was missing it.
+    if (cleanEmail && !existing.metadata?.email) {
+      await updateContact(userId, existing.id, {
+        metadata: { ...(existing.metadata ?? {}), email: cleanEmail },
+      }).catch(() => {});
+    }
+    return existing.id;
+  }
   const created = await createContact({
     id: newId("ct"),
     userId,
@@ -31,6 +41,7 @@ export async function ensureContact(
     tag: "patient",
     source: "AI Agent",
     createdAt: new Date().toISOString(),
+    ...(cleanEmail ? { metadata: { email: cleanEmail } } : {}),
   });
   return created.id;
 }
@@ -40,6 +51,7 @@ export async function bookAppointment(
   input: {
     patientName: string;
     phone?: string;
+    email?: string;
     doctor?: string;
     service?: string;
     startsAt: string;
@@ -48,7 +60,7 @@ export async function bookAppointment(
     source?: string;
   }
 ): Promise<Appointment> {
-  const contactId = await ensureContact(userId, input.patientName, input.phone);
+  const contactId = await ensureContact(userId, input.patientName, input.phone, input.email);
   const now = new Date().toISOString();
   const appointment: Appointment = {
     id: newId("apt"),

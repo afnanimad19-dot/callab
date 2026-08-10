@@ -543,6 +543,7 @@ export function buildVapiTools(agent: Agent): unknown[] {
             properties: {
               patient_name: { type: "string", description: "The patient's full name" },
               phone: { type: "string", description: "The patient's phone number" },
+              email: { type: "string", description: "The patient's email address, for the confirmation and reminders" },
               doctor: { type: "string", description: "Doctor or staff member the appointment is with" },
               service: { type: "string", description: "Service or treatment, e.g. cleaning, consultation" },
               datetime: { type: "string", description: "Appointment start in ISO format, e.g. 2026-08-12T15:30:00" },
@@ -626,7 +627,7 @@ export async function syncAgentToVapi(
    - If multiple patients match, ask for their full phone number and call find_patient again with name and phone.
    - If exactly one matches, greet them back by name, mention their last visit or upcoming appointment from the tool result, and ask whether they want to continue with / change the previous appointment or book a new one.
    - If none match, say you couldn't find them and continue as a new patient.
-4. NEW patient: first ask about their concern (pain, symptoms, questions) and help them. When they're ready to book, collect: full name, preferred date and time — and only then their phone number to confirm the booking.
+4. NEW patient: first ask about their concern (pain, symptoms, questions) and help them. When they're ready to book, collect: full name, preferred date and time, their phone number, and their email address (for the confirmation and reminders) — ask for the email naturally as part of confirming the booking, and read it back to make sure it's correct.
 5. To book, call book_appointment with the collected details. To move or cancel an existing one, use reschedule_appointment / cancel_appointment.
 6. After the tool succeeds, confirm the appointment details aloud (day, date, time, doctor). If a tool returns an error, apologise briefly, do NOT claim the booking succeeded, and offer to have the clinic call them back.`;
 
