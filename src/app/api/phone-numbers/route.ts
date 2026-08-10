@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       } else if (provider === "Vapi") {
         vapiPhoneNumberId = (await findVapiNumber(e164)) ?? undefined;
         if (!vapiPhoneNumberId) {
-          linkError = "Number not found in your Vapi account — provision it in Vapi → Phone Numbers first.";
+          linkError = "Number not found in the calling system — provision it first, then add it here.";
         }
       } else {
         const gateway = String(body?.sipHost ?? "").trim();

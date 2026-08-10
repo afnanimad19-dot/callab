@@ -635,8 +635,8 @@ export default function AgentEditor({
                   </button>
                   <button
                     className="btn-secondary !px-3 !py-2"
-                    title="Vapi diagnostics — check tools & sync"
-                    aria-label="Vapi diagnostics"
+                    title="Diagnostics — check tools & sync"
+                    aria-label="Diagnostics"
                     onClick={() => setDiagOpen(true)}
                   >
                     <Stethoscope className="h-4 w-4" />
@@ -1828,12 +1828,12 @@ const TOOL_GALLERY: {
 ];
 
 const PROVIDER_TOOL_NOTE: Partial<Record<NonNullable<AgentTool["type"]>, string>> = {
-  sms: "SMS sending uses the phone provider linked in your Vapi dashboard (e.g. Twilio).",
-  gcal_create: "Connect Google Calendar in your Vapi dashboard (Integrations) for this tool to activate.",
-  gcal_availability: "Connect Google Calendar in your Vapi dashboard (Integrations) for this tool to activate.",
-  gsheets: "Connect Google Sheets in your Vapi dashboard (Integrations) for this tool to activate.",
-  slack: "Connect Slack in your Vapi dashboard (Integrations) for this tool to activate.",
-  ghl: "Connect GoHighLevel in your Vapi dashboard (Integrations) for this tool to activate.",
+  sms: "SMS sending uses the phone provider linked to your account (e.g. Twilio).",
+  gcal_create: "Connect Google Calendar in Integrations for this tool to activate.",
+  gcal_availability: "Connect Google Calendar in Integrations for this tool to activate.",
+  gsheets: "Connect Google Sheets in Integrations for this tool to activate.",
+  slack: "Connect Slack in Integrations for this tool to activate.",
+  ghl: "Connect GoHighLevel in Integrations for this tool to activate.",
 };
 
 function ManageToolsModal({
@@ -2594,7 +2594,7 @@ function ShareAgentModal({
                 </button>
               </div>
               <p className="mt-2 text-xs text-ink-500">
-                The widget uses your VAPI_PUBLIC_KEY and this agent&apos;s Vapi assistant, so callers talk to the
+                The widget connects to this agent, so callers talk to the
                 real model straight from the browser.
               </p>
             </div>
@@ -2649,7 +2649,7 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
       <div className="max-h-[88vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-ink-700 bg-ink-950 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-lg font-bold"><Stethoscope className="h-5 w-5 text-[#301C3F]" /> Vapi Diagnostics</h2>
+          <h2 className="flex items-center gap-2 text-lg font-bold"><Stethoscope className="h-5 w-5 text-[#301C3F]" /> Diagnostics</h2>
           <div className="flex items-center gap-2">
             <button onClick={load} disabled={busy} aria-label="Re-check" className="btn-secondary !px-2.5 !py-2 disabled:opacity-50">
               <RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />
@@ -2659,23 +2659,23 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
         </div>
 
         {busy && !data ? (
-          <p className="py-10 text-center text-sm text-ink-400">Re-syncing this agent to Vapi and reading it back…</p>
+          <p className="py-10 text-center text-sm text-ink-400">Re-syncing this agent and reading it back…</p>
         ) : !data ? (
           <p className="py-10 text-center text-sm text-signal-red">Could not run diagnostics.</p>
         ) : (
           <div className="mt-5 space-y-4 text-sm">
-            <Row label="Vapi API key (server)" ok={data.vapiConfigured}
-              value={data.vapiConfigured ? "Set" : "Missing — set VAPI_API_KEY in Netlify"} />
+            <Row label="Calling system key (server)" ok={data.vapiConfigured}
+              value={data.vapiConfigured ? "Set" : "Missing — set the calling-system key in Netlify"} />
             <Row label="Site URL (for tool callbacks)" ok={data.siteUrlOk}
               value={data.siteUrl ?? "Missing — set SITE_URL in Netlify"} />
 
             {report && (
               <>
-                <Row label="Agent synced to Vapi" ok={report.synced} value={report.synced ? "Yes" : "No"} />
+                <Row label="Agent synced" ok={report.synced} value={report.synced ? "Yes" : "No"} />
                 <div>
-                  <p className="mb-1.5 font-semibold">Tools on Vapi ({report.vapiTools.length})</p>
+                  <p className="mb-1.5 font-semibold">Active tools ({report.vapiTools.length})</p>
                   {report.vapiTools.length === 0 ? (
-                    <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">No tools attached to the Vapi assistant.</p>
+                    <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">No tools attached to this agent.</p>
                   ) : (
                     <div className="flex flex-wrap gap-1.5">
                       {report.vapiTools.map((t) => (
@@ -2714,7 +2714,7 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
             )}
 
             <div>
-              <p className="mb-1.5 font-semibold">Phone numbers ({data.vapiNumberCount} in Vapi)</p>
+              <p className="mb-1.5 font-semibold">Phone numbers ({data.vapiNumberCount} in system)</p>
               {data.numbers.length === 0 ? (
                 <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">No numbers added in the app yet.</p>
               ) : (
@@ -2723,9 +2723,9 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
                     <div key={i} className="flex items-center justify-between rounded-lg border border-ink-700 px-3 py-2 text-xs">
                       <span className="font-mono">{n.number} <span className="text-ink-400">· {n.agent}</span></span>
                       <span className="flex items-center gap-2">
-                        <span className={n.presentInVapi ? "text-emerald-600" : "text-signal-red"}>{n.presentInVapi ? "in Vapi" : "not in Vapi"}</span>
-                        <span className={n.inboundReady ? "text-emerald-600" : "text-signal-red"} title="Whether the Vapi number has an assistant assigned — required for inbound calls to be answered">
-                          {n.inboundReady ? "answers calls" : "no agent in Vapi"}
+                        <span className={n.presentInVapi ? "text-emerald-600" : "text-signal-red"}>{n.presentInVapi ? "in system" : "not in system"}</span>
+                        <span className={n.inboundReady ? "text-emerald-600" : "text-signal-red"} title="Whether the number has an agent assigned — required for inbound calls to be answered">
+                          {n.inboundReady ? "answers calls" : "no agent in system"}
                         </span>
                       </span>
                     </div>
@@ -2735,8 +2735,8 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
             </div>
 
             <p className="rounded-lg bg-ink-800 px-3 py-2 text-xs text-ink-300">
-              For an inbound call to be answered, the number must show both &ldquo;in Vapi&rdquo; and &ldquo;answers
-              calls&rdquo;. If it says &ldquo;no agent in Vapi&rdquo;, re-assign the agent in Phone Numbers → three-dots →
+              For an inbound call to be answered, the number must show both &ldquo;in system&rdquo; and &ldquo;answers
+              calls&rdquo;. If it says &ldquo;no agent in system&rdquo;, re-assign the agent in Phone Numbers → three-dots →
               Assign agent. After changing Netlify env vars, click re-check above.
             </p>
           </div>

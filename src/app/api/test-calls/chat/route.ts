@@ -52,7 +52,7 @@ export async function POST(request: Request) {
   // Demo-mode reply: greet on the first turn, then acknowledge using the
   // agent's configured persona so the flow is still testable end to end.
   const simulated = previousChatId
-    ? `Thanks — noted. As ${agent.name}, I'd handle "${input}" according to my instructions. (Simulated reply: sync this agent to Vapi to test the real model.)`
+    ? `Thanks — noted. As ${agent.name}, I'd handle "${input}" according to my instructions. (Simulated reply: sync this agent to test the real model.)`
     : agent.greeting || `Hi, this is ${agent.name}. How can I help you today?`;
   return NextResponse.json({ reply: simulated, chatId: previousChatId ?? "sim", live: false });
 }

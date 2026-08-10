@@ -43,7 +43,7 @@ export async function GET(
       await new Promise((r) => setTimeout(r, 1500));
       fresh = await getCallRecording(call.vapiCallId);
     }
-    vapiLookup = fresh ? "found fresh URL" : "Vapi returned no recording URL (see server logs)";
+    vapiLookup = fresh ? "found fresh URL" : "No recording URL returned (see server logs)";
     if (fresh) {
       candidates.push(fresh);
       if (fresh !== call.recordingUrl) {
@@ -110,7 +110,7 @@ export async function GET(
   return NextResponse.json(
     {
       error: call.vapiCallId
-        ? "The recording link Vapi returned couldn't be played — it may still be processing. Try again in a minute; if it keeps failing on a fresh call, tell us the debug output."
+        ? "The recording link couldn't be played — it may still be processing. Try again in a minute; if it keeps failing on a fresh call, tell us the debug output."
         : "No recording available for this call.",
       vapiCallId: call.vapiCallId ?? null,
       vapiLookup,

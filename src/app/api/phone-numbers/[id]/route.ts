@@ -82,7 +82,7 @@ export async function PATCH(
       warning: routed
         ? undefined
         : record.vapiPhoneNumberId
-          ? "The agent was assigned in Vapi but the assignment could not be verified — open Vapi Diagnostics and re-check. If it stays unassigned, the number's inbound routing may be blocked in Twilio."
+          ? "The agent was assigned but the routing could not be verified — open Diagnostics and re-check. If it stays unassigned, the number's inbound routing may be blocked at your carrier."
           : "This number isn't linked to the voice pipeline, so inbound calls won't ring. Remove it and re-add it with its Twilio/SIP credentials.",
     });
   }

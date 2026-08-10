@@ -265,7 +265,7 @@ export function WebCallModal({
       const publicKey = keyRes.publicKey;
       if (!publicKey) {
         setState("idle");
-        setNotice("Web calls need VAPI_PUBLIC_KEY set in your environment variables.");
+        setNotice("Web calls need the calling-system public key set in your environment variables.");
         return;
       }
       let assistantId = agent.vapiAssistantId;
@@ -275,7 +275,7 @@ export function WebCallModal({
         assistantId = data.vapiAssistantId ?? undefined;
         if (!assistantId) {
           setState("idle");
-          setNotice(data.error ?? "Couldn't sync this agent to Vapi — check VAPI_API_KEY.");
+          setNotice(data.error ?? "Couldn't sync this agent — check the calling-system key.");
           return;
         }
       }
@@ -299,7 +299,7 @@ export function WebCallModal({
       vapi.on("error", (e: unknown) => {
         console.error(e);
         setState("idle");
-        setNotice("Voice call failed — check your Vapi keys and the agent sync.");
+        setNotice("Voice call failed — check your keys and the agent sync.");
       });
       vapi.on("message", (m: { type?: string; transcriptType?: string; role?: string; transcript?: string }) => {
         if (m.type === "transcript" && m.transcriptType === "final" && m.transcript) {

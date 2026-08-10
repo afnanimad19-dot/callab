@@ -112,7 +112,7 @@ const DEPLOY_STEPS = [
   },
 ];
 
-const HUB_NODES = ["SIP Trunks", "Twilio", "Vapi", "PBX", "WebRTC", "Carriers", "CRM", "Calendar"];
+const HUB_NODES = ["SIP Trunks", "Twilio", "Voice AI", "PBX", "WebRTC", "Carriers", "CRM", "Calendar"];
 
 const COMPARISON: [string, string, string, string][] = [
   ["Setup time", "Days", "Months", "Weeks of hiring"],

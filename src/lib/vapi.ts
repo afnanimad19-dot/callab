@@ -616,10 +616,20 @@ export async function syncAgentToVapi(
 - If a caller asks for something you cannot do (for example prescriptions, medical diagnosis, emergencies, payments over the phone, or anything not in your knowledge or tools), tell them plainly that you can't help with that specific thing, briefly list what you CAN help with, and offer to connect them to a person or take a message.
 - For any medical emergency, tell the caller to hang up and call their local emergency number immediately.`;
 
+  // Multilingual: reply in the caller's language, translating the (English)
+  // knowledge on the fly. The voice + transcriber are already multilingual.
+  const LANGUAGE_POLICY = `
+# LANGUAGE (always follow)
+- Detect the language the caller is speaking and reply in that SAME language, naturally and fluently.
+- You can speak many languages — including English, Arabic, Urdu, Hindi, Sindhi, Turkish, French, Spanish, Italian and others. Your knowledge and instructions are written in English; translate the relevant facts into the caller's language when you answer. Never read English to someone speaking another language.
+- If the caller switches languages mid-call, switch with them. If their language is unclear, ask once which language they prefer, then continue in it.
+- Keep names, numbers, dates and times accurate when you translate.`;
+
   const systemPrompt =
     (knowledgeText ? `${agent.systemPrompt}\n\n${knowledgeText}` : agent.systemPrompt) +
     BOOKING_POLICY +
-    SCOPE_GUARDRAIL;
+    SCOPE_GUARDRAIL +
+    LANGUAGE_POLICY;
 
   const adv = agent.advanced;
   const endCallPhrases = (adv?.endCallPhrases ?? "")
@@ -706,8 +716,14 @@ export async function syncAgentToVapi(
       // voiceId is the real ElevenLabs voice picked in the editor; the named
       // VOICE_MAP is the fallback for agents created before voice previews.
       voiceId: agent.voiceId || (VOICE_MAP[agent.voice] ?? VOICE_MAP["Nova (female, warm)"]),
+      // Multilingual model: the SAME voice can speak 30+ languages (Arabic,
+      // Urdu, Hindi, Turkish, French, Spanish, Italian…), so the agent replies
+      // in whatever language the caller uses.
+      model: "eleven_turbo_v2_5",
     },
-    transcriber: { provider: "deepgram", model: "nova-2" },
+    // "multi" lets the transcriber detect and follow the caller's language
+    // (and code-switching) instead of assuming English.
+    transcriber: { provider: "deepgram", model: "nova-2", language: "multi" },
     // Per-assistant server URL: Vapi POSTs the end-of-call report here after
     // EVERY call (inbound phone, outbound, web) so it lands in Call Logs and
     // the dashboard charts — without relying on the account-level Server URL
@@ -779,17 +795,17 @@ export async function syncAgentToVapi(
         if (functionTools.length < model.tools.length) {
           lastToolSyncError.set(
             agent.id,
-            "Provider tools (e.g. Slack, Google Sheets) need their credentials linked in the Vapi dashboard, so they were skipped. Booking, webhooks and other function tools are active."
+            "Provider tools (e.g. Slack, Google Sheets) need their credentials linked in Integrations, so they were skipped. Booking, webhooks and other function tools are active."
           );
         }
         return id;
       } catch (e2) {
         const fnErr = (e2 as Error).message;
         console.error(`Vapi rejected function tools too for agent ${agent.id}:`, fnErr);
-        lastToolSyncError.set(agent.id, `Vapi rejected the tools: ${fnErr.slice(0, 400)}`);
+        lastToolSyncError.set(agent.id, `The system rejected the tools: ${fnErr.slice(0, 400)}`);
       }
     } else {
-      lastToolSyncError.set(agent.id, `Vapi rejected the tools: ${fullErr.slice(0, 400)}`);
+      lastToolSyncError.set(agent.id, `The system rejected the tools: ${fullErr.slice(0, 400)}`);
     }
 
     const modelSansTools = { ...model };

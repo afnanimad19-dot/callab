@@ -107,7 +107,7 @@ export default function CallLogsTable({
         </div>
         <div className="flex items-center gap-2">
           <button onClick={syncFromVapi} disabled={syncing} className="btn-secondary flex items-center gap-1.5 disabled:opacity-60">
-            <CloudDownload className="h-4 w-4" /> {syncing ? "Syncing…" : "Sync from Vapi"}
+            <CloudDownload className="h-4 w-4" /> {syncing ? "Syncing…" : "Sync calls"}
           </button>
           <button onClick={exportCsv} className="btn-secondary flex items-center gap-1.5"><Download className="h-4 w-4" /> Export CSV</button>
         </div>

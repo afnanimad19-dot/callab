@@ -162,7 +162,7 @@ export async function POST(request: Request) {
         numbers.find((n) => n.number === campaign.phoneNumber && n.vapiPhoneNumberId) ??
         numbers.find((n) => n.vapiPhoneNumberId);
       if (!fromNumber?.vapiPhoneNumberId) {
-        launchError = "No Vapi-linked phone number to call from — connect a number in Phone Numbers first.";
+        launchError = "No connected phone number to call from — connect a number in Phone Numbers first.";
       } else {
         try {
           const camp = await createVapiCampaign({

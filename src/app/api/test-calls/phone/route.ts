@@ -66,7 +66,7 @@ export async function POST(request: Request) {
       variableValues,
     })) as { id?: string } | null;
     if (!call) {
-      return NextResponse.json({ error: "Vapi is not configured on the server." }, { status: 400 });
+      return NextResponse.json({ error: "The calling system is not configured on the server." }, { status: 400 });
     }
     return NextResponse.json({ ok: true, vapiCallId: call.id ?? null });
   } catch (e) {

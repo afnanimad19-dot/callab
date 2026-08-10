@@ -130,7 +130,7 @@ export default function TestAgentPanel({
       chatIdRef.current = data.chatId;
       pushTurn("agent", data.reply);
       if (data.live === false && !notice) {
-        setNotice("Simulated replies — sync this agent to Vapi to test the real model.");
+        setNotice("Simulated replies — sync this agent to test the real model.");
       }
     } catch (e) {
       pushTurn("agent", `Error: ${(e as Error).message}`);
@@ -144,7 +144,7 @@ export default function TestAgentPanel({
   async function startVoice() {
     if (!agent) return;
     if (!publicKey) {
-      setNotice("Voice testing needs VAPI_PUBLIC_KEY set in your environment variables.");
+      setNotice("Voice testing needs the calling-system public key set in your environment variables.");
       return;
     }
     setVoiceState("connecting");
@@ -163,13 +163,13 @@ export default function TestAgentPanel({
           setVoiceState("idle");
           setNotice(
             data.error ??
-              "Couldn't sync this agent to Vapi — check VAPI_API_KEY on the server."
+              "Couldn't sync this agent — check the calling-system key on the server."
           );
           return;
         }
       } catch {
         setVoiceState("idle");
-        setNotice("Couldn't reach the server to sync this agent to Vapi.");
+        setNotice("Couldn't reach the server to sync this agent.");
         return;
       }
     }
@@ -190,7 +190,7 @@ export default function TestAgentPanel({
       vapi.on("error", (e: unknown) => {
         console.error(e);
         setVoiceState("idle");
-        setNotice("Voice call failed — check your Vapi public key and assistant.");
+        setNotice("Voice call failed — check your calling-system key and the agent sync.");
       });
       vapi.on("message", (m: { type?: string; transcriptType?: string; role?: string; transcript?: string }) => {
         if (m.type === "transcript" && m.transcriptType === "final" && m.transcript) {

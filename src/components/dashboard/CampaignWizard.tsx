@@ -281,7 +281,7 @@ export default function CampaignWizard({ agents, phoneNumbers, webhooks, contact
       } else {
         toast(
           data.launched
-            ? `Campaign launched — Vapi is dialing ${data.launched} contact${data.launched === 1 ? "" : "s"}.`
+            ? `Campaign launched — dialing ${data.launched} contact${data.launched === 1 ? "" : "s"}.`
             : "Campaign created."
         );
       }

@@ -54,7 +54,7 @@ export default function MaintenanceCard() {
       <p className="text-sm text-ink-400">Housekeeping tools for this workspace.</p>
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <div className="card">
-          <h3 className="text-sm font-semibold">Re-sync agents to Vapi</h3>
+          <h3 className="text-sm font-semibold">Re-sync agents</h3>
           <p className="mt-1.5 text-sm text-ink-400">
             Re-pushes every agent so its call webhook and tool URLs point at this site&apos;s
             current domain. Run this after changing your domain.

@@ -11,13 +11,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Modal from "@/components/Modal";
 import type { PhoneNumber, Agent } from "@/lib/db";
+import { providerLabel } from "@/lib/labels";
 
 const PROVIDERS = [
   {
     key: "Vapi",
     icon: Zap,
-    title: "Vapi Number",
-    detail: "Provision a fresh number directly from the voice pipeline",
+    title: "System Number",
+    detail: "Provision a fresh number directly from the calling system",
   },
   {
     key: "Twilio (BYOT)",
@@ -79,7 +80,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
         </div>
         <select className="field w-40 !py-2.5" value={providerFilter} onChange={(e) => setProviderFilter(e.target.value)}>
           <option value="all">All Providers</option>
-          {allProviders.map((p) => <option key={p}>{p}</option>)}
+          {allProviders.map((p) => <option key={p} value={p}>{providerLabel(p)}</option>)}
         </select>
         <select className="field w-36 !py-2.5" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
           <option value="all">All Statuses</option>
@@ -94,7 +95,7 @@ export default function PhoneNumbersPanel({ numbers }: { numbers: PhoneNumber[] 
         {visible.map((n) => (
           <div key={n.id} className="card card-hover relative !p-5">
             <div className="flex items-start justify-between">
-              <p className="text-sm text-ink-400">{n.provider}</p>
+              <p className="text-sm text-ink-400">{providerLabel(n.provider)}</p>
               <RowMenu
                 items={[
                   { label: "Edit", icon: Pencil, onClick: () => setEditFor(n) },
@@ -213,7 +214,7 @@ function AddNumberModal({
   }
 
   return (
-    <Modal open onClose={onClose} title={provider} subtitle="Configure the number and its connection." wide>
+    <Modal open onClose={onClose} title={providerLabel(provider)} subtitle="Configure the number and its connection." wide>
       <div className="space-y-4">
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
@@ -266,8 +267,8 @@ function AddNumberModal({
 
         {provider === "Vapi" && (
           <p className="rounded-lg bg-ink-800 px-4 py-3 text-xs text-ink-300">
-            The number is provisioned in your Vapi account and linked here. Enter
-            the number exactly as it appears in Vapi → Phone Numbers.
+            The number is provisioned in the calling system and linked here. Enter
+            the number exactly as it was provisioned.
           </p>
         )}
 
@@ -324,7 +325,7 @@ function AssignAgentModal({
     if (res.ok) {
       if (unassign) toast(`${number.number} unassigned.`);
       else if (data.routed) toast(`Inbound calls to ${number.number} now go to this agent.`);
-      else toastError(data.warning ?? "Agent assigned, but the number isn't linked to Vapi — calls won't ring yet.");
+      else toastError(data.warning ?? "Agent assigned, but the number isn't linked to the calling system — calls won't ring yet.");
       onDone();
     } else {
       setError(data.error ?? "Could not assign the agent.");
