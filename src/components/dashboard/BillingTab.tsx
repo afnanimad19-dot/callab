@@ -109,28 +109,28 @@ export default function BillingTab() {
           <div className="flex items-center gap-3">
             <Clock className="h-5 w-5 text-ink-400" />
             <div>
-              <p className="text-sm font-semibold">Minutes Balance</p>
-              <p className="text-xs text-ink-400">Available calling minutes</p>
+              <p className="text-sm font-semibold">Credit Balance</p>
+              <p className="text-xs text-ink-400">1 credit = 1 calling minute · spent as calls happen</p>
             </div>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold tracking-tight">{fmtMinutes(remaining)}</p>
-            <p className="text-xs text-ink-400">of {b.minutesTotal.toLocaleString()} minutes</p>
+            <p className="text-2xl font-bold tracking-tight">{Math.round(remaining).toLocaleString()}</p>
+            <p className="text-xs text-ink-400">of {b.minutesTotal.toLocaleString()} credits · {fmtMinutes(remaining)} left</p>
           </div>
         </div>
         <div className="mt-4 h-2 overflow-hidden rounded-full bg-ink-800">
           <div className="h-full rounded-full bg-[#301C3F]" style={{ width: `${pct}%` }} />
         </div>
-        <p className="mt-1.5 text-xs text-ink-400">{pct}% remaining</p>
+        <p className="mt-1.5 text-xs text-ink-400">{pct}% remaining · {Math.round(b.minutesUsed).toLocaleString()} credits used this cycle</p>
         <div className="mt-4 flex items-center justify-between">
           <button
             className="btn-secondary flex items-center gap-2 !py-2 !text-sm"
-            onClick={() => toast("Auto-recharge activates with the Stripe integration.")}
+            onClick={() => toast("Auto-recharge activates once a payment gateway is connected.")}
           >
             <Settings2 className="h-4 w-4" /> Auto-recharge
           </button>
           <button className="btn-dark flex items-center gap-2 !py-2.5" onClick={() => setPanel("minutes")}>
-            <PlusCircle className="h-4 w-4" /> Add Minutes
+            <PlusCircle className="h-4 w-4" /> Add Credits
           </button>
         </div>
       </div>

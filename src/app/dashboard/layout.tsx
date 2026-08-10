@@ -97,9 +97,9 @@ export default async function DashboardLayout({
           </div>
           <Link href="/dashboard/settings?tab=billing" className="block rounded-lg border border-ink-700 px-3 py-2.5 transition hover:border-ink-500">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-ink-400">Minutes left</span>
+              <span className="text-ink-400">Credits left</span>
               <span className={`font-semibold ${usage.over ? "text-signal-red" : ""}`}>
-                {usage.remainingMinutes.toLocaleString()} / {usage.totalMinutes.toLocaleString()} min
+                {usage.remainingCredits.toLocaleString()} / {usage.totalCredits.toLocaleString()}
               </span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
@@ -107,7 +107,7 @@ export default async function DashboardLayout({
             </div>
             <p className="mt-1.5 text-[11px] text-ink-400">
               {usage.over
-                ? "Out of minutes — top up to keep calling"
+                ? "Out of credits — top up to keep calling"
                 : `${usage.usedMinutes.toLocaleString()} min used this cycle · tap to top up`}
             </p>
           </Link>

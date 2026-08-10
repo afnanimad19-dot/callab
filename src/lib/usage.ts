@@ -1,16 +1,27 @@
-// Minute metering. The billing period's used minutes are summed from the
-// actual call log, so the balance bar reflects real calls — no static number.
-// Included minutes come from the workspace's plan (billing.minutesTotal),
-// defaulting to 1,000 when a plan hasn't been set.
+// Credit metering — modelled on how the voice provider bills: you hold a
+// CREDIT balance and each minute of calling spends credits at a fixed rate.
+// Used credits are derived from REAL call minutes in the log, so the balance
+// reflects actual calls. Included credits come from the workspace's plan.
+//
+// CREDITS_PER_MINUTE is the rate you charge a client per voice minute. Default
+// 1 credit = 1 voice minute (clean for clinics). Change it here to re-price;
+// later, other usage (e.g. WhatsApp) can spend the same credits.
 
 import { findUserById, listCalls } from "./db";
 
+export const CREDITS_PER_MINUTE = 1;
 export const DEFAULT_INCLUDED_MINUTES = 1000;
 
 export interface Usage {
+  // minutes (real, from the call log)
   usedMinutes: number;
   totalMinutes: number;
   remainingMinutes: number;
+  // credits (minutes × rate) — the balance shown to the user
+  usedCredits: number;
+  totalCredits: number;
+  remainingCredits: number;
+  creditsPerMinute: number;
   pct: number; // 0..100 used
   periodStart: string; // ISO
   over: boolean;
@@ -45,6 +56,10 @@ export async function getUsage(userId: string): Promise<Usage> {
     usedMinutes,
     totalMinutes,
     remainingMinutes,
+    usedCredits: Math.round(usedMinutes * CREDITS_PER_MINUTE * 10) / 10,
+    totalCredits: Math.round(totalMinutes * CREDITS_PER_MINUTE * 10) / 10,
+    remainingCredits: Math.round(remainingMinutes * CREDITS_PER_MINUTE * 10) / 10,
+    creditsPerMinute: CREDITS_PER_MINUTE,
     pct,
     periodStart,
     over: usedMinutes >= totalMinutes,
