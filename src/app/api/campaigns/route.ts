@@ -11,6 +11,7 @@ import {
   newId,
 } from "@/lib/db";
 import { createVapiCampaign, startOutboundCall, vapiConfigured } from "@/lib/vapi";
+import { getUsage } from "@/lib/usage";
 
 // Contacts uploaded via CSV in the wizard: [{ number, name, ...vars }].
 interface CsvContact { number: string; name?: string; [k: string]: string | undefined }
@@ -154,7 +155,10 @@ export async function POST(request: Request) {
   let launched = 0;
   let launchError: string | undefined;
   if (direction === "outbound" && vapiConfigured() && agent.vapiAssistantId) {
-    if (targets.length === 0) {
+    const usage = await getUsage(session.userId);
+    if (usage.over) {
+      launchError = `You've used all ${usage.totalMinutes.toLocaleString()} minutes this cycle. Top up in Billing to launch outbound calls.`;
+    } else if (targets.length === 0) {
       launchError = "No callable contacts — upload a CSV or pick a contact tag with valid phone numbers.";
     } else {
       const numbers = await listPhoneNumbers(session.userId);

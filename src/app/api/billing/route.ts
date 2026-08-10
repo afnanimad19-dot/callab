@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findUserById, updateUser, newId, BillingState, BillingCard } from "@/lib/db";
+import { getUsage } from "@/lib/usage";
 
 // Workspace billing: minutes balance, plan, add-ons, payment methods, and
 // billing history. Stored on the owner's user record. Purchases update the
@@ -50,6 +51,11 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const billing = await loadBilling(session.userId);
+  // Show REAL minutes used this cycle (summed from the call log), not a static
+  // figure — so the balance here matches the sidebar bar.
+  const usage = await getUsage(session.userId);
+  billing.minutesUsed = usage.usedMinutes;
+  billing.minutesTotal = usage.totalMinutes;
   return NextResponse.json({ billing, plans: PLANS, minutePrice: MINUTE_PRICE, addonPrice: ADDON_PRICE });
 }
 

@@ -4,6 +4,7 @@ import { getSession } from "@/lib/auth";
 import NavLink from "@/components/dashboard/NavLink";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
 import ToastHost from "@/components/Toast";
+import { getUsage } from "@/lib/usage";
 
 export const metadata = { title: "Dashboard — VoiceLine AI" };
 
@@ -51,6 +52,9 @@ export default async function DashboardLayout({
   const session = await getSession();
   if (!session) redirect("/login");
 
+  const usage = await getUsage(session.userId);
+  const barColor = usage.over ? "bg-signal-red" : usage.pct >= 80 ? "bg-signal-amber" : "grad-bg";
+
   const initials = session.name
     .split(" ")
     .map((p) => p[0])
@@ -91,15 +95,22 @@ export default async function DashboardLayout({
             <span className="truncate text-sm font-medium">{session.company}</span>
             <span className="text-ink-400">▾</span>
           </div>
-          <div className="rounded-lg border border-ink-700 px-3 py-2.5">
+          <Link href="/dashboard/settings?tab=billing" className="block rounded-lg border border-ink-700 px-3 py-2.5 transition hover:border-ink-500">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-ink-400">Balance</span>
-              <span className="font-semibold">9,986 / 10,000 min</span>
+              <span className="text-ink-400">Minutes left</span>
+              <span className={`font-semibold ${usage.over ? "text-signal-red" : ""}`}>
+                {usage.remainingMinutes.toLocaleString()} / {usage.totalMinutes.toLocaleString()} min
+              </span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800">
-              <div className="grad-bg h-full w-[99%] rounded-full" />
+              <div className={`${barColor} h-full rounded-full transition-all`} style={{ width: `${Math.max(2, 100 - usage.pct)}%` }} />
             </div>
-          </div>
+            <p className="mt-1.5 text-[11px] text-ink-400">
+              {usage.over
+                ? "Out of minutes — top up to keep calling"
+                : `${usage.usedMinutes.toLocaleString()} min used this cycle · tap to top up`}
+            </p>
+          </Link>
           <div className="flex items-center justify-between px-1">
             <Link
               href="/dashboard/settings"

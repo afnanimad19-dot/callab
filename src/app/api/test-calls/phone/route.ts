@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { findAgent, listPhoneNumbers, updateAgent } from "@/lib/db";
 import { startOutboundCall, syncAgentToVapi } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
+import { getUsage } from "@/lib/usage";
 
 // Start a real test call to the user's own phone: Vapi dials out from one of
 // the workspace's numbers with the selected agent, optionally passing dynamic
@@ -10,6 +11,14 @@ import { buildKnowledgeText } from "@/lib/knowledge";
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  const usage = await getUsage(session.userId);
+  if (usage.over) {
+    return NextResponse.json(
+      { error: `You've used all ${usage.totalMinutes.toLocaleString()} minutes this cycle. Top up in Billing to make calls.` },
+      { status: 402 }
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const agent = await findAgent(session.userId, String(body?.agentId ?? ""));
@@ -28,7 +37,7 @@ export async function POST(request: Request) {
   if (!from) return NextResponse.json({ error: "Select a number to call from." }, { status: 400 });
   if (!from.vapiPhoneNumberId) {
     return NextResponse.json(
-      { error: `"${from.number}" is not linked to Vapi — import it in Phone Numbers first.` },
+      { error: `"${from.number}" is not linked to the calling system — import it in Phone Numbers first.` },
       { status: 400 }
     );
   }
