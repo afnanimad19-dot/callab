@@ -37,6 +37,12 @@ export async function GET(request: Request) {
     },
     aiAutoReply: settings.aiAutoReply,
     defaultChatAgent: defaultAgent ? defaultAgent.name : null,
+    // If this timestamp is recent (right after you messaged the number), Meta
+    // IS reaching the webhook — so any "no reply" is on our side. If it stays
+    // empty/old after you message, Meta is NOT delivering (a Meta-side setup
+    // problem: recipient not added, number not subscribed, or app not live).
+    lastWebhookAt: settings.lastWebhookAt ?? null,
+    lastWebhookInfo: settings.lastWebhookInfo ?? null,
     // Compare this Phone Number ID to the one in Meta → API Setup. They MUST match.
     checkThis: "The 'savedPhoneNumberId' above must exactly equal the Phone number ID shown in Meta → WhatsApp → API Setup.",
     webhookUrlForMeta: `${origin}/api/channels/webhook`,

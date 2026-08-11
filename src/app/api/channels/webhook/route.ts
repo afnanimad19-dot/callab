@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { findUserByChannelId } from "@/lib/db";
+import { findUserByChannelId, saveChannelSettings } from "@/lib/db";
 import {
   generateAgentReply, recordMessage, sendChannelText, upsertConversation,
 } from "@/lib/channels";
@@ -71,6 +71,12 @@ export async function POST(request: Request) {
           const phoneNumberId: string = value.metadata?.phone_number_id ?? "";
           const settings = phoneNumberId ? await findUserByChannelId(phoneNumberId) : null;
           if (!settings) continue;
+          // Debug stamp: prove Meta actually reached us (visible in diagnostics).
+          const msgCount = (value.messages ?? []).length;
+          await saveChannelSettings(settings.userId, {
+            lastWebhookAt: new Date().toISOString(),
+            lastWebhookInfo: `whatsapp ${msgCount ? `${msgCount} message(s)` : value.statuses ? "status update" : "event"} for ${phoneNumberId}`,
+          }).catch(() => {});
           const contacts = value.contacts ?? [];
           for (const msg of (value.messages ?? []) as WaMessage[]) {
             if (!msg.from) continue;

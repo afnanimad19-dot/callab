@@ -359,6 +359,9 @@ export interface ChannelSettings {
   instagram?: { pageId: string; accessToken: string; connected: boolean };
   messenger?: { pageId: string; accessToken: string; connected: boolean };
   updatedAt: string;
+  // Debug: when Meta last called our webhook for this workspace, and a summary.
+  lastWebhookAt?: string;
+  lastWebhookInfo?: string;
 }
 
 export interface KnowledgeBase {
