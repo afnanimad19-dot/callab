@@ -68,6 +68,12 @@ export default function ChannelsTab() {
         setInstagram((i) => ({ ...i, connected: data.connected.instagram }));
         setMessenger((m) => ({ ...m, connected: data.connected.messenger }));
       }
+      // Report whether WhatsApp inbound was successfully subscribed.
+      if (data.whatsappSubscribed === true) {
+        toast("WhatsApp is subscribed — incoming messages will now arrive.");
+      } else if (data.whatsappSubscribeError) {
+        toastError(`WhatsApp inbound couldn't be subscribed: ${data.whatsappSubscribeError}`);
+      }
     } else {
       toastError(data.error ?? "Could not save the channel settings.");
     }

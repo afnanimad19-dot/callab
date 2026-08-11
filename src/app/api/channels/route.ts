@@ -74,9 +74,32 @@ export async function POST(request: Request) {
   }
 
   const saved = await saveChannelSettings(session.userId, patch);
+
+  // Subscribe our app to the WABA's webhooks. This is the step that actually
+  // makes INCOMING WhatsApp messages flow to our webhook — the app-level
+  // "messages" field toggle alone isn't enough for manual (non-embedded)
+  // setups. Best-effort: we report the result but never fail the save.
+  let whatsappSubscribed: boolean | undefined;
+  let whatsappSubscribeError: string | undefined;
+  if (saved.whatsapp?.wabaId && saved.whatsapp.accessToken) {
+    try {
+      const res = await fetch(
+        `https://graph.facebook.com/v21.0/${saved.whatsapp.wabaId}/subscribed_apps`,
+        { method: "POST", headers: { Authorization: `Bearer ${saved.whatsapp.accessToken}` } }
+      );
+      const data = await res.json().catch(() => ({}));
+      whatsappSubscribed = res.ok && data?.success !== false;
+      if (!whatsappSubscribed) {
+        whatsappSubscribeError = data?.error?.message ?? `Meta returned HTTP ${res.status}`;
+      }
+    } catch (e) {
+      whatsappSubscribeError = (e as Error).message.slice(0, 160);
+    }
+  }
+
   return NextResponse.json({ ok: true, connected: {
     whatsapp: Boolean(saved.whatsapp?.connected),
     instagram: Boolean(saved.instagram?.connected),
     messenger: Boolean(saved.messenger?.connected),
-  }});
+  }, whatsappSubscribed, whatsappSubscribeError });
 }
