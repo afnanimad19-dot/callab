@@ -136,7 +136,8 @@ export async function recordMessage(
   direction: ChatMessage["direction"],
   from: ChatMessage["from"],
   text: string,
-  kind: ChatMessage["kind"] = "text"
+  kind: ChatMessage["kind"] = "text",
+  externalMsgId?: string
 ): Promise<ChatMessage> {
   const msg = await createChatMessage({
     id: newId("msg"),
@@ -147,6 +148,7 @@ export async function recordMessage(
     kind,
     text,
     at: new Date().toISOString(),
+    ...(externalMsgId ? { externalMsgId } : {}),
   });
   await updateConversation(conversation.userId, conversation.id, {
     lastMessageAt: msg.at,
@@ -206,6 +208,7 @@ export async function generateAgentReply(
     if (/^2\b|new/.test(c)) {
       await updateConversation(conversation.userId, conversation.id, {
         sessionStartAt: new Date().toISOString(),
+        vapiChatId: undefined, // start a fresh assistant thread
       }).catch(() => {});
       return { reply: "No problem — starting fresh. How can I help you today?", agentName };
     }
@@ -223,38 +226,49 @@ export async function generateAgentReply(
     }
   }
 
-  // 3) Normal reply — full agent brain + conversation history via the LLM.
+  // 3) Normal reply.
+  // PRIMARY: the assistant's own chat thread — it already carries the full
+  // agent brain, knowledge and tools. previousChatId keeps context between
+  // messages (without it, every message restarts and repeats the greeting).
+  if (vapiConfigured() && agent.vapiAssistantId) {
+    try {
+      const result = await chatWithAssistant({
+        assistantId: agent.vapiAssistantId,
+        input,
+        previousChatId: conversation.vapiChatId,
+      });
+      if (result?.reply && result.reply !== "(no reply)") {
+        if (result.chatId && result.chatId !== conversation.vapiChatId) {
+          await updateConversation(conversation.userId, conversation.id, {
+            vapiChatId: result.chatId,
+            lastReplyError: undefined,
+          }).catch(() => {});
+        }
+        return { reply: result.reply, agentName };
+      }
+    } catch (e) {
+      const err = (e as Error).message.slice(0, 200);
+      await updateConversation(conversation.userId, conversation.id, { lastReplyError: `chat: ${err}` }).catch(() => {});
+      console.error("Assistant chat reply failed:", e);
+    }
+  }
+
+  // SECONDARY: our own LLM with the agent's brain + history (needs OPENROUTER_API_KEY).
   const history = (await listChatMessages(conversation.userId))
     .filter((m) => m.conversationId === conversation.id)
     .filter((m) => !conversation.sessionStartAt || m.at >= conversation.sessionStartAt)
     .filter((m) => m.kind === "text" || m.kind === undefined)
     .sort((a, b) => a.at.localeCompare(b.at))
     .slice(-20);
-
   const messages: ChatMsg[] = [{ role: "system", content: await buildChatSystemPrompt(agent) }];
-  for (const m of history) {
-    messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
-  }
-  // The current inbound is already recorded into history above; ensure it's the
-  // last user turn even if the store hasn't caught up.
-  if (history[history.length - 1]?.text !== input) {
-    messages.push({ role: "user", content: input });
-  }
+  for (const m of history) messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
+  if (history[history.length - 1]?.text !== input) messages.push({ role: "user", content: input });
 
   const reply = await chatComplete(messages, { temperature: 0.5, maxTokens: 500 });
   if (reply) return { reply, agentName };
 
-  // Fallbacks: the voice assistant's chat endpoint, then a safe line.
-  if (vapiConfigured() && agent.vapiAssistantId) {
-    try {
-      const result = await chatWithAssistant({ assistantId: agent.vapiAssistantId, input });
-      if (result?.reply) return { reply: result.reply, agentName };
-    } catch (e) {
-      console.error("Agent chat reply failed:", e);
-    }
-  }
-  return {
-    reply: "Thanks for your message — I'll get right back to you.",
-    agentName,
-  };
+  await updateConversation(conversation.userId, conversation.id, {
+    lastReplyError: "No AI backend available — set OPENROUTER_API_KEY or check the voice-system key.",
+  }).catch(() => {});
+  return { reply: "Thanks for your message — someone from our team will get back to you shortly.", agentName };
 }

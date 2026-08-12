@@ -330,6 +330,8 @@ export interface Conversation {
   // past the timeout, the next message shows a resume menu.
   awaitingSessionChoice?: boolean;
   sessionStartAt?: string; // messages before this are excluded after a "new chat"
+  vapiChatId?: string; // thread id so the assistant keeps context between messages
+  lastReplyError?: string; // why the last AI reply failed (debug)
 }
 
 export interface ChatMessage {
@@ -342,6 +344,7 @@ export interface ChatMessage {
   text: string;
   mediaUrl?: string;
   at: string; // ISO
+  externalMsgId?: string; // provider message id, for de-duplicating retries
 }
 
 // Per-workspace channel connections + Agent Hub settings. Meta tokens are the

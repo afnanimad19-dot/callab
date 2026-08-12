@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { getChannelSettings, listAgents } from "@/lib/db";
+import { getChannelSettings, listAgents, listConversations } from "@/lib/db";
 
 // WhatsApp readiness check. Open while logged in:
 //   /api/channels/diagnostics
@@ -12,6 +12,10 @@ export async function GET(request: Request) {
 
   const settings = await getChannelSettings(session.userId);
   const agents = await listAgents(session.userId);
+  const conversations = await listConversations(session.userId);
+  const recentReplyError = conversations
+    .filter((c) => c.lastReplyError)
+    .sort((a, b) => (b.lastMessageAt ?? "").localeCompare(a.lastMessageAt ?? ""))[0]?.lastReplyError;
   const wa = settings.whatsapp;
   const defaultAgent = agents.find((a) => a.id === settings.defaultChatAgentId);
 
@@ -43,6 +47,9 @@ export async function GET(request: Request) {
     // problem: recipient not added, number not subscribed, or app not live).
     lastWebhookAt: settings.lastWebhookAt ?? null,
     lastWebhookInfo: settings.lastWebhookInfo ?? null,
+    // If a reply recently failed, the reason shows here (e.g. no AI key).
+    lastReplyError: recentReplyError ?? null,
+    openRouterKeySet: Boolean(process.env.OPENROUTER_API_KEY),
     // Compare this Phone Number ID to the one in Meta → API Setup. They MUST match.
     checkThis: "The 'savedPhoneNumberId' above must exactly equal the Phone number ID shown in Meta → WhatsApp → API Setup.",
     webhookUrlForMeta: `${origin}/api/channels/webhook`,

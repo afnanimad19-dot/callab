@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import crypto from "crypto";
-import { findUserByChannelId, saveChannelSettings } from "@/lib/db";
+import { findUserByChannelId, listChatMessages, saveChannelSettings } from "@/lib/db";
 import {
   generateAgentReply, recordMessage, sendChannelText, upsertConversation,
 } from "@/lib/channels";
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
                 : msg.type === "audio"
                   ? "(voice message)"
                   : `(${msg.type ?? "message"})`;
-            await handleInbound(settings.userId, settings, "whatsapp", msg.from, profileName, `+${msg.from}`, text);
+            await handleInbound(settings.userId, settings, "whatsapp", msg.from, profileName, `+${msg.from}`, text, msg.id);
           }
         }
       }
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
           const senderId: string = event.sender?.id ?? "";
           const text: string = event.message?.text ?? "";
           if (!senderId || !text || senderId === pageId) continue;
-          await handleInbound(settings.userId, settings, channel, senderId, "", undefined, text);
+          await handleInbound(settings.userId, settings, channel, senderId, "", undefined, text, event.message?.mid);
         }
       }
       return NextResponse.json({ ok: true });
@@ -124,10 +124,21 @@ async function handleInbound(
   externalId: string,
   customerName: string,
   customerPhone: string | undefined,
-  text: string
+  text: string,
+  externalMsgId?: string
 ) {
   const conversation = await upsertConversation(userId, channel, externalId, customerName, customerPhone);
-  await recordMessage(conversation, "in", "customer", text);
+
+  // De-duplicate provider retries: if this exact message id is already logged,
+  // it's a retry (Meta resends when a webhook is slow) — skip so we don't reply twice.
+  if (externalMsgId) {
+    const already = (await listChatMessages(userId)).some(
+      (m) => m.conversationId === conversation.id && m.externalMsgId === externalMsgId
+    );
+    if (already) return;
+  }
+
+  await recordMessage(conversation, "in", "customer", text, "text", externalMsgId);
 
   // Agent Hub auto-reply — only when the master toggle AND the conversation
   // toggle are on (a human takeover flips the conversation toggle off).
