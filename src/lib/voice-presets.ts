@@ -39,17 +39,20 @@ export interface PresetConfig {
   transcriberModel: string;
 }
 
+// Defaults use Anthropic (Claude) because that's the provider key configured in
+// Vapi for voice — so voice keeps working out of the box. Pick GPT-4o etc. only
+// if you've also added that provider's key in your Vapi dashboard.
 export function presetConfig(preset?: SpeedPreset): PresetConfig {
   switch (preset) {
     case "high_intelligence":
-      return { llm: "openai:gpt-4o", voiceModel: "eleven_multilingual_v2", transcriberModel: "nova-2" };
+      return { llm: "anthropic:claude-3-5-sonnet-20241022", voiceModel: "eleven_multilingual_v2", transcriberModel: "nova-2" };
     case "ultra_fast":
-      return { llm: "openai:gpt-4o-mini", voiceModel: "eleven_flash_v2_5", transcriberModel: "nova-2" };
+      return { llm: "anthropic:claude-3-5-haiku-20241022", voiceModel: "eleven_flash_v2_5", transcriberModel: "nova-2" };
     case "cost_saver":
       return { llm: "anthropic:claude-3-5-haiku-20241022", voiceModel: "eleven_flash_v2_5", transcriberModel: "nova-2" };
     case "balanced":
     default:
-      return { llm: "openai:gpt-4o", voiceModel: "eleven_turbo_v2_5", transcriberModel: "nova-2" };
+      return { llm: "anthropic:claude-3-5-sonnet-20241022", voiceModel: "eleven_turbo_v2_5", transcriberModel: "nova-2" };
   }
 }
 
