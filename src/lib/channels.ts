@@ -10,13 +10,12 @@ import {
 import { bookAppointment, ensureContact, findUpcomingAppointment } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
-import { chatComplete, type ChatMsg } from "./llm";
+import { chatComplete, lastLLMError, type ChatMsg } from "./llm";
 import { resolveWhen } from "./datetime";
 
-// The agent never closes a chat on its own. Only after a long silence (the
-// customer didn't respond for hours) does the NEXT message offer a resume
-// menu — so an active conversation is never interrupted.
-const SESSION_TIMEOUT_MINUTES = 360;
+// After this much silence the chat is treated as closed; the NEXT message then
+// offers the resume menu (continue / new / info) instead of replying blindly.
+const SESSION_TIMEOUT_MINUTES = 3;
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -360,6 +359,10 @@ export async function generateAgentReply(
       await updateConversation(conversation.userId, conversation.id, { lastReplyError: undefined }).catch(() => {});
       return { reply, agentName };
     }
+    // No reply generated — record exactly why (e.g. OpenRouter rate limit).
+    await updateConversation(conversation.userId, conversation.id, {
+      lastReplyError: lastLLMError() || "chat model returned no reply",
+    }).catch(() => {});
   } catch (e) {
     await updateConversation(conversation.userId, conversation.id, {
       lastReplyError: `chat-agent: ${(e as Error).message.slice(0, 160)}`,

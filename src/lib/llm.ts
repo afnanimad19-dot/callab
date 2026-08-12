@@ -5,10 +5,19 @@
 
 const MODELS = [
   "meta-llama/llama-3.3-70b-instruct:free",
+  "google/gemini-2.0-flash-exp:free",
+  "qwen/qwen-2.5-72b-instruct:free",
   "google/gemma-3-27b-it:free",
   "mistralai/mistral-small-3.1-24b-instruct:free",
-  "meta-llama/llama-3.2-3b-instruct:free",
+  "meta-llama/llama-3.1-8b-instruct:free",
 ];
+
+// The reason the last completion attempt failed (HTTP status/body or network),
+// so callers can surface "rate limited" vs "bad key" instead of a blank null.
+let _lastError = "";
+export function lastLLMError(): string {
+  return _lastError;
+}
 
 export interface ChatMsg {
   role: "system" | "user" | "assistant" | "tool";
@@ -73,7 +82,8 @@ export async function chatComplete(
   opts?: { temperature?: number; maxTokens?: number }
 ): Promise<string | null> {
   const key = process.env.OPENROUTER_API_KEY;
-  if (!key) return null;
+  if (!key) { _lastError = "OPENROUTER_API_KEY not set"; return null; }
+  _lastError = "";
   for (const model of MODELS) {
     try {
       const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
@@ -86,12 +96,16 @@ export async function chatComplete(
           max_tokens: opts?.maxTokens ?? 500,
         }),
       });
-      if (!res.ok) continue; // rate-limited / down → next model
+      if (!res.ok) {
+        _lastError = `${model} → HTTP ${res.status}: ${(await res.text().catch(() => "")).slice(0, 140)}`;
+        continue; // rate-limited / down → next model
+      }
       const data = await res.json();
       const text: string = data?.choices?.[0]?.message?.content ?? "";
       if (text.trim()) return text.trim();
-    } catch {
-      // network hiccup → try the next model
+      _lastError = `${model} → empty response`;
+    } catch (e) {
+      _lastError = `${model} → ${(e as Error).message.slice(0, 120)}`;
     }
   }
   return null;
