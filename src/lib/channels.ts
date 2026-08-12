@@ -370,7 +370,12 @@ export async function generateAgentReply(
     console.error("Chat agent failed:", e);
   }
 
-  // SECONDARY: the assistant's own chat thread (keeps context via previousChatId).
+  const openRouterError = lastLLMError();
+
+  // SECONDARY (reliability net): the assistant's own chat thread, which runs on
+  // the voice provider (Anthropic) you already pay for — so chat still works
+  // when the free OpenRouter tier is rate-limited. Keeps context via chat id.
+  let vapiError = "";
   if (vapiConfigured() && agent.vapiAssistantId) {
     try {
       const result = await chatWithAssistant({
@@ -378,26 +383,25 @@ export async function generateAgentReply(
         input,
         previousChatId: conversation.vapiChatId,
       });
-      if (result?.reply && result.reply !== "(no reply)") {
-        if (result.chatId && result.chatId !== conversation.vapiChatId) {
-          await updateConversation(conversation.userId, conversation.id, { vapiChatId: result.chatId }).catch(() => {});
-        }
+      if (result?.reply) {
+        await updateConversation(conversation.userId, conversation.id, {
+          lastReplyError: undefined,
+          ...(result.chatId && result.chatId !== conversation.vapiChatId ? { vapiChatId: result.chatId } : {}),
+        }).catch(() => {});
         return { reply: result.reply, agentName };
       }
+      vapiError = "assistant chat returned no text";
     } catch (e) {
+      vapiError = (e as Error).message.slice(0, 160);
       console.error("Assistant chat reply failed:", e);
     }
   }
 
-  // TERTIARY: a plain (no-tool) completion so it at least answers.
-  const plain: ChatMsg[] = [{ role: "system", content: await buildChatSystemPrompt(agent) }];
-  for (const m of history) plain.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
-  if (history[history.length - 1]?.text !== input) plain.push({ role: "user", content: input });
-  const reply = await chatComplete(plain, { temperature: 0.5, maxTokens: 500 });
-  if (reply) return { reply, agentName };
-
+  // Nothing produced a reply — record the REAL reasons so diagnostics is honest.
   await updateConversation(conversation.userId, conversation.id, {
-    lastReplyError: "No AI backend available — set OPENROUTER_API_KEY in the environment.",
+    lastReplyError:
+      `OpenRouter: ${openRouterError || "no reply"}` +
+      (vapiError ? ` | Vapi chat: ${vapiError}` : " | Vapi chat: not attempted"),
   }).catch(() => {});
   return { reply: "One moment — let me check on that for you.", agentName };
 }

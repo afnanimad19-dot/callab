@@ -999,14 +999,27 @@ export async function chatWithAssistant(options: {
     }),
   })) as {
     id?: string;
-    output?: { role?: string; content?: string }[];
+    output?: { role?: string; content?: unknown }[];
+    messages?: { role?: string; content?: unknown }[];
   };
-  const reply =
-    (res.output ?? [])
-      .filter((m) => m.role === "assistant" && m.content)
-      .map((m) => m.content)
+  // Vapi has shifted the reply between fields/shapes across versions — read the
+  // assistant text from output first, then messages; content may be a string
+  // or an array of parts.
+  const textFrom = (content: unknown): string => {
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((p) => (typeof p === "string" ? p : (p as { text?: string })?.text ?? "")).join("");
+    }
+    return "";
+  };
+  const collect = (arr?: { role?: string; content?: unknown }[]) =>
+    (arr ?? [])
+      .filter((m) => m.role === "assistant")
+      .map((m) => textFrom(m.content))
       .join("\n")
-      .trim() || "(no reply)";
+      .trim();
+  const reply = collect(res.output) || collect(res.messages);
+  if (!reply) return null; // let the caller fall through instead of "(no reply)"
   return { reply, chatId: res.id };
 }
 
