@@ -10,7 +10,7 @@ import {
 import { bookAppointment, ensureContact, findUpcomingAppointment } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
-import { chatComplete, chatCompleteRaw, type ChatMsg, type LLMTool } from "./llm";
+import { chatComplete, type ChatMsg } from "./llm";
 import { resolveWhen } from "./datetime";
 
 // The agent never closes a chat on its own. Only after a long silence (the
@@ -181,48 +181,6 @@ async function buildChatSystemPrompt(
   ].filter(Boolean).join("\n\n");
 }
 
-// Booking tools the CHAT agent can call — same capabilities as the voice
-// agent, so text conversations can find patients and book real appointments.
-const CHAT_TOOLS: LLMTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "find_patient",
-      description:
-        "Look up an existing patient by name (and phone number to disambiguate). Use when the person says they are an existing patient.",
-      parameters: {
-        type: "object",
-        properties: {
-          name: { type: "string", description: "The patient's name" },
-          phone: { type: "string", description: "The patient's phone number, only to disambiguate" },
-        },
-        required: [],
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "book_appointment",
-      description:
-        "Book an appointment once you have the patient's full name and a specific date & time (and ideally their phone and email). Read the details back to confirm BEFORE calling this.",
-      parameters: {
-        type: "object",
-        properties: {
-          patient_name: { type: "string", description: "The patient's full name" },
-          phone: { type: "string", description: "The patient's phone number" },
-          email: { type: "string", description: "The patient's email address" },
-          doctor: { type: "string", description: "The doctor the appointment is with" },
-          service: { type: "string", description: "Service or treatment, e.g. cleaning, consultation" },
-          datetime: { type: "string", description: "Absolute date & time, e.g. 2026-08-13T15:00, or 'tomorrow 3pm'" },
-          notes: { type: "string", description: "Anything worth noting (symptoms, concern)" },
-        },
-        required: ["patient_name", "datetime"],
-      },
-    },
-  },
-];
-
 async function findPatientText(userId: string, name?: string, phone?: string): Promise<string> {
   const nm = String(name ?? "").trim();
   const ph = String(phone ?? "").trim();
@@ -285,8 +243,14 @@ async function executeChatTool(
   }
 }
 
-// Run the chat agent with the agent's full brain + booking tools, looping so
-// tool calls (find_patient / book_appointment) execute and the model replies.
+// Run the chat agent with the agent's full brain + booking, using a TEXT
+// command protocol (not native tool-calling) so it works even on free models
+// that don't support function calling. The model emits a [[FIND]] / [[BOOK]]
+// line; we execute it, feed the result back, and it writes the reply.
+function stripCommands(text: string): string {
+  return text.replace(/\[\[(BOOK|FIND)\]\][^\n]*/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+}
+
 async function runChatAgent(
   agent: NonNullable<Awaited<ReturnType<typeof findAgentAnyUser>>>,
   history: ChatMessage[],
@@ -297,34 +261,38 @@ async function runChatAgent(
   });
   const system =
     (await buildChatSystemPrompt(agent)) +
-    `\n\n# CURRENT DATE & TIME\nRight now it is ${nowStr}. Resolve "today", "tomorrow" and weekdays against this.` +
+    `\n\n# CURRENT DATE & TIME\nRight now it is ${nowStr}. Resolve "today", "tomorrow" and weekdays against this into a real date.` +
     `\n\n# CHAT BOOKING BEHAVIOUR (always follow)
-- Have a real, caring conversation first — like an experienced clinic front desk. If the patient mentions a symptom (e.g. tooth pain), ask natural follow-up questions (where exactly, what kind of pain — sharp, throbbing, sensitivity to hot/cold, any swelling or visible cavity, how long). Give brief helpful guidance from your knowledge.
+- Have a real, caring conversation first — like an experienced clinic front desk. If the patient mentions a symptom (e.g. tooth pain), ask natural follow-up questions (where exactly, what kind of pain — sharp, throbbing, sensitivity to hot/cold, swelling, a visible cavity, how long it has lasted). Give brief helpful guidance from your knowledge.
 - NEVER end or close the chat yourself. Keep helping until the patient stops replying.
 - When it feels right, ask simply: "Are you ready to book an appointment?" If yes, collect — one at a time — their full name, phone number, and email.
-- Recommend the most suitable doctor from your knowledge (say which doctor and why they fit).
-- Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.
-- Only then call book_appointment. After it returns SUCCESS, send ONE clear confirmation message with the final details. Never say it's booked unless the tool returned SUCCESS.`;
+- Recommend the most suitable doctor from your knowledge (say which doctor and why they fit) when asked or when booking.
+- Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.` +
+    `\n\n# ACTIONS (internal — the patient never sees these lines)
+- To look up an existing patient, reply with ONLY this one line: [[FIND]] {"name":"...","phone":"..."}
+- To BOOK (only AFTER the patient confirmed the summary), reply with ONLY this one line: [[BOOK]] {"patient_name":"...","phone":"...","email":"...","doctor":"...","service":"...","datetime":"...","notes":"..."}
+  datetime must be an absolute date & time you computed, e.g. 2026-08-13T15:00.
+- When you output an action line, output ONLY that line and nothing else. I will run it and give you the RESULT; then you write the natural message to the patient. Never show the patient a [[FIND]]/[[BOOK]] line or raw JSON, and never claim an appointment is booked unless a RESULT said SUCCESS.`;
 
   const messages: ChatMsg[] = [{ role: "system", content: system }];
   for (const m of history) messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
   if (history[history.length - 1]?.text !== input) messages.push({ role: "user", content: input });
 
-  for (let round = 0; round < 5; round++) {
-    const res = await chatCompleteRaw(messages, CHAT_TOOLS, { temperature: 0.5, maxTokens: 600 });
-    if (!res) return null;
-    if (res.toolCalls.length) {
-      messages.push({ role: "assistant", content: res.content ?? "", tool_calls: res.toolCalls });
-      for (const tc of res.toolCalls) {
-        let a: Record<string, unknown> = {};
-        try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* ignore */ }
-        const result = await executeChatTool(agent.userId, tc.function.name, a);
-        messages.push({ role: "tool", tool_call_id: tc.id, content: result });
-      }
+  for (let round = 0; round < 4; round++) {
+    const text = await chatComplete(messages, { temperature: 0.5, maxTokens: 600 });
+    if (!text) return null;
+    const book = text.match(/\[\[BOOK\]\]\s*(\{[\s\S]*?\})/i);
+    const find = text.match(/\[\[FIND\]\]\s*(\{[\s\S]*?\})/i);
+    const action = book ?? find;
+    if (action) {
+      let a: Record<string, unknown> = {};
+      try { a = JSON.parse(action[1]); } catch { /* ignore */ }
+      const result = await executeChatTool(agent.userId, book ? "book_appointment" : "find_patient", a);
+      messages.push({ role: "assistant", content: text });
+      messages.push({ role: "user", content: `ACTION RESULT: ${result}\n(Now write the natural message to the patient — no [[...]] lines.)` });
       continue;
     }
-    if (res.content) return res.content;
-    return null;
+    return stripCommands(text) || text;
   }
   return "Let me get that sorted for you — one moment.";
 }
