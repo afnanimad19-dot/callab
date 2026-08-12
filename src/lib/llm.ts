@@ -11,8 +11,61 @@ const MODELS = [
 ];
 
 export interface ChatMsg {
-  role: "system" | "user" | "assistant";
+  role: "system" | "user" | "assistant" | "tool";
   content: string;
+  tool_call_id?: string;
+  tool_calls?: ToolCall[];
+}
+
+export interface ToolCall {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+}
+
+export interface LLMTool {
+  type: "function";
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+// Like chatComplete but returns the raw assistant turn so the caller can run a
+// tool-calling loop (content plus any tool_calls the model requested).
+export async function chatCompleteRaw(
+  messages: ChatMsg[],
+  tools?: LLMTool[],
+  opts?: { temperature?: number; maxTokens?: number }
+): Promise<{ content: string | null; toolCalls: ToolCall[] } | null> {
+  const key = process.env.OPENROUTER_API_KEY;
+  if (!key) return null;
+  for (const model of MODELS) {
+    try {
+      const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          messages,
+          ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
+          temperature: opts?.temperature ?? 0.5,
+          max_tokens: opts?.maxTokens ?? 600,
+        }),
+      });
+      if (!res.ok) continue;
+      const data = await res.json();
+      const msg = data?.choices?.[0]?.message;
+      if (!msg) continue;
+      const toolCalls: ToolCall[] = Array.isArray(msg.tool_calls) ? msg.tool_calls : [];
+      const content: string | null = typeof msg.content === "string" ? msg.content : null;
+      if (content || toolCalls.length) return { content, toolCalls };
+    } catch {
+      // next model
+    }
+  }
+  return null;
 }
 
 export async function chatComplete(

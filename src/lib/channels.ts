@@ -4,17 +4,19 @@
 
 import {
   ChannelSettings, ChatMessage, Conversation, createChatMessage,
-  createConversation, findAgentAnyUser, listChatMessages, listConversations, newId,
+  createConversation, findAgentAnyUser, listChatMessages, listContacts, listConversations, newId,
   updateConversation,
 } from "./db";
-import { ensureContact } from "./appointments";
+import { bookAppointment, ensureContact, findUpcomingAppointment } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
-import { chatComplete, type ChatMsg } from "./llm";
+import { chatComplete, chatCompleteRaw, type ChatMsg, type LLMTool } from "./llm";
+import { resolveWhen } from "./datetime";
 
-// A chat session is considered "closed" after this much silence; the next
-// message then offers a resume menu instead of continuing blindly.
-const SESSION_TIMEOUT_MINUTES = 15;
+// The agent never closes a chat on its own. Only after a long silence (the
+// customer didn't respond for hours) does the NEXT message offer a resume
+// menu — so an active conversation is never interrupted.
+const SESSION_TIMEOUT_MINUTES = 360;
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -179,6 +181,154 @@ async function buildChatSystemPrompt(
   ].filter(Boolean).join("\n\n");
 }
 
+// Booking tools the CHAT agent can call — same capabilities as the voice
+// agent, so text conversations can find patients and book real appointments.
+const CHAT_TOOLS: LLMTool[] = [
+  {
+    type: "function",
+    function: {
+      name: "find_patient",
+      description:
+        "Look up an existing patient by name (and phone number to disambiguate). Use when the person says they are an existing patient.",
+      parameters: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "The patient's name" },
+          phone: { type: "string", description: "The patient's phone number, only to disambiguate" },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "book_appointment",
+      description:
+        "Book an appointment once you have the patient's full name and a specific date & time (and ideally their phone and email). Read the details back to confirm BEFORE calling this.",
+      parameters: {
+        type: "object",
+        properties: {
+          patient_name: { type: "string", description: "The patient's full name" },
+          phone: { type: "string", description: "The patient's phone number" },
+          email: { type: "string", description: "The patient's email address" },
+          doctor: { type: "string", description: "The doctor the appointment is with" },
+          service: { type: "string", description: "Service or treatment, e.g. cleaning, consultation" },
+          datetime: { type: "string", description: "Absolute date & time, e.g. 2026-08-13T15:00, or 'tomorrow 3pm'" },
+          notes: { type: "string", description: "Anything worth noting (symptoms, concern)" },
+        },
+        required: ["patient_name", "datetime"],
+      },
+    },
+  },
+];
+
+async function findPatientText(userId: string, name?: string, phone?: string): Promise<string> {
+  const nm = String(name ?? "").trim();
+  const ph = String(phone ?? "").trim();
+  if (!nm && !ph) return "Ask for the patient's name first, then look up again.";
+  const contacts = await listContacts(userId);
+  const q = nm.toLowerCase();
+  let matches = nm
+    ? contacts.filter((c) => {
+        const f = c.name.toLowerCase();
+        return f === q || f.includes(q) || q.includes(f.split(" ")[0]);
+      })
+    : contacts;
+  const digits = ph.replace(/[^\d]/g, "").slice(-9);
+  if (digits.length >= 7) {
+    const byPhone = matches.filter((c) => c.phone.replace(/[^\d]/g, "").slice(-9) === digits);
+    if (byPhone.length) matches = byPhone;
+  }
+  if (matches.length === 0) return `No existing patient named "${nm}" found — treat them as a NEW patient (don't mention records).`;
+  if (matches.length > 1) return `${matches.length} patients match "${nm}". Ask for their full phone number, then look up again.`;
+  const c = matches[0];
+  const upcoming = await findUpcomingAppointment(userId, c.name, c.phone);
+  return (
+    `Found ${c.name}${c.phone ? ` (${c.phone})` : ""}.` +
+    (c.metadata?.email ? ` Email ${c.metadata.email}.` : "") +
+    (upcoming
+      ? ` Upcoming appointment: ${new Date(upcoming.startsAt).toLocaleString()}${upcoming.doctor ? ` with ${upcoming.doctor}` : ""}.`
+      : " No upcoming appointment on file.")
+  );
+}
+
+async function executeChatTool(
+  userId: string,
+  name: string,
+  args: Record<string, unknown>
+): Promise<string> {
+  try {
+    if (name === "find_patient") {
+      return await findPatientText(userId, String(args.name ?? ""), String(args.phone ?? ""));
+    }
+    if (name === "book_appointment") {
+      const patientName = String(args.patient_name ?? args.name ?? "").trim();
+      if (!patientName) return "ERROR: need the patient's full name before booking.";
+      const when = resolveWhen(String(args.datetime ?? ""));
+      if (!when) return "ERROR: the date/time wasn't understood. Ask the patient for a specific day and time, then book again.";
+      const apt = await bookAppointment(userId, {
+        patientName,
+        phone: String(args.phone ?? "").trim() || undefined,
+        email: String(args.email ?? "").trim() || undefined,
+        doctor: String(args.doctor ?? "").trim() || undefined,
+        service: String(args.service ?? "").trim() || undefined,
+        startsAt: when,
+        notes: String(args.notes ?? "").trim() || undefined,
+        source: "chat",
+      });
+      return `SUCCESS: appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Send ONE confirmation message with these exact details.`;
+    }
+    return "Unknown tool.";
+  } catch (e) {
+    return `ERROR: ${(e as Error).message.slice(0, 120)}`;
+  }
+}
+
+// Run the chat agent with the agent's full brain + booking tools, looping so
+// tool calls (find_patient / book_appointment) execute and the model replies.
+async function runChatAgent(
+  agent: NonNullable<Awaited<ReturnType<typeof findAgentAnyUser>>>,
+  history: ChatMessage[],
+  input: string
+): Promise<string | null> {
+  const nowStr = new Date().toLocaleString("en-US", {
+    weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+  const system =
+    (await buildChatSystemPrompt(agent)) +
+    `\n\n# CURRENT DATE & TIME\nRight now it is ${nowStr}. Resolve "today", "tomorrow" and weekdays against this.` +
+    `\n\n# CHAT BOOKING BEHAVIOUR (always follow)
+- Have a real, caring conversation first — like an experienced clinic front desk. If the patient mentions a symptom (e.g. tooth pain), ask natural follow-up questions (where exactly, what kind of pain — sharp, throbbing, sensitivity to hot/cold, any swelling or visible cavity, how long). Give brief helpful guidance from your knowledge.
+- NEVER end or close the chat yourself. Keep helping until the patient stops replying.
+- When it feels right, ask simply: "Are you ready to book an appointment?" If yes, collect — one at a time — their full name, phone number, and email.
+- Recommend the most suitable doctor from your knowledge (say which doctor and why they fit).
+- Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.
+- Only then call book_appointment. After it returns SUCCESS, send ONE clear confirmation message with the final details. Never say it's booked unless the tool returned SUCCESS.`;
+
+  const messages: ChatMsg[] = [{ role: "system", content: system }];
+  for (const m of history) messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
+  if (history[history.length - 1]?.text !== input) messages.push({ role: "user", content: input });
+
+  for (let round = 0; round < 5; round++) {
+    const res = await chatCompleteRaw(messages, CHAT_TOOLS, { temperature: 0.5, maxTokens: 600 });
+    if (!res) return null;
+    if (res.toolCalls.length) {
+      messages.push({ role: "assistant", content: res.content ?? "", tool_calls: res.toolCalls });
+      for (const tc of res.toolCalls) {
+        let a: Record<string, unknown> = {};
+        try { a = JSON.parse(tc.function.arguments || "{}"); } catch { /* ignore */ }
+        const result = await executeChatTool(agent.userId, tc.function.name, a);
+        messages.push({ role: "tool", tool_call_id: tc.id, content: result });
+      }
+      continue;
+    }
+    if (res.content) return res.content;
+    return null;
+  }
+  return "Let me get that sorted for you — one moment.";
+}
+
 const RESUME_MENU =
   "Welcome back! Our previous chat had gone quiet, so it's now closed. What would you like to do?\n\n" +
   "1️⃣ Continue our previous conversation\n" +
@@ -227,9 +377,29 @@ export async function generateAgentReply(
   }
 
   // 3) Normal reply.
-  // PRIMARY: the assistant's own chat thread — it already carries the full
-  // agent brain, knowledge and tools. previousChatId keeps context between
-  // messages (without it, every message restarts and repeats the greeting).
+  const history = (await listChatMessages(conversation.userId))
+    .filter((m) => m.conversationId === conversation.id)
+    .filter((m) => !conversation.sessionStartAt || m.at >= conversation.sessionStartAt)
+    .filter((m) => m.kind === "text" || m.kind === undefined)
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(-20);
+
+  // PRIMARY: our own chat brain with booking tools — a real conversation that
+  // can find patients and book appointments (into the Calendar, source "chat").
+  try {
+    const reply = await runChatAgent(agent, history, input);
+    if (reply) {
+      await updateConversation(conversation.userId, conversation.id, { lastReplyError: undefined }).catch(() => {});
+      return { reply, agentName };
+    }
+  } catch (e) {
+    await updateConversation(conversation.userId, conversation.id, {
+      lastReplyError: `chat-agent: ${(e as Error).message.slice(0, 160)}`,
+    }).catch(() => {});
+    console.error("Chat agent failed:", e);
+  }
+
+  // SECONDARY: the assistant's own chat thread (keeps context via previousChatId).
   if (vapiConfigured() && agent.vapiAssistantId) {
     try {
       const result = await chatWithAssistant({
@@ -239,36 +409,24 @@ export async function generateAgentReply(
       });
       if (result?.reply && result.reply !== "(no reply)") {
         if (result.chatId && result.chatId !== conversation.vapiChatId) {
-          await updateConversation(conversation.userId, conversation.id, {
-            vapiChatId: result.chatId,
-            lastReplyError: undefined,
-          }).catch(() => {});
+          await updateConversation(conversation.userId, conversation.id, { vapiChatId: result.chatId }).catch(() => {});
         }
         return { reply: result.reply, agentName };
       }
     } catch (e) {
-      const err = (e as Error).message.slice(0, 200);
-      await updateConversation(conversation.userId, conversation.id, { lastReplyError: `chat: ${err}` }).catch(() => {});
       console.error("Assistant chat reply failed:", e);
     }
   }
 
-  // SECONDARY: our own LLM with the agent's brain + history (needs OPENROUTER_API_KEY).
-  const history = (await listChatMessages(conversation.userId))
-    .filter((m) => m.conversationId === conversation.id)
-    .filter((m) => !conversation.sessionStartAt || m.at >= conversation.sessionStartAt)
-    .filter((m) => m.kind === "text" || m.kind === undefined)
-    .sort((a, b) => a.at.localeCompare(b.at))
-    .slice(-20);
-  const messages: ChatMsg[] = [{ role: "system", content: await buildChatSystemPrompt(agent) }];
-  for (const m of history) messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
-  if (history[history.length - 1]?.text !== input) messages.push({ role: "user", content: input });
-
-  const reply = await chatComplete(messages, { temperature: 0.5, maxTokens: 500 });
+  // TERTIARY: a plain (no-tool) completion so it at least answers.
+  const plain: ChatMsg[] = [{ role: "system", content: await buildChatSystemPrompt(agent) }];
+  for (const m of history) plain.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
+  if (history[history.length - 1]?.text !== input) plain.push({ role: "user", content: input });
+  const reply = await chatComplete(plain, { temperature: 0.5, maxTokens: 500 });
   if (reply) return { reply, agentName };
 
   await updateConversation(conversation.userId, conversation.id, {
-    lastReplyError: "No AI backend available — set OPENROUTER_API_KEY or check the voice-system key.",
+    lastReplyError: "No AI backend available — set OPENROUTER_API_KEY in the environment.",
   }).catch(() => {});
-  return { reply: "Thanks for your message — someone from our team will get back to you shortly.", agentName };
+  return { reply: "One moment — let me check on that for you.", agentName };
 }
