@@ -10,7 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageCircle, Camera, MessagesSquare, Search, RefreshCw, Send, Mic, Square,
-  Bot, User, Sparkles, Phone, SlidersHorizontal,
+  Bot, User, Sparkles, Phone, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import Link from "next/link";
 import type { Agent, ChatMessage, Conversation } from "@/lib/db";
@@ -32,9 +32,21 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
+  const [atBottom, setAtBottom] = useState(true);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  function scrollToBottom(behavior: ScrollBehavior = "auto") {
+    const el = scrollRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior });
+    setAtBottom(true);
+  }
+  function onThreadScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    setAtBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+  }
 
   const loadConversations = useCallback(async () => {
     const res = await fetch("/api/inbox");
@@ -61,9 +73,16 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     }, 12000);
     return () => clearInterval(t);
   }, [activeId, loadConversations, loadThread]);
+  // Auto-jump to the newest message only if the reader is already near the
+  // bottom, so it doesn't yank them away while they scroll history.
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    if (atBottom) scrollToBottom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
+  // Switching conversation always lands at the latest message.
+  useEffect(() => {
+    if (activeId) requestAnimationFrame(() => scrollToBottom());
+  }, [activeId, active?.id]);
 
   const visible = conversations
     .filter((c) => filter === "all" || c.channel === filter)
@@ -173,11 +192,11 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     agents.find((a) => a.id === id)?.name ?? "Default agent";
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <div className="flex h-[calc(100dvh-7.5rem)] flex-col gap-3">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Inbox</h1>
-          <p className="mt-1 text-sm text-ink-400">
+          <p className="mt-0.5 text-sm text-ink-400">
             WhatsApp, Instagram and Messenger conversations — answered by your agents or by you
           </p>
         </div>
@@ -186,9 +205,9 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
         </Link>
       </div>
 
-      <div className="card grid min-h-[620px] grid-cols-1 !p-0 lg:grid-cols-[300px_1fr_260px]">
+      <div className="card grid min-h-0 flex-1 grid-cols-1 overflow-hidden !p-0 lg:grid-cols-[300px_1fr_260px]">
         {/* Conversation list */}
-        <div className="flex flex-col border-r border-ink-700">
+        <div className="flex min-h-0 flex-col border-r border-ink-700">
           <div className="space-y-2 border-b border-ink-700 p-3">
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-500"><Search className="h-3.5 w-3.5" /></span>
@@ -235,8 +254,8 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                     <span className="flex items-center justify-between gap-2">
                       <span className="truncate text-xs text-ink-400">{c.lastMessageText ?? ""}</span>
                       {c.unread > 0 && (
-                        <span className="flex h-4 min-w-[16px] shrink-0 items-center justify-center rounded-full bg-[#301C3F] px-1 text-[10px] font-bold text-white">
-                          {c.unread}
+                        <span className="flex h-[18px] min-w-[18px] shrink-0 items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white">
+                          {c.unread > 99 ? "99+" : c.unread}
                         </span>
                       )}
                     </span>
@@ -248,7 +267,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
         </div>
 
         {/* Thread */}
-        <div className="flex min-w-0 flex-col">
+        <div className="relative flex min-h-0 min-w-0 flex-col">
           {!active ? (
             <div className="flex flex-1 items-center justify-center text-sm text-ink-400">
               Select a conversation to start.
@@ -290,7 +309,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                 </div>
               </div>
 
-              <div ref={scrollRef} className="flex-1 space-y-2.5 overflow-y-auto px-4 py-4">
+              <div ref={scrollRef} onScroll={onThreadScroll} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-4">
                 {messages.map((m) => (
                   <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
@@ -308,6 +327,17 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                   </div>
                 ))}
               </div>
+
+              {/* Jump to latest — appears when scrolled up */}
+              {!atBottom && (
+                <button
+                  onClick={() => scrollToBottom("smooth")}
+                  aria-label="Jump to latest"
+                  className="absolute bottom-20 right-5 z-10 flex h-9 w-9 items-center justify-center rounded-full border border-ink-700 bg-white text-[#301C3F] shadow-lg transition hover:bg-ink-50"
+                >
+                  <ChevronDown className="h-5 w-5" />
+                </button>
+              )}
 
               {/* Composer */}
               <div className="flex items-center gap-2 border-t border-ink-700 px-4 py-3">
@@ -340,7 +370,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
         </div>
 
         {/* Customer details */}
-        <div className="hidden border-l border-ink-700 lg:block">
+        <div className="hidden min-h-0 overflow-y-auto border-l border-ink-700 lg:block">
           {active ? (
             <div className="p-4">
               <div className="flex flex-col items-center border-b border-ink-800 pb-4 text-center">
