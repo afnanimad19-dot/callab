@@ -326,6 +326,10 @@ export interface Conversation {
   lastMessageText?: string;
   unread: number;
   createdAt: string;
+  // Chat session handling (text channels only): when the last chat went quiet
+  // past the timeout, the next message shows a resume menu.
+  awaitingSessionChoice?: boolean;
+  sessionStartAt?: string; // messages before this are excluded after a "new chat"
 }
 
 export interface ChatMessage {

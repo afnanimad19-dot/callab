@@ -4,11 +4,17 @@
 
 import {
   ChannelSettings, ChatMessage, Conversation, createChatMessage,
-  createConversation, findAgentAnyUser, listConversations, newId,
+  createConversation, findAgentAnyUser, listChatMessages, listConversations, newId,
   updateConversation,
 } from "./db";
 import { ensureContact } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
+import { buildKnowledgeText } from "./knowledge";
+import { chatComplete, type ChatMsg } from "./llm";
+
+// A chat session is considered "closed" after this much silence; the next
+// message then offers a resume menu instead of continuing blindly.
+const SESSION_TIMEOUT_MINUTES = 15;
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 
@@ -152,6 +158,32 @@ export async function recordMessage(
 
 // --- AI auto-reply (Agent Hub) ----------------------------------------------
 
+// Build the text-chat system prompt from the SAME brain as the voice agent
+// (identity + tasks + guardrails + knowledge), adapted for short chat replies.
+async function buildChatSystemPrompt(
+  agent: NonNullable<Awaited<ReturnType<typeof findAgentAnyUser>>>
+): Promise<string> {
+  const knowledge = await buildKnowledgeText(agent.userId, agent.knowledgeBaseIds).catch(() => "");
+  const brain = agent.systemPrompt || [agent.identity, agent.tasks, agent.guardrails].filter(Boolean).join("\n\n");
+  return [
+    brain,
+    knowledge ? `# KNOWLEDGE\n${knowledge}` : "",
+    `# CHAT FORMAT (always follow)
+- You are replying over TEXT CHAT (WhatsApp / Instagram / Messenger), not a phone call. Everything about your identity, tasks, and knowledge above still applies.
+- Keep replies short and natural, like a real chat message (usually 1-3 sentences). No markdown headings, no reading things "aloud".
+- Only greet at the very start of a conversation — do NOT repeat your greeting on every message. Answer what the customer actually said and move the conversation forward.
+- Reply in the same language the customer is writing in.
+- Answer only from your knowledge and tasks; if you don't know, say so and offer to have the clinic follow up. Never invent prices, services, or medical advice.`,
+  ].filter(Boolean).join("\n\n");
+}
+
+const RESUME_MENU =
+  "Welcome back! Our previous chat had gone quiet, so it's now closed. What would you like to do?\n\n" +
+  "1️⃣ Continue our previous conversation\n" +
+  "2️⃣ Start a new chat\n" +
+  "3️⃣ Get information (doctors, services, hours)\n\n" +
+  "Just reply with 1, 2, or 3.";
+
 export async function generateAgentReply(
   conversation: Conversation,
   settings: ChannelSettings,
@@ -161,18 +193,68 @@ export async function generateAgentReply(
   if (!agentId) return null;
   const agent = await findAgentAnyUser(agentId);
   if (!agent || agent.userId !== conversation.userId) return null;
+  const agentName = agent.name;
 
+  const now = Date.now();
+  const prevAt = conversation.lastMessageAt ? Date.parse(conversation.lastMessageAt) : now;
+  const gapMinutes = (now - prevAt) / 60000;
+
+  // 1) If we asked the resume menu last time, act on the customer's choice.
+  if (conversation.awaitingSessionChoice) {
+    await updateConversation(conversation.userId, conversation.id, { awaitingSessionChoice: false }).catch(() => {});
+    const c = input.trim().toLowerCase();
+    if (/^2\b|new/.test(c)) {
+      await updateConversation(conversation.userId, conversation.id, {
+        sessionStartAt: new Date().toISOString(),
+      }).catch(() => {});
+      return { reply: "No problem — starting fresh. How can I help you today?", agentName };
+    }
+    // choices 1 (continue) and 3 (info) both fall through to a normal reply.
+  }
+  // 2) Otherwise, if the session went quiet past the timeout and there's prior
+  //    history, offer the resume menu instead of a blind reply.
+  else if (gapMinutes > SESSION_TIMEOUT_MINUTES) {
+    const prior = (await listChatMessages(conversation.userId)).filter(
+      (m) => m.conversationId === conversation.id
+    );
+    if (prior.length > 1) {
+      await updateConversation(conversation.userId, conversation.id, { awaitingSessionChoice: true }).catch(() => {});
+      return { reply: RESUME_MENU, agentName };
+    }
+  }
+
+  // 3) Normal reply — full agent brain + conversation history via the LLM.
+  const history = (await listChatMessages(conversation.userId))
+    .filter((m) => m.conversationId === conversation.id)
+    .filter((m) => !conversation.sessionStartAt || m.at >= conversation.sessionStartAt)
+    .filter((m) => m.kind === "text" || m.kind === undefined)
+    .sort((a, b) => a.at.localeCompare(b.at))
+    .slice(-20);
+
+  const messages: ChatMsg[] = [{ role: "system", content: await buildChatSystemPrompt(agent) }];
+  for (const m of history) {
+    messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
+  }
+  // The current inbound is already recorded into history above; ensure it's the
+  // last user turn even if the store hasn't caught up.
+  if (history[history.length - 1]?.text !== input) {
+    messages.push({ role: "user", content: input });
+  }
+
+  const reply = await chatComplete(messages, { temperature: 0.5, maxTokens: 500 });
+  if (reply) return { reply, agentName };
+
+  // Fallbacks: the voice assistant's chat endpoint, then a safe line.
   if (vapiConfigured() && agent.vapiAssistantId) {
     try {
       const result = await chatWithAssistant({ assistantId: agent.vapiAssistantId, input });
-      if (result) return { reply: result.reply, agentName: agent.name };
+      if (result?.reply) return { reply: result.reply, agentName };
     } catch (e) {
       console.error("Agent chat reply failed:", e);
     }
   }
-  // Demo-mode fallback so the inbox works before Vapi is configured.
   return {
-    reply: agent.greeting || `Hi! This is ${agent.name}. How can I help you today?`,
-    agentName: agent.name,
+    reply: "Thanks for your message — I'll get right back to you.",
+    agentName,
   };
 }
