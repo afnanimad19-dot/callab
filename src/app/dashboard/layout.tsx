@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
+import { findUserById } from "@/lib/db";
+import { planFeature } from "@/lib/plans";
 import NavLink from "@/components/dashboard/NavLink";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
 import ToastHost from "@/components/Toast";
@@ -10,18 +12,21 @@ export const metadata = { title: "Dashboard — VoiceLine AI" };
 
 const NAV_GROUPS: {
   heading: string | null;
-  items: { href: string; label: string; icon: string; exact?: boolean }[];
+  items: { href: string; label: string; icon: string; exact?: boolean; feature?: "outbound" }[];
 }[] = [
   {
     heading: null,
-    items: [{ href: "/dashboard", label: "Dashboard", icon: "layout-dashboard", exact: true }],
+    items: [
+      { href: "/dashboard", label: "Dashboard", icon: "layout-dashboard", exact: true },
+      { href: "/dashboard/inbox", label: "Inbox", icon: "inbox" },
+    ],
   },
   {
     heading: "AI & Knowledge",
     items: [
       { href: "/dashboard/agents", label: "AI Agents", icon: "bot" },
       { href: "/dashboard/knowledge", label: "Knowledge Bases", icon: "book-open" },
-      { href: "/dashboard/launch", label: "Launch your AI", icon: "rocket" },
+      { href: "/dashboard/launch", label: "Launch your AI", icon: "rocket", feature: "outbound" },
     ],
   },
   {
@@ -31,7 +36,6 @@ const NAV_GROUPS: {
       { href: "/dashboard/contacts", label: "Contacts", icon: "users" },
       { href: "/dashboard/calls", label: "Call Logs", icon: "phone-call" },
       { href: "/dashboard/calendar", label: "Calendar", icon: "calendar-days" },
-      { href: "/dashboard/inbox", label: "Inbox", icon: "inbox" },
       { href: "/dashboard/live", label: "Live Monitoring", icon: "radio" },
     ],
   },
@@ -55,6 +59,12 @@ export default async function DashboardLayout({
 }) {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // Plan gating: mark nav items whose feature the current plan doesn't include
+  // so they render as locked (non-navigating) and route to Plans on click.
+  const user = await findUserById(session.userId);
+  const outbound = planFeature(user, "outbound");
+  const isLocked = (feature?: "outbound") => (feature === "outbound" ? !outbound : false);
 
   const usage = await getUsage(session.userId);
   const barColor = usage.over ? "bg-signal-red" : usage.pct >= 80 ? "bg-signal-amber" : "grad-bg";
@@ -87,7 +97,7 @@ export default async function DashboardLayout({
               )}
               <div className="space-y-0.5">
                 {group.items.map((item) => (
-                  <NavLink key={item.href} {...item} />
+                  <NavLink key={item.href} {...item} locked={isLocked(item.feature)} />
                 ))}
               </div>
             </div>
@@ -149,11 +159,17 @@ export default async function DashboardLayout({
 
         {/* Mobile nav */}
         <div className="flex gap-4 overflow-x-auto border-b border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-ink-300 lg:hidden">
-          {NAV_GROUPS.flatMap((g) => g.items).map((item) => (
-            <Link key={item.href} href={item.href} className="whitespace-nowrap hover:text-ink-100">
-              {item.label}
-            </Link>
-          ))}
+          {NAV_GROUPS.flatMap((g) => g.items).map((item) =>
+            isLocked(item.feature) ? (
+              <Link key={item.href} href="/dashboard/plans" className="flex items-center gap-1 whitespace-nowrap text-ink-500">
+                🔒 {item.label}
+              </Link>
+            ) : (
+              <Link key={item.href} href={item.href} className="whitespace-nowrap hover:text-ink-100">
+                {item.label}
+              </Link>
+            )
+          )}
         </div>
 
         {/* Full-width main content — pages own the whole canvas like a real

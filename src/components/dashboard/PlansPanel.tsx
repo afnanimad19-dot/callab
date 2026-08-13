@@ -11,11 +11,11 @@ import { toast, toastError } from "@/components/Toast";
 const ROWS: { label: string; value: (t: PlanTier) => { on: boolean; text?: string } }[] = [
   { label: "AI agents", value: (t) => ({ on: true, text: String(t.limits.agents) }) },
   { label: "Voice minutes / month", value: (t) => ({ on: true, text: t.limits.minutes.toLocaleString() }) },
-  { label: "WhatsApp inbox & inbound calls", value: () => ({ on: true }) },
-  { label: "Instagram + Messenger", value: (t) => ({ on: t.features.allChannels }) },
-  { label: "Outbound call campaigns", value: (t) => ({ on: t.features.outbound }) },
-  { label: "WhatsApp broadcast", value: (t) => ({ on: t.features.broadcast }) },
+  { label: "Knowledge bases", value: (t) => ({ on: true, text: String(t.limits.knowledgeBases) }) },
+  { label: "Omnichannel inbox (WhatsApp, Instagram, Messenger)", value: () => ({ on: true }) },
+  { label: "Inbound calls", value: () => ({ on: true }) },
   { label: "Google Calendar + Sheets", value: (t) => ({ on: t.features.calendarSheets }) },
+  { label: "Outbound call campaigns", value: (t) => ({ on: t.features.outbound }) },
   { label: "Priority support", value: (t) => ({ on: t.features.prioritySupport }) },
 ];
 
@@ -131,8 +131,10 @@ export default function PlansPanel({
       </div>
 
       <p className="text-xs text-ink-500">
-        Changing plans updates your features immediately. Card charging is handled at checkout
-        (Stripe) — until that&apos;s connected, changes here adjust your entitlements for testing.
+        Included voice minutes power your AI phone agent. When you run out, top up more anytime from
+        Billing → Add Minutes. Changing plans updates your features immediately; card charging is
+        handled at checkout (Stripe) — until that&apos;s connected, changes here adjust your
+        entitlements for testing.
       </p>
     </div>
   );

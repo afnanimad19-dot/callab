@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createKnowledgeBase, KnowledgeBase, newId } from "@/lib/db";
+import { createKnowledgeBase, findUserById, listKnowledgeBases, KnowledgeBase, newId } from "@/lib/db";
 import { fetchWebsiteText } from "@/lib/web-content";
+import { knowledgeBaseLimit, getPlanTier } from "@/lib/plans";
 
 export async function POST(request: Request) {
   const session = await getSession();
@@ -11,6 +12,20 @@ export async function POST(request: Request) {
   const name = String(body?.name ?? "").trim();
   if (!name) {
     return NextResponse.json({ error: "Resource name is required." }, { status: 400 });
+  }
+
+  // Plan limit on knowledge bases.
+  const owner = await findUserById(session.userId);
+  const limit = knowledgeBaseLimit(owner);
+  const existing = (await listKnowledgeBases(session.userId)).length;
+  if (existing >= limit) {
+    return NextResponse.json(
+      {
+        error: `Your ${getPlanTier(owner).name} plan includes ${limit} knowledge bases. Upgrade your plan to add more.`,
+        upgrade: true,
+      },
+      { status: 403 }
+    );
   }
 
   const type = ["file", "url", "text", "gdoc"].includes(body?.type)
