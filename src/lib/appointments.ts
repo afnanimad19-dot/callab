@@ -7,6 +7,7 @@ import {
   listContacts, newId, updateAppointment, updateContact,
 } from "./db";
 import { syncAppointmentToGoogle } from "./gcal";
+import { logAppointmentToSheet } from "./gsheets";
 
 const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 
@@ -67,6 +68,7 @@ export async function bookAppointment(
     userId,
     patientName: input.patientName.trim(),
     phone: input.phone?.trim(),
+    email: input.email?.trim(),
     doctor: input.doctor?.trim(),
     service: input.service?.trim(),
     status: "booked",
@@ -89,6 +91,7 @@ export async function bookAppointment(
   } catch (e) {
     console.error("Google sync after booking failed:", e);
   }
+  await logAppointmentToSheet(userId, appointment, "booked");
   return appointment;
 }
 
@@ -166,6 +169,7 @@ export async function rescheduleAppointment(
     updatedAt: new Date().toISOString(),
   };
   const gcalEventId = await syncAppointmentToGoogle(userId, patched);
+  await logAppointmentToSheet(userId, patched, "rescheduled");
   return (
     (await updateAppointment(userId, appointment.id, {
       startsAt: newStartsAt,
@@ -181,6 +185,7 @@ export async function cancelAppointment(
   appointment: Appointment
 ): Promise<Appointment | null> {
   await syncAppointmentToGoogle(userId, { ...appointment, status: "canceled" });
+  await logAppointmentToSheet(userId, { ...appointment, status: "canceled" }, "canceled");
   return (
     (await updateAppointment(userId, appointment.id, {
       status: "canceled",

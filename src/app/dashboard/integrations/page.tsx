@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import { findUserById, listIntegrations } from "@/lib/db";
 import { vapiConfigured } from "@/lib/vapi";
 import { googleConfigured } from "@/lib/gcal";
+import { googleSheetUrl } from "@/lib/gsheets";
 import IntegrationsPanel from "@/components/dashboard/IntegrationsPanel";
 
 export const metadata = { title: "Integrations — VoiceLine AI" };
@@ -50,6 +51,7 @@ export default async function IntegrationsPage() {
     configured: googleConfigured(),
     connected: Boolean(user?.googleRefreshToken),
     email: user?.googleEmail ?? null,
+    sheetUrl: googleSheetUrl(user?.googleSheetId),
   };
 
   return <IntegrationsPanel integrations={integrations} platforms={platforms} google={google} />;

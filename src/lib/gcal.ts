@@ -15,7 +15,14 @@ export function googleAuthUrl(redirectUri: string, state: string): string {
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: redirectUri,
     response_type: "code",
-    scope: "https://www.googleapis.com/auth/calendar.events",
+    // Calendar events + Sheets (one consent covers both integrations). Sheets
+    // logging auto-creates a spreadsheet in the same connected account.
+    scope: [
+      "https://www.googleapis.com/auth/calendar.events",
+      "https://www.googleapis.com/auth/spreadsheets",
+      "openid",
+      "email",
+    ].join(" "),
     access_type: "offline",
     prompt: "consent", // always return a refresh token
     state,
@@ -55,7 +62,9 @@ export async function exchangeCode(code: string, redirectUri: string): Promise<{
   }
 }
 
-async function accessTokenFor(user: User): Promise<string | null> {
+// Exchange the stored refresh token for a short-lived access token. Exported
+// so the Sheets integration can reuse the same connected Google account.
+export async function googleAccessToken(user: User): Promise<string | null> {
   const refresh = user.googleRefreshToken;
   if (!refresh || !googleConfigured()) return null;
   try {
@@ -75,6 +84,8 @@ async function accessTokenFor(user: User): Promise<string | null> {
     return null;
   }
 }
+
+const accessTokenFor = googleAccessToken;
 
 function eventBody(a: Appointment) {
   const start = new Date(a.startsAt);
@@ -128,5 +139,9 @@ export async function syncAppointmentToGoogle(
 }
 
 export async function disconnectGoogle(userId: string) {
-  await updateUser(userId, { googleRefreshToken: undefined, googleEmail: undefined });
+  await updateUser(userId, {
+    googleRefreshToken: undefined,
+    googleEmail: undefined,
+    googleSheetId: undefined,
+  });
 }

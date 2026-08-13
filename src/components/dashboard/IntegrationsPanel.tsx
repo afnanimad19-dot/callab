@@ -65,7 +65,7 @@ export default function IntegrationsPanel({
 }: {
   integrations: Integration[];
   platforms: Platform[];
-  google?: { configured: boolean; connected: boolean; email: string | null };
+  google?: { configured: boolean; connected: boolean; email: string | null; sheetUrl?: string | null };
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -1115,7 +1115,7 @@ function FlowStepModal({
 function GoogleCalendarCard({
   google,
 }: {
-  google: { configured: boolean; connected: boolean; email: string | null };
+  google: { configured: boolean; connected: boolean; email: string | null; sheetUrl?: string | null };
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -1130,33 +1130,44 @@ function GoogleCalendarCard({
   }
 
   async function disconnect() {
-    if (!confirm("Disconnect Google Calendar? Appointments will stop syncing.")) return;
+    if (!confirm("Disconnect Google? Appointments will stop syncing to your Calendar and Sheet.")) return;
     setBusy(true);
     await fetch("/api/integrations/google", { method: "DELETE" });
     setBusy(false);
-    toast("Google Calendar disconnected.");
+    toast("Google disconnected.");
     router.refresh();
   }
 
   return (
     <div className="card card-hover">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold">Google Calendar</h3>
+        <h3 className="text-base font-semibold">Google Calendar &amp; Sheets</h3>
         <span className={google.connected ? "badge-ok" : "badge-muted"}>
           {google.connected ? "Connected" : "Not connected"}
         </span>
       </div>
       <p className="mt-2 text-sm text-ink-300">
         Appointments your agents book, reschedule or cancel sync to your own Google Calendar
-        {google.email ? ` (${google.email})` : ""}. Manage them here or in Google — your choice.
+        {google.email ? ` (${google.email})` : ""}, and every booking is also logged as a row in a
+        Google Sheet in the same account. One connection covers both.
       </p>
+      {google.connected && google.sheetUrl && (
+        <a
+          href={google.sheetUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
+        >
+          Open appointment sheet &#8599;
+        </a>
+      )}
       {google.configured ? (
         <button
           onClick={google.connected ? disconnect : connect}
           disabled={busy}
           className={`${google.connected ? "btn-secondary" : "btn-primary"} mt-3 !px-4 !py-2 !text-sm disabled:opacity-60`}
         >
-          {busy ? "Working\u2026" : google.connected ? "Disconnect" : "Connect Google Calendar"}
+          {busy ? "Working\u2026" : google.connected ? "Disconnect" : "Connect Google"}
         </button>
       ) : (
         <p className="mt-3 rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-ink-300">

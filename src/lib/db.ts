@@ -68,6 +68,9 @@ export interface User {
   // Google account; the refresh token lives with their tenant data).
   googleRefreshToken?: string;
   googleEmail?: string;
+  // Google Sheets appointment log (auto-created spreadsheet in the same
+  // connected Google account). Every booking/reschedule/cancel appends a row.
+  googleSheetId?: string;
 }
 
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
@@ -297,6 +300,7 @@ export interface Appointment {
   userId: string;
   patientName: string;
   phone?: string;
+  email?: string;
   doctor?: string;
   service?: string;
   status: "booked" | "rescheduled" | "canceled" | "completed";

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findUserById } from "@/lib/db";
 import { googleAuthUrl, googleConfigured, disconnectGoogle } from "@/lib/gcal";
+import { googleSheetUrl } from "@/lib/gsheets";
 
 // GET  -> connection status
 // POST -> begin OAuth (returns the Google consent URL to redirect to)
@@ -14,6 +15,7 @@ export async function GET() {
     configured: googleConfigured(),
     connected: Boolean(user?.googleRefreshToken),
     email: user?.googleEmail ?? null,
+    sheetUrl: googleSheetUrl(user?.googleSheetId),
   });
 }
 
