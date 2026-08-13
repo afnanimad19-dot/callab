@@ -92,6 +92,48 @@ export async function bookAppointment(
   return appointment;
 }
 
+// Book with clinic guardrails: don't create a duplicate of the same patient at
+// the same time, and don't double-book the SAME doctor at the SAME time for a
+// DIFFERENT patient (that must be a different time or doctor). Used by both the
+// voice and chat agents so bookings behave like a real clinic.
+export async function bookAppointmentSafe(
+  userId: string,
+  input: Parameters<typeof bookAppointment>[1]
+): Promise<
+  | { status: "booked"; appointment: Appointment }
+  | { status: "duplicate"; appointment: Appointment }
+  | { status: "conflict"; doctor: string; when: string }
+> {
+  const active = (await listAppointments(userId)).filter((a) => a.status !== "canceled");
+  const startMs = Date.parse(input.startsAt);
+  const sameTime = (a: Appointment) => Math.abs(Date.parse(a.startsAt) - startMs) < 60_000;
+  const sameName = (a: Appointment) =>
+    a.patientName.trim().toLowerCase() === input.patientName.trim().toLowerCase();
+  const samePhone = (a: Appointment) =>
+    Boolean(input.phone) && norm(a.phone) === norm(input.phone) && norm(input.phone).length >= 7;
+
+  // Already booked for this patient at this time → don't duplicate.
+  const dup = active.find((a) => sameTime(a) && (sameName(a) || samePhone(a)));
+  if (dup) return { status: "duplicate", appointment: dup };
+
+  // Same doctor, same time, different patient → clash.
+  if (input.doctor?.trim()) {
+    const clash = active.find(
+      (a) =>
+        sameTime(a) &&
+        a.doctor?.trim().toLowerCase() === input.doctor!.trim().toLowerCase() &&
+        !sameName(a) &&
+        !samePhone(a)
+    );
+    if (clash) {
+      return { status: "conflict", doctor: input.doctor.trim(), when: new Date(startMs).toLocaleString() };
+    }
+  }
+
+  const appointment = await bookAppointment(userId, input);
+  return { status: "booked", appointment };
+}
+
 // Find the patient's next upcoming appointment by name/phone.
 export async function findUpcomingAppointment(
   userId: string,

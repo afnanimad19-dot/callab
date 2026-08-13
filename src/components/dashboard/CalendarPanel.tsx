@@ -37,6 +37,7 @@ export default function CalendarPanel({ appointments }: { appointments: Appointm
   const [cursor, setCursor] = useState(() => new Date());
   const [selected, setSelected] = useState<Appointment | null>(null);
   const [createFor, setCreateFor] = useState<string | null>(null); // YYYY-MM-DD
+  const [dayModal, setDayModal] = useState<string | null>(null); // YYYY-MM-DD → day list popup
 
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
@@ -160,20 +161,22 @@ export default function CalendarPanel({ appointments }: { appointments: Appointm
                   onDoubleClick={() => setCreateFor(key)}
                 >
                   <div className="flex items-center justify-between">
-                    <span className={`flex h-6 w-6 items-center justify-center rounded-full text-xs ${
-                      key === todayKey ? "bg-[#301C3F] font-bold text-white" : inMonth ? "text-ink-200" : "text-ink-500"
-                    }`}>
+                    <button onClick={() => items.length && setDayModal(key)}
+                      title={items.length ? `View ${items.length} appointment${items.length === 1 ? "" : "s"}` : undefined}
+                      className={`flex h-6 w-6 items-center justify-center rounded-full text-xs transition ${
+                        key === todayKey ? "bg-[#301C3F] font-bold text-white" : inMonth ? "text-ink-200" : "text-ink-500"
+                      } ${items.length ? "cursor-pointer hover:ring-2 hover:ring-[#301C3F]/30" : ""}`}>
                       {d.getDate()}
-                    </span>
+                    </button>
                     <button onClick={() => setCreateFor(key)} aria-label={`Add appointment on ${key}`}
                       className="rounded p-0.5 text-ink-500 opacity-0 transition hover:bg-ink-800 hover:text-ink-200 [div:hover>div>&]:opacity-100">
                       <Plus className="h-3 w-3" />
                     </button>
                   </div>
-                  <div className="mt-1 space-y-1">
+                  <div className="mt-1 max-h-[68px] space-y-1 overflow-y-auto">
                     {items.slice(0, 3).map((a) => <Tag key={a.id} a={a} compact />)}
                     {items.length > 3 && (
-                      <button onClick={() => { setCursor(d); setView("day"); }}
+                      <button onClick={() => setDayModal(key)}
                         className="block w-full rounded px-1.5 text-left text-[11px] font-medium text-ink-400 hover:text-ink-200">
                         +{items.length - 3} more
                       </button>
@@ -262,6 +265,65 @@ export default function CalendarPanel({ appointments }: { appointments: Appointm
           onCreated={() => { setCreateFor(null); toast("Appointment created."); router.refresh(); }}
         />
       )}
+      {dayModal && (
+        <DayModal
+          dateKey={dayModal}
+          items={(byDay.get(dayModal) ?? []).slice().sort((a, b) => a.startsAt.localeCompare(b.startsAt))}
+          onClose={() => setDayModal(null)}
+          onPick={(a) => { setDayModal(null); setSelected(a); }}
+          onAdd={() => { const d = dayModal; setDayModal(null); setCreateFor(d); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Day popup: all appointments for one day, scrollable ---------------------
+function DayModal({
+  dateKey, items, onClose, onPick, onAdd,
+}: {
+  dateKey: string;
+  items: Appointment[];
+  onClose: () => void;
+  onPick: (a: Appointment) => void;
+  onAdd: () => void;
+}) {
+  const title = new Date(`${dateKey}T00:00:00`).toLocaleDateString([], {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  });
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl border border-ink-700 bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3.5">
+          <div>
+            <h2 className="text-base font-bold">{title}</h2>
+            <p className="text-xs text-ink-400">{items.length} appointment{items.length === 1 ? "" : "s"}</p>
+          </div>
+          <button onClick={onClose} aria-label="Close" className="text-ink-400 hover:text-ink-700"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+          {items.length === 0 && <p className="py-8 text-center text-sm text-ink-400">No appointments this day.</p>}
+          {items.map((a) => {
+            const s = STATUS_STYLE[a.status];
+            return (
+              <button key={a.id} onClick={() => onPick(a)}
+                className={`flex w-full items-center justify-between gap-3 rounded-lg border px-3.5 py-2.5 text-left transition hover:opacity-90 ${s.chip}`}>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold">{a.patientName}</span>
+                  <span className="block truncate text-xs opacity-80">
+                    {timeOf(a.startsAt)}{a.doctor ? ` · ${a.doctor}` : ""}{a.service ? ` · ${a.service}` : ""}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[11px] font-semibold">{s.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="border-t border-ink-100 px-4 py-3">
+          <button onClick={onAdd} className="btn-primary w-full !py-2 !text-sm">+ New appointment this day</button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -11,7 +11,7 @@ import {
 } from "@/lib/db";
 import { sendEmail } from "@/lib/email";
 import {
-  bookAppointment,
+  bookAppointmentSafe,
   cancelAppointment,
   findUpcomingAppointment,
   rescheduleAppointment,
@@ -289,7 +289,7 @@ export async function POST(request: Request) {
             if (!when) {
               return { toolCallId: call.id, result: "ERROR: the date/time was not understood. Ask the caller for a specific day and time, compute the absolute date, and call book_appointment again. Do NOT tell the caller it is booked yet." };
             }
-            const apt = await bookAppointment(agent.userId, {
+            const r = await bookAppointmentSafe(agent.userId, {
               patientName: name,
               phone,
               email: String(args.email ?? "").trim() || undefined,
@@ -299,9 +299,15 @@ export async function POST(request: Request) {
               notes: String(args.notes ?? "").trim() || undefined,
               source: "call",
             });
+            if (r.status === "conflict") {
+              return { toolCallId: call.id, result: `ERROR: Dr. ${r.doctor} is already booked at ${r.when}. Do NOT confirm. Apologise and offer a different time, or a different doctor at that time.` };
+            }
+            if (r.status === "duplicate") {
+              return { toolCallId: call.id, result: `NOTE: already booked for ${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}. Do NOT book again — just confirm it's already set.` };
+            }
             return {
               toolCallId: call.id,
-              result: `SUCCESS: appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Read this exact day, date and time back to the caller to confirm.`,
+              result: `SUCCESS: appointment booked for ${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}${r.appointment.doctor ? ` with ${r.appointment.doctor}` : ""}. Read this exact day, date and time back to the caller to confirm.`,
             };
           }
           if (fn === "reschedule_appointment") {

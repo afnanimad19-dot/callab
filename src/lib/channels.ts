@@ -7,7 +7,7 @@ import {
   createConversation, findAgentAnyUser, listChatMessages, listContacts, listConversations, newId,
   updateConversation,
 } from "./db";
-import { bookAppointment, ensureContact, findUpcomingAppointment } from "./appointments";
+import { bookAppointmentSafe, ensureContact, findUpcomingAppointment } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
 import { chatComplete, lastLLMError, type ChatMsg } from "./llm";
@@ -224,7 +224,7 @@ async function executeChatTool(
       if (!patientName) return "ERROR: need the patient's full name before booking.";
       const when = resolveWhen(String(args.datetime ?? ""));
       if (!when) return "ERROR: the date/time wasn't understood. Ask the patient for a specific day and time, then book again.";
-      const apt = await bookAppointment(userId, {
+      const r = await bookAppointmentSafe(userId, {
         patientName,
         phone: String(args.phone ?? "").trim() || undefined,
         email: String(args.email ?? "").trim() || undefined,
@@ -234,7 +234,13 @@ async function executeChatTool(
         notes: String(args.notes ?? "").trim() || undefined,
         source: "chat",
       });
-      return `SUCCESS: appointment booked for ${apt.patientName} on ${new Date(apt.startsAt).toLocaleString()}${apt.doctor ? ` with ${apt.doctor}` : ""}. Send ONE confirmation message with these exact details.`;
+      if (r.status === "conflict") {
+        return `ERROR: Dr. ${r.doctor} is already booked at ${r.when}. Do NOT book. Apologise and offer the patient a different time, or a different doctor at that time.`;
+      }
+      if (r.status === "duplicate") {
+        return `NOTE: this appointment is ALREADY booked (${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}). Do NOT book again — just confirm it's already set. Send no more than one confirmation.`;
+      }
+      return `SUCCESS: appointment booked for ${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}${r.appointment.doctor ? ` with ${r.appointment.doctor}` : ""}. Send ONE confirmation message with these exact details, then stop.`;
     }
     return "Unknown tool.";
   } catch (e) {
