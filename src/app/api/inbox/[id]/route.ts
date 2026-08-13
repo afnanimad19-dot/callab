@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   getChannelSettings, listChatMessages, listConversations, updateConversation,
+  listContacts, updateContact,
 } from "@/lib/db";
 import { generateAgentReply, recordMessage, sendChannelText } from "@/lib/channels";
 
@@ -18,7 +19,10 @@ export async function GET(_request: Request, { params }: Params) {
     .sort((a, b) => a.at.localeCompare(b.at));
   // Opening the thread clears the unread badge.
   if (conversation.unread) await updateConversation(session.userId, id, { unread: 0 });
-  return NextResponse.json({ conversation, messages });
+  const contact = conversation.contactId
+    ? (await listContacts(session.userId)).find((c) => c.id === conversation.contactId) ?? null
+    : null;
+  return NextResponse.json({ conversation, messages, contact });
 }
 
 // Send a message into the conversation (as the human operator), or ask the
@@ -70,6 +74,32 @@ export async function PATCH(request: Request, { params }: Params) {
   if (typeof body?.customerName === "string" && body.customerName.trim()) {
     patch.customerName = body.customerName.trim().slice(0, 120);
   }
+  if (typeof body?.customerPhone === "string") {
+    patch.customerPhone = body.customerPhone.trim().slice(0, 40) || undefined;
+  }
+  if (typeof body?.lifecycle === "string" && body.lifecycle) {
+    patch.lifecycle = body.lifecycle.slice(0, 40);
+  }
   const updated = await updateConversation(session.userId, id, patch);
-  return NextResponse.json({ conversation: updated });
+
+  // Mirror name / phone / email onto the linked Contact so the two stay in sync.
+  if (conversation.contactId) {
+    const contactPatch: Record<string, unknown> = {};
+    if (typeof body?.customerName === "string" && body.customerName.trim()) {
+      contactPatch.name = body.customerName.trim().slice(0, 120);
+    }
+    if (typeof body?.customerPhone === "string") contactPatch.phone = body.customerPhone.trim().slice(0, 40);
+    if (typeof body?.email === "string") {
+      const existing = (await listContacts(session.userId)).find((c) => c.id === conversation.contactId);
+      contactPatch.metadata = { ...(existing?.metadata ?? {}), email: body.email.trim().slice(0, 160) };
+    }
+    if (Object.keys(contactPatch).length) {
+      await updateContact(session.userId, conversation.contactId, contactPatch);
+    }
+  }
+
+  const contact = conversation.contactId
+    ? (await listContacts(session.userId)).find((c) => c.id === conversation.contactId) ?? null
+    : null;
+  return NextResponse.json({ conversation: updated, contact });
 }

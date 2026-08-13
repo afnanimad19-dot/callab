@@ -10,10 +10,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageCircle, Camera, MessagesSquare, Search, RefreshCw, Send, Mic, Square,
-  Bot, User, Sparkles, Phone, SlidersHorizontal, ChevronDown,
+  Bot, User, Sparkles, SlidersHorizontal, ChevronDown, ExternalLink,
 } from "lucide-react";
 import Link from "next/link";
-import type { Agent, ChatMessage, Conversation } from "@/lib/db";
+import type { Agent, ChatMessage, Contact, Conversation } from "@/lib/db";
 import { toast, toastError } from "@/components/Toast";
 
 const CHANNEL_META = {
@@ -22,6 +22,18 @@ const CHANNEL_META = {
   messenger: { label: "Messenger", icon: MessagesSquare, cls: "bg-blue-100 text-blue-700" },
 } as const;
 
+// Lifecycle pipeline stages (like Respond.io): move a conversation through the
+// funnel so you always know where each lead stands.
+const STAGES = [
+  { key: "new_lead", label: "New Lead", chip: "bg-blue-100 text-blue-700", dot: "bg-blue-500" },
+  { key: "hot_lead", label: "Hot Lead", chip: "bg-orange-100 text-orange-700", dot: "bg-orange-500" },
+  { key: "payment", label: "Payment", chip: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
+  { key: "customer", label: "Customer", chip: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
+] as const;
+const DEFAULT_STAGE = "new_lead";
+const stageOf = (c: Conversation) => c.lifecycle || DEFAULT_STAGE;
+const stageMeta = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
+
 export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [filter, setFilter] = useState<"all" | "whatsapp" | "instagram" | "messenger">("all");
@@ -29,6 +41,9 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [active, setActive] = useState<Conversation | null>(null);
+  const [contact, setContact] = useState<Contact | null>(null);
+  const [stageFilter, setStageFilter] = useState<string>("all");
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -60,6 +75,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     if (data.conversation) {
       setActive(data.conversation);
       setMessages(data.messages ?? []);
+      setContact(data.contact ?? null);
     }
   }, []);
 
@@ -86,10 +102,15 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
 
   const visible = conversations
     .filter((c) => filter === "all" || c.channel === filter)
+    .filter((c) => stageFilter === "all" || stageOf(c) === stageFilter)
+    .filter((c) => !unreadOnly || c.unread > 0)
     .filter((c) => {
       const q = query.trim().toLowerCase();
       return !q || `${c.customerName} ${c.customerPhone ?? ""} ${c.lastMessageText ?? ""}`.toLowerCase().includes(q);
     });
+
+  const stageCount = (key: string) => conversations.filter((c) => stageOf(c) === key).length;
+  const unreadCount = conversations.filter((c) => c.unread > 0).length;
 
   async function send() {
     const body = text.trim();
@@ -140,6 +161,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     const data = await res.json().catch(() => ({}));
     if (res.ok && data.conversation) {
       setActive(data.conversation);
+      if (data.contact !== undefined) setContact(data.contact);
       loadConversations();
     }
   }
@@ -205,7 +227,45 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
         </Link>
       </div>
 
-      <div className="card grid min-h-0 flex-1 grid-cols-1 overflow-hidden !p-0 lg:grid-cols-[300px_1fr_260px]">
+      <div className="card grid min-h-0 flex-1 grid-cols-1 overflow-hidden !p-0 lg:grid-cols-[172px_288px_1fr_268px]">
+        {/* Lifecycle rail */}
+        <div className="hidden min-h-0 flex-col border-r border-ink-700 lg:flex">
+          <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
+            <button
+              onClick={() => { setStageFilter("all"); setUnreadOnly(false); }}
+              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition ${
+                stageFilter === "all" && !unreadOnly ? "bg-ink-800 text-ink-100" : "text-ink-400 hover:bg-ink-900"
+              }`}>
+              <span>All</span>
+              <span className="text-xs text-ink-500">{conversations.length}</span>
+            </button>
+            <button
+              onClick={() => { setUnreadOnly((u) => !u); setStageFilter("all"); }}
+              className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition ${
+                unreadOnly ? "bg-ink-800 text-ink-100" : "text-ink-400 hover:bg-ink-900"
+              }`}>
+              <span>Unread</span>
+              {unreadCount > 0 && (
+                <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white">{unreadCount}</span>
+              )}
+            </button>
+            <p className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-500">Lifecycle</p>
+            {STAGES.map((s) => (
+              <button key={s.key}
+                onClick={() => { setStageFilter(s.key); setUnreadOnly(false); }}
+                className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition ${
+                  stageFilter === s.key ? "bg-ink-800 text-ink-100" : "text-ink-400 hover:bg-ink-900"
+                }`}>
+                <span className="flex items-center gap-2">
+                  <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                  {s.label}
+                </span>
+                <span className="text-xs text-ink-500">{stageCount(s.key)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Conversation list */}
         <div className="flex min-h-0 flex-col border-r border-ink-700">
           <div className="space-y-2 border-b border-ink-700 p-3">
@@ -258,6 +318,9 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                           {c.unread > 99 ? "99+" : c.unread}
                         </span>
                       )}
+                    </span>
+                    <span className={`mt-1 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${stageMeta(stageOf(c)).chip}`}>
+                      {stageMeta(stageOf(c)).label}
                     </span>
                   </span>
                 </button>
@@ -369,51 +432,133 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
           )}
         </div>
 
-        {/* Customer details */}
+        {/* Customer details (editable) */}
         <div className="hidden min-h-0 overflow-y-auto border-l border-ink-700 lg:block">
           {active ? (
-            <div className="p-4">
-              <div className="flex flex-col items-center border-b border-ink-800 pb-4 text-center">
-                <span className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold ${CHANNEL_META[active.channel].cls}`}>
-                  {active.customerName.slice(0, 2).toUpperCase()}
-                </span>
-                <p className="mt-2 text-sm font-bold">{active.customerName}</p>
-                {active.customerPhone && (
-                  <p className="mt-0.5 flex items-center gap-1.5 text-xs text-ink-400">
-                    <Phone className="h-3 w-3" /> {active.customerPhone}
-                  </p>
-                )}
-                <span className="badge-muted mt-2 !text-[10px] capitalize">{CHANNEL_META[active.channel].label}</span>
-              </div>
-              <dl className="mt-4 space-y-3 text-sm">
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">Handled by</dt>
-                  <dd className="mt-0.5 flex items-center gap-1.5">
-                    {active.aiEnabled ? (<><Bot className="h-3.5 w-3.5 text-ink-400" /> {agentName(active.agentId)}</>)
-                      : (<><User className="h-3.5 w-3.5 text-ink-400" /> {active.assignee ?? "You"}</>)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">First contact</dt>
-                  <dd className="mt-0.5">{new Date(active.createdAt).toLocaleDateString()}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">Contact record</dt>
-                  <dd className="mt-0.5">
-                    {active.contactId ? (
-                      <Link href="/dashboard/contacts" className="font-medium text-[#301C3F] underline-offset-2 hover:underline">
-                        View in Contacts
-                      </Link>
-                    ) : "—"}
-                  </dd>
-                </div>
-              </dl>
-            </div>
+            <ContactPanel
+              key={active.id}
+              active={active}
+              contact={contact}
+              agentName={agentName(active.agentId)}
+              onSave={(p) => patchConversation(p)}
+            />
           ) : (
             <p className="p-4 text-center text-sm text-ink-400">Customer details appear here.</p>
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// Editable contact details on the right, plus the lifecycle-stage picker and a
+// "Manage" link into the full Contacts record.
+function ContactPanel({
+  active,
+  contact,
+  agentName,
+  onSave,
+}: {
+  active: Conversation;
+  contact: Contact | null;
+  agentName: string;
+  onSave: (patch: Record<string, unknown>) => void;
+}) {
+  const [name, setName] = useState(active.customerName ?? "");
+  const [phone, setPhone] = useState(active.customerPhone ?? "");
+  const [email, setEmail] = useState(contact?.metadata?.email ?? "");
+  const [editing, setEditing] = useState(false);
+
+  const stage = stageOf(active);
+  const dirty =
+    name !== (active.customerName ?? "") ||
+    phone !== (active.customerPhone ?? "") ||
+    email !== (contact?.metadata?.email ?? "");
+
+  function save() {
+    onSave({ customerName: name.trim(), customerPhone: phone.trim(), email: email.trim() });
+    setEditing(false);
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex flex-col items-center border-b border-ink-800 pb-4 text-center">
+        <span className={`flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold ${CHANNEL_META[active.channel].cls}`}>
+          {(name || active.customerName).slice(0, 2).toUpperCase()}
+        </span>
+        <p className="mt-2 text-sm font-bold">{name || active.customerName}</p>
+        <span className="badge-muted mt-2 !text-[10px] capitalize">{CHANNEL_META[active.channel].label}</span>
+      </div>
+
+      {/* Lifecycle stage */}
+      <div className="mt-4">
+        <label className="text-xs font-semibold uppercase tracking-wide text-ink-500">Lifecycle stage</label>
+        <select
+          value={stage}
+          onChange={(e) => onSave({ lifecycle: e.target.value })}
+          className="field mt-1 !py-2 !text-sm"
+        >
+          {STAGES.map((s) => (
+            <option key={s.key} value={s.key}>{s.label}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Editable contact fields */}
+      <div className="mt-4 flex items-center justify-between">
+        <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">Contact fields</span>
+        <Link href="/dashboard/contacts" className="flex items-center gap-1 text-xs font-medium text-[#301C3F] hover:underline">
+          Manage <ExternalLink className="h-3 w-3" />
+        </Link>
+      </div>
+      <div className="mt-2 space-y-3">
+        <div>
+          <label className="text-[11px] text-ink-500">Name</label>
+          <input
+            className="field !py-2 !text-sm"
+            value={name}
+            onChange={(e) => { setName(e.target.value); setEditing(true); }}
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-ink-500">Phone number</label>
+          <input
+            className="field !py-2 !text-sm"
+            value={phone}
+            placeholder="+971 50 000 0000"
+            onChange={(e) => { setPhone(e.target.value); setEditing(true); }}
+          />
+        </div>
+        <div>
+          <label className="text-[11px] text-ink-500">Email address</label>
+          <input
+            className="field !py-2 !text-sm"
+            type="email"
+            value={email}
+            placeholder="Add email address"
+            onChange={(e) => { setEmail(e.target.value); setEditing(true); }}
+          />
+        </div>
+        {(editing || dirty) && (
+          <button onClick={save} disabled={!dirty} className="btn-primary w-full !py-2 !text-sm disabled:opacity-50">
+            Save contact
+          </button>
+        )}
+      </div>
+
+      <dl className="mt-5 space-y-3 border-t border-ink-800 pt-4 text-sm">
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">Handled by</dt>
+          <dd className="mt-0.5 flex items-center gap-1.5">
+            {active.aiEnabled ? (<><Bot className="h-3.5 w-3.5 text-ink-400" /> {agentName}</>)
+              : (<><User className="h-3.5 w-3.5 text-ink-400" /> {active.assignee ?? "You"}</>)}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs font-semibold uppercase tracking-wide text-ink-500">First contact</dt>
+          <dd className="mt-0.5">{new Date(active.createdAt).toLocaleDateString()}</dd>
+        </div>
+      </dl>
     </div>
   );
 }

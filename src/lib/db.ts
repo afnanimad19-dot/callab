@@ -347,6 +347,7 @@ export interface Conversation {
   aiEnabled: boolean; // false = assigned to a human
   agentId?: string; // per-conversation agent override (Agent Hub default otherwise)
   assignee?: string; // human display name when taken over
+  lifecycle?: string; // pipeline stage key: new_lead | hot_lead | payment | customer
   lastMessageAt: string;
   lastMessageText?: string;
   unread: number;
