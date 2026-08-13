@@ -17,6 +17,7 @@ import {
   rescheduleAppointment,
 } from "@/lib/appointments";
 import { buildKnowledgeText } from "@/lib/knowledge";
+import { resolveWhen } from "@/lib/datetime";
 
 // Answer a knowledge-base query: pull the agent's knowledge text and return the
 // passages most relevant to what the caller asked. Simple keyword scoring keeps
@@ -193,38 +194,6 @@ interface VapiToolCall {
 // Resolve a datetime the agent passed — an ISO string ideally, but also
 // simple relative words as a safety net ("today", "tomorrow", weekday names).
 // Returns an ISO string or null.
-function resolveWhen(raw: string): string | null {
-  const s = raw.trim();
-  if (!s) return null;
-  const direct = Date.parse(s);
-  if (!Number.isNaN(direct)) return new Date(direct).toISOString();
-
-  const now = new Date();
-  const lower = s.toLowerCase();
-  const timeMatch = lower.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/);
-  let hour = 10, minute = 0;
-  if (timeMatch) {
-    hour = parseInt(timeMatch[1], 10);
-    minute = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-    if (timeMatch[3] === "pm" && hour < 12) hour += 12;
-    if (timeMatch[3] === "am" && hour === 12) hour = 0;
-  }
-  const target = new Date(now);
-  target.setHours(hour, minute, 0, 0);
-  const days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
-  const wd = days.findIndex((d) => lower.includes(d));
-  if (lower.includes("today")) { /* target = today */ }
-  else if (lower.includes("tomorrow")) target.setDate(target.getDate() + 1);
-  else if (wd >= 0) {
-    let diff = (wd - now.getDay() + 7) % 7;
-    if (diff === 0 || lower.includes("next")) diff += 7 * (diff === 0 ? 1 : 0);
-    if (lower.includes("next") && diff <= 7) diff = ((wd - now.getDay() + 7) % 7) + 7;
-    target.setDate(now.getDate() + (diff === 0 ? 7 : diff));
-  } else {
-    return null; // couldn't resolve
-  }
-  return target.toISOString();
-}
 
 function parseArgs(call: VapiToolCall): Record<string, unknown> {
   const raw = call.function?.arguments;
