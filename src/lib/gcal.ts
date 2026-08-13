@@ -1,6 +1,6 @@
 // Google Calendar sync. Uses the CALENDAR connection (see google.ts) — each
 // workspace owner connects their own Google account for the calendar, which
-// can differ from the account used for Sheets or Gmail. Appointments push to
+// can differ from the account used for Sheets. Appointments push to
 // that account's primary calendar.
 
 import { findUserById, type Appointment } from "./db";

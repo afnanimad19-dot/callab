@@ -8,7 +8,7 @@ import {
 } from "./db";
 import { syncAppointmentToGoogle } from "./gcal";
 import { logAppointmentToSheet } from "./gsheets";
-import { sendBookingConfirmation } from "./gmail";
+import { sendBookingConfirmation } from "./notify";
 
 const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 
@@ -93,8 +93,8 @@ export async function bookAppointment(
     console.error("Google sync after booking failed:", e);
   }
   await logAppointmentToSheet(userId, appointment, "Booked");
-  // Thank-you / confirmation email to the patient (Gmail if connected, else
-  // Resend). Never blocks the booking.
+  // Thank-you / confirmation email to the patient via Resend. Never blocks
+  // the booking.
   if (appointment.email) {
     sendBookingConfirmation(userId, appointment).catch((e) =>
       console.error("Booking confirmation email failed:", e)

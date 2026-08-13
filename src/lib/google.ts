@@ -1,25 +1,24 @@
-// Core Google OAuth shared by the three independent integrations: Calendar,
-// Sheets and Gmail. One Google Cloud OAuth app (GOOGLE_CLIENT_ID /
-// GOOGLE_CLIENT_SECRET) serves every customer, but each SERVICE is connected
-// separately — so a clinic can point Calendar at one Google account, Sheets at
-// another, and Gmail at a third. Refresh tokens live on the user record under
-// googleServices[service]; provider secrets never touch the database.
+// Core Google OAuth shared by the two independent integrations: Calendar and
+// Sheets. One Google Cloud OAuth app (GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET)
+// serves every customer, but each SERVICE is connected separately — so a
+// clinic can point Calendar at one Google account and Sheets at another.
+// Refresh tokens live on the user record under googleServices[service];
+// provider secrets never touch the database. (Customer emails are sent via
+// Resend — see notify.ts — not Google.)
 
 import { findUserById, updateUser, type User, type GoogleConn } from "./db";
 
-export type GoogleService = "calendar" | "sheets" | "gmail";
-export const GOOGLE_SERVICES: GoogleService[] = ["calendar", "sheets", "gmail"];
+export type GoogleService = "calendar" | "sheets";
+export const GOOGLE_SERVICES: GoogleService[] = ["calendar", "sheets"];
 
 export function googleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-// Per-service scopes. Calendar + Sheets are "sensitive" scopes; Gmail send is
-// "restricted" (see the setup guide for what verification each needs).
+// Per-service scopes. Calendar + Sheets are both "sensitive" scopes.
 const SCOPES: Record<GoogleService, string[]> = {
   calendar: ["https://www.googleapis.com/auth/calendar.events"],
   sheets: ["https://www.googleapis.com/auth/spreadsheets"],
-  gmail: ["https://www.googleapis.com/auth/gmail.send"],
 };
 
 export function googleAuthUrl(service: GoogleService, redirectUri: string, userId: string): string {

@@ -4,6 +4,7 @@ import { findUserById, listIntegrations } from "@/lib/db";
 import { vapiConfigured } from "@/lib/vapi";
 import { googleConfigured, serviceConnected, getServiceConn } from "@/lib/google";
 import { sheetConfig } from "@/lib/gsheets";
+import { emailConfigured, emailFrom } from "@/lib/notify";
 import IntegrationsPanel from "@/components/dashboard/IntegrationsPanel";
 
 export const metadata = { title: "Integrations — VoiceLine AI" };
@@ -53,16 +54,13 @@ export default async function IntegrationsPage() {
       connected: serviceConnected(user, "calendar"),
       email: user ? getServiceConn(user, "calendar")?.email ?? null : null,
     },
-    gmail: {
-      connected: serviceConnected(user, "gmail"),
-      email: user ? getServiceConn(user, "gmail")?.email ?? null : null,
-    },
     sheets: {
       connected: serviceConnected(user, "sheets"),
       email: user ? getServiceConn(user, "sheets")?.email ?? null : null,
       ...sheetConfig(user),
     },
   };
+  const email = { configured: emailConfigured(), from: emailFrom() };
 
-  return <IntegrationsPanel integrations={integrations} platforms={platforms} google={google} />;
+  return <IntegrationsPanel integrations={integrations} platforms={platforms} google={google} email={email} />;
 }

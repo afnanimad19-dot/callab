@@ -62,10 +62,12 @@ export default function IntegrationsPanel({
   integrations,
   platforms,
   google,
+  email,
 }: {
   integrations: Integration[];
   platforms: Platform[];
   google?: GoogleStatus;
+  email?: { configured: boolean; from: string };
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -261,7 +263,7 @@ export default function IntegrationsPanel({
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           {google?.configured === false && (
             <div className="card sm:col-span-2">
-              <h3 className="text-base font-semibold">Google Calendar, Sheets &amp; Gmail</h3>
+              <h3 className="text-base font-semibold">Google Calendar &amp; Sheets</h3>
               <p className="mt-1 text-sm text-ink-300">
                 Connect any Google account for each. Set{" "}
                 <span className="font-mono text-xs">GOOGLE_CLIENT_ID</span> and{" "}
@@ -271,8 +273,8 @@ export default function IntegrationsPanel({
             </div>
           )}
           {google?.configured && <GoogleCalendarCard google={google.calendar} />}
-          {google?.configured && <GmailCard gmail={google.gmail} />}
           {google?.configured && <GoogleSheetsCard sheets={google.sheets} />}
+          {email && <CustomerEmailCard email={email} />}
           {platforms.map((p) => (
             <div key={p.name} className="card card-hover">
               <div className="flex items-start justify-between gap-3">
@@ -1121,10 +1123,10 @@ function FlowStepModal({
   );
 }
 
-// --- Google connect cards (three independent connections) -------------------
-// Calendar, Gmail and Sheets each connect to THEIR OWN Google account, so a
-// clinic can mix accounts. Calendar receives bookings; Gmail sends the patient
-// their confirmation; Sheets logs every booking AND every enquiry as a row.
+// --- Google connect cards (two independent connections) ---------------------
+// Calendar and Sheets each connect to THEIR OWN Google account, so a clinic can
+// mix accounts. Calendar receives bookings; Sheets logs every booking AND every
+// enquiry as a row. Customer emails are sent via Resend (see CustomerEmailCard).
 
 type ServiceStatus = { connected: boolean; email: string | null };
 type SheetsStatus = ServiceStatus & {
@@ -1136,12 +1138,34 @@ type SheetsStatus = ServiceStatus & {
 export type GoogleStatus = {
   configured: boolean;
   calendar: ServiceStatus;
-  gmail: ServiceStatus;
   sheets: SheetsStatus;
 };
 
+// Read-only status for the Resend-powered customer emails.
+function CustomerEmailCard({ email }: { email: { configured: boolean; from: string } }) {
+  return (
+    <div className="card card-hover">
+      <CardHead title="Customer emails" connected={email.configured} />
+      <p className="mt-2 text-sm text-ink-300">
+        When a patient books (by call or chat), they get a confirmation &amp; thank-you email with
+        their appointment details.
+      </p>
+      {email.configured ? (
+        <p className="mt-3 text-xs text-ink-400">
+          Sending from <span className="font-medium text-ink-200">{email.from}</span>. To email real
+          patients, verify your own domain in Resend and set <span className="font-mono">EMAIL_FROM</span>.
+        </p>
+      ) : (
+        <p className="mt-3 rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-ink-300">
+          Set RESEND_API_KEY (and EMAIL_FROM) in your Netlify environment variables.
+        </p>
+      )}
+    </div>
+  );
+}
+
 // Shared connect/disconnect for a single service.
-function useGoogleService(service: "calendar" | "gmail" | "sheets", disconnectMsg: string) {
+function useGoogleService(service: "calendar" | "sheets", disconnectMsg: string) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
@@ -1216,29 +1240,6 @@ function GoogleCalendarCard({ google }: { google: ServiceStatus }) {
         busy={busy}
         onClick={google.connected ? disconnect : connect}
         connectLabel="Connect Google Calendar"
-      />
-    </div>
-  );
-}
-
-function GmailCard({ gmail }: { gmail: ServiceStatus }) {
-  const { busy, connect, disconnect } = useGoogleService(
-    "gmail",
-    "Disconnect Gmail? Confirmation emails will stop sending from your address."
-  );
-  return (
-    <div className="card card-hover">
-      <CardHead title="Gmail" connected={gmail.connected} />
-      <p className="mt-2 text-sm text-ink-300">
-        After a patient books (by call or chat), a confirmation &amp; thank-you email with their
-        appointment details is sent from this Gmail
-        {gmail.connected && gmail.email ? ` (${gmail.email})` : ""}.
-      </p>
-      <ConnectButton
-        connected={gmail.connected}
-        busy={busy}
-        onClick={gmail.connected ? disconnect : connect}
-        connectLabel="Connect Gmail"
       />
     </div>
   );

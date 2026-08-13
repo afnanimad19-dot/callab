@@ -64,9 +64,10 @@ export interface User {
   emailVerified?: boolean;
   mustResetPassword?: boolean;
   billing?: BillingState;
-  // Three INDEPENDENT Google connections — Calendar, Sheets and Gmail can each
-  // be linked to a different Google account. Each workspace owner connects
-  // their own account(s); refresh tokens live with their tenant data.
+  // Two INDEPENDENT Google connections — Calendar and Sheets can each be linked
+  // to a different Google account. Each workspace owner connects their own
+  // account(s); refresh tokens live with their tenant data. (Customer emails
+  // are sent via Resend, not Google.)
   googleServices?: {
     calendar?: GoogleConn;
     sheets?: GoogleConn & {
@@ -74,7 +75,6 @@ export interface User {
       spreadsheetName?: string;
       sheetTab?: string; // which tab within that spreadsheet
     };
-    gmail?: GoogleConn;
   };
   // Legacy single-connection fields (pre-split). Read once and migrated into
   // googleServices, then cleared. Kept in the type so old records still parse.

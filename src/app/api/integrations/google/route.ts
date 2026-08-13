@@ -18,7 +18,7 @@ function serviceParam(request: Request): GoogleService | null {
 }
 
 // GET  -> status of all three connections (+ sheet config)
-// POST ?service=calendar|sheets|gmail -> begin OAuth for that service
+// POST ?service=calendar|sheets -> begin OAuth for that service
 // DELETE ?service=... -> disconnect that service
 export async function GET() {
   const session = await getSession();
@@ -27,7 +27,6 @@ export async function GET() {
   return NextResponse.json({
     configured: googleConfigured(),
     calendar: { connected: serviceConnected(user, "calendar"), email: user ? getServiceConn(user, "calendar")?.email ?? null : null },
-    gmail: { connected: serviceConnected(user, "gmail"), email: user ? getServiceConn(user, "gmail")?.email ?? null : null },
     sheets: {
       connected: serviceConnected(user, "sheets"),
       email: user ? getServiceConn(user, "sheets")?.email ?? null : null,
