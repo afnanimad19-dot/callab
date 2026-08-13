@@ -56,6 +56,10 @@ export interface User {
   name: string;
   createdAt: string;
   apiKey?: string;
+  // Clinic contact details, shown in the patient's confirmation email.
+  clinicAddress?: string;
+  clinicPhone?: string;
+  clinicMapUrl?: string; // Google Maps / location link
   // Team members: ownerId points at the workspace owner's user id.
   ownerId?: string;
   role?: "owner" | "supervisor" | "viewer";
@@ -74,6 +78,8 @@ export interface User {
       spreadsheetId?: string; // the sheet leads/appointments are logged into
       spreadsheetName?: string;
       sheetTab?: string; // which tab within that spreadsheet
+      columns?: string[]; // the tab's header row (row 1), cached for mapping
+      mapping?: Record<string, string>; // our field key -> the column header it writes into
     };
   };
   // Legacy single-connection fields (pre-split). Read once and migrated into

@@ -11,7 +11,7 @@
 // Flows genuinely execute server-side; Execute imports contacts via the
 // field mapping.
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Search,
@@ -1134,6 +1134,9 @@ type SheetsStatus = ServiceStatus & {
   spreadsheetName: string | null;
   sheetTab: string | null;
   url: string | null;
+  columns: string[];
+  mapping: Record<string, string>;
+  fields: { key: string; label: string }[];
 };
 export type GoogleStatus = {
   configured: boolean;
@@ -1312,6 +1315,10 @@ function GoogleSheetsCard({ sheets }: { sheets: SheetsStatus }) {
             <p className="text-xs text-ink-400">No sheet chosen yet \u2014 create one or paste an existing sheet link below.</p>
           )}
 
+          {sheets.spreadsheetId && sheets.columns.length > 0 && (
+            <MappingEditor sheets={sheets} onSave={(mapping) => sheetAction({ action: "map", mapping })} busy={working} />
+          )}
+
           <div className="flex flex-wrap items-center gap-2">
             <input
               value={url}
@@ -1343,6 +1350,69 @@ function GoogleSheetsCard({ sheets }: { sheets: SheetsStatus }) {
         onClick={sheets.connected ? disconnect : connect}
         connectLabel="Connect Google Sheets"
       />
+    </div>
+  );
+}
+
+// Map each of our fields to a column in the chosen sheet. Auto-filled by header
+// name; the clinic can change any of them (or set "Don't log").
+function MappingEditor({
+  sheets,
+  onSave,
+  busy,
+}: {
+  sheets: SheetsStatus;
+  onSave: (mapping: Record<string, string>) => void;
+  busy: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [map, setMap] = useState<Record<string, string>>(sheets.mapping ?? {});
+
+  // Re-seed when the server sends a fresh mapping (e.g. after picking a sheet).
+  useEffect(() => setMap(sheets.mapping ?? {}), [sheets.mapping]);
+
+  function change(fieldKey: string, column: string) {
+    const next = { ...map };
+    if (column) next[fieldKey] = column;
+    else delete next[fieldKey];
+    setMap(next);
+    onSave(next);
+  }
+
+  return (
+    <div className="rounded-lg border border-ink-800">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-2 text-sm font-medium text-ink-200"
+      >
+        <span>Column mapping</span>
+        <span className="text-xs text-ink-400">{open ? "Hide" : "Edit"}</span>
+      </button>
+      {open && (
+        <div className="border-t border-ink-800 px-3 py-3">
+          <p className="mb-2 text-xs text-ink-400">
+            Choose which column in your sheet each piece of info is written to.
+          </p>
+          <div className="space-y-1.5">
+            {sheets.fields.map((f) => (
+              <div key={f.key} className="grid grid-cols-[1fr_auto] items-center gap-2">
+                <span className="text-sm text-ink-300">{f.label}</span>
+                <select
+                  value={map[f.key] ?? ""}
+                  onChange={(e) => change(f.key, e.target.value)}
+                  disabled={busy}
+                  className="input !py-1 !text-xs min-w-[130px]"
+                >
+                  <option value="">— Don&apos;t log —</option>
+                  {sheets.columns.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

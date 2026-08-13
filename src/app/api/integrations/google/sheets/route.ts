@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createSpreadsheetForUser, useSpreadsheetForUser, setSheetTabForUser } from "@/lib/gsheets";
+import { createSpreadsheetForUser, useSpreadsheetForUser, setSheetTabForUser, setMappingForUser } from "@/lib/gsheets";
 
-// Configure WHICH spreadsheet + tab bookings and leads are logged into.
-//   POST { action: "create" }            -> make a new spreadsheet
-//   POST { action: "use", url: "..." }   -> use an existing sheet (URL or id)
-//   POST { action: "tab", tab: "Name" }  -> switch the tab within it
+// Configure WHICH spreadsheet + tab bookings and leads are logged into, and
+// MAP our fields to the sheet's columns.
+//   POST { action: "create" }               -> make a new spreadsheet
+//   POST { action: "use", url: "..." }      -> use an existing sheet (URL or id)
+//   POST { action: "tab", tab: "Name" }     -> switch the tab within it
+//   POST { action: "map", mapping: {...} }  -> save field -> column mapping
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -23,7 +25,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   }
   if (action === "tab") {
-    const ok = await setSheetTabForUser(session.userId, String(body?.tab ?? "").trim());
+    const result = await setSheetTabForUser(session.userId, String(body?.tab ?? "").trim());
+    if ("error" in result) return NextResponse.json(result, { status: 400 });
+    return NextResponse.json(result);
+  }
+  if (action === "map") {
+    const ok = await setMappingForUser(session.userId, (body?.mapping ?? {}) as Record<string, string>);
     if (!ok) return NextResponse.json({ error: "Pick a sheet first." }, { status: 400 });
     return NextResponse.json({ ok: true });
   }

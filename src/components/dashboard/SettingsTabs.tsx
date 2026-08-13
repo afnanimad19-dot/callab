@@ -29,6 +29,9 @@ interface SessionInfo {
   name: string;
   email: string;
   company: string;
+  clinicAddress?: string;
+  clinicPhone?: string;
+  clinicMapUrl?: string;
   createdAt?: string;
 }
 
@@ -76,6 +79,9 @@ function ProfileTab({ session }: { session: SessionInfo }) {
   const router = useRouter();
   const [name, setName] = useState(session.name);
   const [company, setCompany] = useState(session.company);
+  const [clinicAddress, setClinicAddress] = useState(session.clinicAddress ?? "");
+  const [clinicPhone, setClinicPhone] = useState(session.clinicPhone ?? "");
+  const [clinicMapUrl, setClinicMapUrl] = useState(session.clinicMapUrl ?? "");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -85,7 +91,7 @@ function ProfileTab({ session }: { session: SessionInfo }) {
     const res = await fetch("/api/settings/profile", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company }),
+      body: JSON.stringify({ name, company, clinicAddress, clinicPhone, clinicMapUrl }),
     });
     setMsg(res.ok ? "Profile updated." : "Could not save changes.");
     if (res.ok) {
@@ -105,13 +111,52 @@ function ProfileTab({ session }: { session: SessionInfo }) {
           <input className="field" value={name} onChange={(e) => setName(e.target.value)} />
         </div>
         <div>
-          <label className="label">Company</label>
+          <label className="label">Company / clinic name</label>
           <input className="field" value={company} onChange={(e) => setCompany(e.target.value)} />
         </div>
         <div>
           <label className="label">Email</label>
           <input className="field opacity-60" value={session.email} disabled />
         </div>
+      </div>
+
+      <div className="mt-7 border-t border-ink-800 pt-5">
+        <h3 className="text-sm font-semibold">Clinic details</h3>
+        <p className="mt-0.5 text-sm text-ink-400">
+          Shown in the confirmation email patients receive after they book.
+        </p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label className="label">Clinic address</label>
+            <input
+              className="field"
+              value={clinicAddress}
+              onChange={(e) => setClinicAddress(e.target.value)}
+              placeholder="Villa 12, Jumeirah Beach Road, Dubai"
+            />
+          </div>
+          <div>
+            <label className="label">Clinic phone</label>
+            <input
+              className="field"
+              value={clinicPhone}
+              onChange={(e) => setClinicPhone(e.target.value)}
+              placeholder="+971 4 123 4567"
+            />
+          </div>
+          <div>
+            <label className="label">Location link (Google Maps)</label>
+            <input
+              className="field"
+              value={clinicMapUrl}
+              onChange={(e) => setClinicMapUrl(e.target.value)}
+              placeholder="https://maps.google.com/?q=..."
+            />
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-5 space-y-4">
         {msg && <p className="text-sm text-accent-300">{msg}</p>}
         <button onClick={save} disabled={busy} className="btn-primary disabled:opacity-60">
           {busy ? "Saving…" : "Save changes"}

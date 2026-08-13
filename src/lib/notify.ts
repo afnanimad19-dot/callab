@@ -44,11 +44,25 @@ export async function sendBookingConfirmation(userId: string, appointment: Appoi
     )
     .join("");
 
+  // Clinic contact block (address, phone, map link) if the clinic filled them in.
+  const addr = user?.clinicAddress?.trim();
+  const phone = user?.clinicPhone?.trim();
+  const map = user?.clinicMapUrl?.trim();
+  const contactBits = [
+    addr ? `<div style="margin:2px 0"><span style="color:#6b7280">Address:</span> ${addr}</div>` : "",
+    phone ? `<div style="margin:2px 0"><span style="color:#6b7280">Phone:</span> ${phone}</div>` : "",
+    map ? `<div style="margin:6px 0 0"><a href="${map}" style="color:#301C3F;font-weight:600">📍 View location on the map</a></div>` : "",
+  ].join("");
+  const contactBlock = contactBits
+    ? `<div style="margin:0 0 18px;padding:12px 14px;background:#f9fafb;border-radius:10px;font-size:14px;color:#111827"><div style="font-weight:600;margin:0 0 4px">${clinic}</div>${contactBits}</div>`
+    : "";
+
   const html = `
   <div style="font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;max-width:520px;margin:0 auto;color:#111827">
     <h2 style="margin:0 0 4px">Appointment confirmed ✅</h2>
     <p style="margin:0 0 16px;color:#4b5563">Thank you for booking with ${clinic}. Here are your details:</p>
     <table style="border-collapse:collapse;margin:0 0 18px">${table}</table>
+    ${contactBlock}
     <p style="margin:0 0 6px;color:#4b5563">If you need to reschedule or cancel, just reply to this email or call us.</p>
     <p style="margin:18px 0 0;color:#9ca3af;font-size:13px">Sent by ${clinic}</p>
   </div>`;

@@ -103,6 +103,8 @@ export type ServiceConn = GoogleConn & {
   spreadsheetId?: string;
   spreadsheetName?: string;
   sheetTab?: string;
+  columns?: string[];
+  mapping?: Record<string, string>;
 };
 export function getServiceConn(user: User, service: GoogleService): ServiceConn | null {
   const services = migrateLegacy(user);

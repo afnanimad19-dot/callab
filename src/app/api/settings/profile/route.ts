@@ -15,7 +15,13 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: "Name and company are required." }, { status: 400 });
   }
 
-  await updateUser(session.userId, { name, company });
+  await updateUser(session.userId, {
+    name,
+    company,
+    clinicAddress: String(body?.clinicAddress ?? "").slice(0, 300),
+    clinicPhone: String(body?.clinicPhone ?? "").slice(0, 60),
+    clinicMapUrl: String(body?.clinicMapUrl ?? "").slice(0, 500),
+  });
 
   const token = await createSessionToken({
     userId: session.userId,

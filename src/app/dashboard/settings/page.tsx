@@ -22,6 +22,9 @@ export default async function SettingsPage({
         name: session.name,
         email: session.email,
         company: session.company,
+        clinicAddress: user?.clinicAddress ?? "",
+        clinicPhone: user?.clinicPhone ?? "",
+        clinicMapUrl: user?.clinicMapUrl ?? "",
         createdAt: user
           ? new Date(user.createdAt).toLocaleDateString("en-US", {
               month: "short",
