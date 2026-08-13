@@ -5,6 +5,7 @@ import {
   CampaignSchedule,
   createCampaign,
   findAgent,
+  findUserById,
   listContacts,
   listPhoneNumbers,
   updateCampaign,
@@ -12,6 +13,7 @@ import {
 } from "@/lib/db";
 import { createVapiCampaign, startOutboundCall, vapiConfigured } from "@/lib/vapi";
 import { getUsage } from "@/lib/usage";
+import { planFeature, tierForFeature } from "@/lib/plans";
 
 // Contacts uploaded via CSV in the wizard: [{ number, name, ...vars }].
 interface CsvContact { number: string; name?: string; [k: string]: string | undefined }
@@ -57,6 +59,15 @@ function sanitizeStrings(input: unknown, max = 20): string[] {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // Outbound campaigns are gated by plan tier.
+  const owner = await findUserById(session.userId);
+  if (!planFeature(owner, "outbound")) {
+    return NextResponse.json(
+      { error: `Outbound campaigns need the ${tierForFeature("outbound")?.name ?? "a higher"} plan. Upgrade to run them.`, upgrade: true },
+      { status: 403 }
+    );
+  }
 
   const body = await request.json().catch(() => null);
   const name = String(body?.name ?? "").trim();
