@@ -26,6 +26,18 @@ const VOICE_MAP: Record<string, string> = {
   "Orion (male, energetic)": "ErXwobaYiN019PkySvjV", // Antoni
 };
 
+// An error carrying the HTTP status Vapi returned, so callers can tell a
+// "not found" (stale assistant id from an old account) apart from a real
+// rejection.
+class VapiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "VapiError";
+    this.status = status;
+  }
+}
+
 async function vapi(path: string, init?: RequestInit) {
   const res = await fetch(`${BASE}${path}`, {
     ...init,
@@ -35,7 +47,7 @@ async function vapi(path: string, init?: RequestInit) {
       ...init?.headers,
     },
   });
-  if (!res.ok) throw new Error(`Vapi ${res.status}: ${await res.text()}`);
+  if (!res.ok) throw new VapiError(res.status, `Vapi ${res.status}: ${await res.text()}`);
   return res.json();
 }
 
@@ -779,11 +791,31 @@ export async function syncAgentToVapi(
   // once without custom tools so the assistant itself always stays in sync.
   async function push(body: Record<string, unknown>): Promise<string> {
     if (agent.vapiAssistantId) {
-      await vapi(`/assistant/${agent.vapiAssistantId}`, {
-        method: "PATCH",
-        body: JSON.stringify(body),
-      });
-      return agent.vapiAssistantId;
+      try {
+        await vapi(`/assistant/${agent.vapiAssistantId}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        return agent.vapiAssistantId;
+      } catch (e) {
+        // The stored assistant id doesn't exist under the CURRENT Vapi key —
+        // e.g. the account was swapped (new VAPI_API_KEY) so this id belongs
+        // to the old organization. Create a fresh assistant and return its new
+        // id; the caller persists it, so re-publishing re-creates every agent
+        // on the new account automatically. Only do this for a genuine
+        // "not found"/"forbidden", never for a payload rejection (that must
+        // surface so the tool-fallback logic can handle it).
+        const status = e instanceof VapiError ? e.status : 0;
+        if (status !== 404 && status !== 403) throw e;
+        console.warn(
+          `Vapi assistant ${agent.vapiAssistantId} not found on the current account (HTTP ${status}); creating a new one.`
+        );
+        const recreated = await vapi("/assistant", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        return recreated.id as string;
+      }
     }
     const created = await vapi("/assistant", { method: "POST", body: JSON.stringify(body) });
     return created.id as string;
