@@ -68,6 +68,7 @@ export interface User {
   emailVerified?: boolean;
   mustResetPassword?: boolean;
   billing?: BillingState;
+  planTier?: "starter" | "professional" | "business"; // subscription tier
   // Two INDEPENDENT Google connections — Calendar and Sheets can each be linked
   // to a different Google account. Each workspace owner connects their own
   // account(s); refresh tokens live with their tenant data. (Customer emails

@@ -6,6 +6,7 @@ import {
   BookOpen,
   Bot,
   CalendarDays,
+  Gem,
   Inbox,
   LayoutDashboard,
   Phone,
@@ -31,6 +32,7 @@ const ICONS: Record<string, LucideIcon> = {
   inbox: Inbox,
   plug: Plug,
   webhook: Webhook,
+  gem: Gem,
 };
 
 export default function NavLink({

@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createAgent, listAgents, newId, updateAgent, Agent, DEFAULT_TOOLS } from "@/lib/db";
+import { createAgent, findUserById, listAgents, newId, updateAgent, Agent, DEFAULT_TOOLS } from "@/lib/db";
 import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
+import { agentLimit, getPlanTier } from "@/lib/plans";
 
 export async function GET() {
   const session = await getSession();
@@ -19,6 +20,20 @@ export async function POST(request: Request) {
   const name = String(body?.name ?? "").trim();
   if (!name) {
     return NextResponse.json({ error: "Agent name is required." }, { status: 400 });
+  }
+
+  // Plan limit: block creating more agents than the tier allows.
+  const owner = await findUserById(session.userId);
+  const limit = agentLimit(owner);
+  const existing = (await listAgents(session.userId)).length;
+  if (existing >= limit) {
+    return NextResponse.json(
+      {
+        error: `Your ${getPlanTier(owner).name} plan includes ${limit} agents. Upgrade your plan to add more.`,
+        upgrade: true,
+      },
+      { status: 403 }
+    );
   }
 
   const status = ["active", "paused", "draft"].includes(body?.status)

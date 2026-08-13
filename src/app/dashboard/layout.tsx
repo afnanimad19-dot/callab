@@ -42,6 +42,10 @@ const NAV_GROUPS: {
       { href: "/dashboard/webhooks", label: "Webhooks", icon: "webhook" },
     ],
   },
+  {
+    heading: "Account",
+    items: [{ href: "/dashboard/plans", label: "Plans", icon: "gem" }],
+  },
 ];
 
 export default async function DashboardLayout({
