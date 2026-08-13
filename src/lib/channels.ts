@@ -7,7 +7,9 @@ import {
   createConversation, findAgentAnyUser, listChatMessages, listContacts, listConversations, newId,
   updateConversation,
 } from "./db";
-import { bookAppointmentSafe, ensureContact, findUpcomingAppointment } from "./appointments";
+import {
+  bookAppointmentSafe, cancelAppointment, ensureContact, findUpcomingAppointment, rescheduleAppointment,
+} from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
 import { chatComplete, lastLLMError, type ChatMsg } from "./llm";
@@ -180,6 +182,19 @@ async function buildChatSystemPrompt(
   ].filter(Boolean).join("\n\n");
 }
 
+// Format a stored appointment time as wall-clock (ignore any timezone), so the
+// agent reads back the same time the patient chose — no UTC shift.
+function fmtWhen(iso: string): string {
+  const m = String(iso).match(/(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})/);
+  if (!m) return iso;
+  const [, y, mo, d, hhRaw, mm] = m;
+  const hh = parseInt(hhRaw, 10);
+  const ampm = hh >= 12 ? "PM" : "AM";
+  const h12 = hh % 12 === 0 ? 12 : hh % 12;
+  const day = new Date(+y, +mo - 1, +d).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+  return `${day} at ${h12}:${mm} ${ampm}`;
+}
+
 async function findPatientText(userId: string, name?: string, phone?: string): Promise<string> {
   const nm = String(name ?? "").trim();
   const ph = String(phone ?? "").trim();
@@ -240,7 +255,21 @@ async function executeChatTool(
       if (r.status === "duplicate") {
         return `NOTE: this appointment is ALREADY booked (${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}). Do NOT book again — just confirm it's already set. Send no more than one confirmation.`;
       }
-      return `SUCCESS: appointment booked for ${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}${r.appointment.doctor ? ` with ${r.appointment.doctor}` : ""}. Send ONE confirmation message with these exact details, then stop.`;
+      return `SUCCESS: appointment booked for ${r.appointment.patientName} on ${fmtWhen(r.appointment.startsAt)}${r.appointment.doctor ? ` with ${r.appointment.doctor}` : ""}. Send ONE confirmation message with these exact details, then stop.`;
+    }
+    if (name === "reschedule_appointment") {
+      const when = resolveWhen(String(args.new_datetime ?? args.datetime ?? ""));
+      if (!when) return "ERROR: ask the patient for a specific new date and time, then reschedule again.";
+      const existing = await findUpcomingAppointment(userId, String(args.name ?? args.patient_name ?? "").trim() || undefined, String(args.phone ?? "").trim());
+      if (!existing) return "No existing appointment found for that patient — offer to book a new one instead.";
+      await rescheduleAppointment(userId, existing, when);
+      return `SUCCESS: moved ${existing.patientName}'s appointment to ${fmtWhen(when)}. Confirm the new day and time, then stop.`;
+    }
+    if (name === "cancel_appointment") {
+      const existing = await findUpcomingAppointment(userId, String(args.name ?? args.patient_name ?? "").trim() || undefined, String(args.phone ?? "").trim());
+      if (!existing) return "No upcoming appointment found for that patient.";
+      await cancelAppointment(userId, existing);
+      return `SUCCESS: canceled ${existing.patientName}'s appointment on ${fmtWhen(existing.startsAt)}. Confirm it's canceled, then stop.`;
     }
     return "Unknown tool.";
   } catch (e) {
@@ -253,7 +282,7 @@ async function executeChatTool(
 // that don't support function calling. The model emits a [[FIND]] / [[BOOK]]
 // line; we execute it, feed the result back, and it writes the reply.
 function stripCommands(text: string): string {
-  return text.replace(/\[\[(BOOK|FIND)\]\][^\n]*/gi, "").replace(/\n{3,}/g, "\n\n").trim();
+  return text.replace(/\[\[(BOOK|FIND|RESCHEDULE|CANCEL)\]\][^\n]*/gi, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 async function runChatAgent(
@@ -274,10 +303,12 @@ async function runChatAgent(
 - Recommend the most suitable doctor from your knowledge (say which doctor and why they fit) when asked or when booking.
 - Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.` +
     `\n\n# ACTIONS (internal — the patient never sees these lines)
-- To look up an existing patient, reply with ONLY this one line: [[FIND]] {"name":"...","phone":"..."}
-- To BOOK (only AFTER the patient confirmed the summary), reply with ONLY this one line: [[BOOK]] {"patient_name":"...","phone":"...","email":"...","doctor":"...","service":"...","datetime":"...","notes":"..."}
-  datetime must be an absolute date & time you computed, e.g. 2026-08-13T15:00.
-- When you output an action line, output ONLY that line and nothing else. I will run it and give you the RESULT; then you write the natural message to the patient. Never show the patient a [[FIND]]/[[BOOK]] line or raw JSON, and never claim an appointment is booked unless a RESULT said SUCCESS.`;
+- Look up an existing patient — reply with ONLY: [[FIND]] {"name":"...","phone":"..."}
+- BOOK (only AFTER the patient confirmed the summary) — reply with ONLY: [[BOOK]] {"patient_name":"...","phone":"...","email":"...","doctor":"...","service":"...","datetime":"...","notes":"..."}
+- RESCHEDULE the patient's appointment — reply with ONLY: [[RESCHEDULE]] {"name":"...","phone":"...","new_datetime":"..."}
+- CANCEL the patient's appointment — reply with ONLY: [[CANCEL]] {"name":"...","phone":"..."}
+  datetime / new_datetime must be an absolute date & time you computed, e.g. 2026-08-13T15:00.
+- When you output an action line, output ONLY that line and nothing else. I will run it and give you the RESULT; then you write the natural message to the patient. Never show the patient a [[...]] line or raw JSON, and never claim something happened unless a RESULT said SUCCESS.`;
 
   const messages: ChatMsg[] = [{ role: "system", content: system }];
   for (const m of history) messages.push({ role: m.direction === "in" ? "user" : "assistant", content: m.text });
@@ -286,13 +317,15 @@ async function runChatAgent(
   for (let round = 0; round < 4; round++) {
     const text = await chatComplete(messages, { temperature: 0.5, maxTokens: 600 });
     if (!text) return null;
-    const book = text.match(/\[\[BOOK\]\]\s*(\{[\s\S]*?\})/i);
-    const find = text.match(/\[\[FIND\]\]\s*(\{[\s\S]*?\})/i);
-    const action = book ?? find;
-    if (action) {
+    const cmd = text.match(/\[\[(BOOK|FIND|RESCHEDULE|CANCEL)\]\]\s*(\{[\s\S]*?\})/i);
+    if (cmd) {
+      const toolName = {
+        BOOK: "book_appointment", FIND: "find_patient",
+        RESCHEDULE: "reschedule_appointment", CANCEL: "cancel_appointment",
+      }[cmd[1].toUpperCase()]!;
       let a: Record<string, unknown> = {};
-      try { a = JSON.parse(action[1]); } catch { /* ignore */ }
-      const result = await executeChatTool(agent.userId, book ? "book_appointment" : "find_patient", a);
+      try { a = JSON.parse(cmd[2]); } catch { /* ignore */ }
+      const result = await executeChatTool(agent.userId, toolName, a);
       messages.push({ role: "assistant", content: text });
       messages.push({ role: "user", content: `ACTION RESULT: ${result}\n(Now write the natural message to the patient — no [[...]] lines.)` });
       continue;

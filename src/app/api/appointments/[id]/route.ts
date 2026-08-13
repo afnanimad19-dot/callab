@@ -20,9 +20,9 @@ export async function PATCH(request: Request, { params }: Params) {
     return NextResponse.json({ appointment });
   }
   if (body?.action === "reschedule" && !Number.isNaN(Date.parse(body?.startsAt))) {
-    const appointment = await rescheduleAppointment(
-      session.userId, existing, new Date(body.startsAt).toISOString()
-    );
+    // Store the wall-clock string verbatim (no toISOString — that would add a
+    // Z and shift the hour when displayed in the local timezone).
+    const appointment = await rescheduleAppointment(session.userId, existing, String(body.startsAt));
     return NextResponse.json({ appointment });
   }
 
@@ -35,7 +35,7 @@ export async function PATCH(request: Request, { params }: Params) {
     patch.status = body.status;
   }
   if (body?.startsAt && !Number.isNaN(Date.parse(body.startsAt))) {
-    patch.startsAt = new Date(body.startsAt).toISOString();
+    patch.startsAt = String(body.startsAt); // wall-clock, no timezone conversion
   }
   const appointment = await updateAppointment(session.userId, id, patch);
   if (appointment) {

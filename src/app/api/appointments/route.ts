@@ -28,8 +28,8 @@ export async function POST(request: Request) {
     phone: String(body?.phone ?? "").slice(0, 30),
     doctor: String(body?.doctor ?? "").slice(0, 80),
     service: String(body?.service ?? "").slice(0, 120),
-    startsAt: new Date(startsAt).toISOString(),
-    endsAt: body?.endsAt && !Number.isNaN(Date.parse(body.endsAt)) ? new Date(body.endsAt).toISOString() : undefined,
+    startsAt, // wall-clock, stored verbatim (no timezone conversion)
+    endsAt: body?.endsAt && !Number.isNaN(Date.parse(body.endsAt)) ? String(body.endsAt) : undefined,
     notes: String(body?.notes ?? "").slice(0, 1000),
     source: "manual",
   });

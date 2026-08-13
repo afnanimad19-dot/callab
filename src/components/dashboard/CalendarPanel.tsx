@@ -27,8 +27,30 @@ const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 function ymd(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
+// Read the LITERAL wall-clock parts out of the stored string, ignoring any
+// timezone (Z / offset). Appointment times are wall-clock (UAE local as
+// entered), so we never convert them — that's what caused 10am to show as 2pm.
+function wallParts(iso: string) {
+  const m = String(iso).match(/(\d{4})-(\d{1,2})-(\d{1,2})[T ](\d{1,2}):(\d{2})/);
+  if (!m) return null;
+  return { y: +m[1], mo: +m[2], d: +m[3], hh: +m[4], mm: +m[5] };
+}
+function dateKeyOf(iso: string) {
+  const p = wallParts(iso);
+  return p ? `${p.y}-${String(p.mo).padStart(2, "0")}-${String(p.d).padStart(2, "0")}` : "";
+}
 function timeOf(iso: string) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const p = wallParts(iso);
+  if (!p) return "";
+  const ampm = p.hh >= 12 ? "PM" : "AM";
+  const h12 = p.hh % 12 === 0 ? 12 : p.hh % 12;
+  return `${h12}:${String(p.mm).padStart(2, "0")} ${ampm}`;
+}
+function dateTimeOf(iso: string) {
+  const p = wallParts(iso);
+  if (!p) return "";
+  const d = new Date(p.y, p.mo - 1, p.d);
+  return `${d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric", year: "numeric" })} at ${timeOf(iso)}`;
 }
 
 export default function CalendarPanel({ appointments }: { appointments: Appointment[] }) {
@@ -42,7 +64,7 @@ export default function CalendarPanel({ appointments }: { appointments: Appointm
   const byDay = useMemo(() => {
     const map = new Map<string, Appointment[]>();
     for (const a of appointments) {
-      const key = ymd(new Date(a.startsAt));
+      const key = dateKeyOf(a.startsAt) || ymd(new Date(a.startsAt));
       map.set(key, [...(map.get(key) ?? []), a]);
     }
     for (const list of map.values()) list.sort((a, b) => a.startsAt.localeCompare(b.startsAt));
@@ -342,7 +364,10 @@ function AppointmentModal({
   const [busy, setBusy] = useState(false);
   const [reschedOpen, setReschedOpen] = useState(false);
   const [newDate, setNewDate] = useState(a.startsAt.slice(0, 10));
-  const [newTime, setNewTime] = useState(new Date(a.startsAt).toTimeString().slice(0, 5));
+  const [newTime, setNewTime] = useState(() => {
+    const p = wallParts(a.startsAt);
+    return p ? `${String(p.hh).padStart(2, "0")}:${String(p.mm).padStart(2, "0")}` : "10:00";
+  });
   const s = STATUS_STYLE[a.status];
 
   async function act(body: Record<string, unknown>, message: string) {
@@ -380,7 +405,7 @@ function AppointmentModal({
 
         <div className="mt-5 space-y-3 text-sm">
           <p className="flex items-center gap-2.5"><Clock className="h-4 w-4 shrink-0 text-ink-400" />
-            {new Date(a.startsAt).toLocaleString([], { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" })}
+            {dateTimeOf(a.startsAt)}
           </p>
           {a.doctor && <p className="flex items-center gap-2.5"><Stethoscope className="h-4 w-4 shrink-0 text-ink-400" /> {a.doctor}</p>}
           {a.service && <p className="flex items-center gap-2.5"><FileText className="h-4 w-4 shrink-0 text-ink-400" /> {a.service}</p>}
