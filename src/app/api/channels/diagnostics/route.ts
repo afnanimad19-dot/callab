@@ -28,7 +28,8 @@ export async function GET(request: Request) {
   if (!settings.defaultChatAgentId) issues.push("No default chat agent selected in Agent Hub.");
   else if (!defaultAgent) issues.push("The selected default chat agent no longer exists — pick one again.");
   if (!process.env.META_VERIFY_TOKEN) issues.push("META_VERIFY_TOKEN is not set on the server.");
-  if (!process.env.QWEN_API_KEY) issues.push("QWEN_API_KEY is not set — the chat agent has no LLM.");
+  if (!process.env.QWEN_API_KEY && !process.env.DASHSCOPE_API_KEY)
+    issues.push("QWEN_API_KEY (or DASHSCOPE_API_KEY) is not set — the chat agent has no LLM.");
 
   return NextResponse.json({
     readyToReply: issues.length === 0,
@@ -51,8 +52,8 @@ export async function GET(request: Request) {
     // If a reply recently failed, the reason shows here (e.g. no AI key).
     lastReplyError: recentReplyError ?? null,
     chatEngine: "Qwen",
-    qwenKeySet: Boolean(process.env.QWEN_API_KEY),
-    qwenModel: process.env.QWEN_MODEL || "qwen-plus",
+    qwenKeySet: Boolean(process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY),
+    qwenModel: process.env.QWEN_MODEL || "qwen3.7-plus",
     // Compare this Phone Number ID to the one in Meta → API Setup. They MUST match.
     checkThis: "The 'savedPhoneNumberId' above must exactly equal the Phone number ID shown in Meta → WhatsApp → API Setup.",
     webhookUrlForMeta: `${origin}/api/channels/webhook`,

@@ -1,12 +1,15 @@
 // Chat LLM for the TEXT (chat) agent only — voice runs entirely on Vapi.
-// Uses Qwen (Alibaba Model Studio), which is OpenAI-compatible. Configure:
-//   QWEN_API_KEY   – required
-//   QWEN_MODEL     – optional, default "qwen-plus" (e.g. qwen-turbo, qwen-max)
+// Uses Qwen (Alibaba DashScope / Model Studio), which is OpenAI-compatible.
+// Configure:
+//   QWEN_API_KEY (or DASHSCOPE_API_KEY) – required
+//   QWEN_MODEL     – optional, default "qwen3.7-plus" (e.g. qwen-plus, qwen-max)
 //   QWEN_BASE_URL  – optional, default the international Model Studio endpoint;
 //                    set to the China endpoint if your key is region-locked.
+// We send enable_thinking:false so a "thinking" model returns a direct final
+// answer in a normal (non-streaming) call — exactly what a chat reply needs.
 
 const DEFAULT_BASE = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
-const DEFAULT_MODEL = "qwen-plus";
+const DEFAULT_MODEL = "qwen3.7-plus";
 
 function chatEndpoint(): string {
   const base = (process.env.QWEN_BASE_URL || DEFAULT_BASE).replace(/\/+$/, "");
@@ -16,7 +19,7 @@ function chatModel(): string {
   return process.env.QWEN_MODEL || DEFAULT_MODEL;
 }
 function chatKey(): string | undefined {
-  return process.env.QWEN_API_KEY;
+  return process.env.QWEN_API_KEY || process.env.DASHSCOPE_API_KEY;
 }
 
 export function chatEngineConfigured(): boolean {
@@ -62,6 +65,7 @@ export async function chatComplete(
       body: JSON.stringify({
         model: chatModel(),
         messages,
+        enable_thinking: false,
         temperature: opts?.temperature ?? 0.5,
         max_tokens: opts?.maxTokens ?? 600,
       }),
@@ -98,6 +102,7 @@ export async function chatCompleteRaw(
       body: JSON.stringify({
         model: chatModel(),
         messages,
+        enable_thinking: false,
         ...(tools?.length ? { tools, tool_choice: "auto" } : {}),
         temperature: opts?.temperature ?? 0.5,
         max_tokens: opts?.maxTokens ?? 600,
