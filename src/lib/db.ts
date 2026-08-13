@@ -64,13 +64,28 @@ export interface User {
   emailVerified?: boolean;
   mustResetPassword?: boolean;
   billing?: BillingState;
-  // Google Calendar connection (each workspace owner connects their own
-  // Google account; the refresh token lives with their tenant data).
+  // Three INDEPENDENT Google connections — Calendar, Sheets and Gmail can each
+  // be linked to a different Google account. Each workspace owner connects
+  // their own account(s); refresh tokens live with their tenant data.
+  googleServices?: {
+    calendar?: GoogleConn;
+    sheets?: GoogleConn & {
+      spreadsheetId?: string; // the sheet leads/appointments are logged into
+      spreadsheetName?: string;
+      sheetTab?: string; // which tab within that spreadsheet
+    };
+    gmail?: GoogleConn;
+  };
+  // Legacy single-connection fields (pre-split). Read once and migrated into
+  // googleServices, then cleared. Kept in the type so old records still parse.
   googleRefreshToken?: string;
   googleEmail?: string;
-  // Google Sheets appointment log (auto-created spreadsheet in the same
-  // connected Google account). Every booking/reschedule/cancel appends a row.
   googleSheetId?: string;
+}
+
+export interface GoogleConn {
+  refreshToken: string;
+  email?: string;
 }
 
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";

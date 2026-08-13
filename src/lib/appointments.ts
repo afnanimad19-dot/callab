@@ -8,6 +8,7 @@ import {
 } from "./db";
 import { syncAppointmentToGoogle } from "./gcal";
 import { logAppointmentToSheet } from "./gsheets";
+import { sendBookingConfirmation } from "./gmail";
 
 const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 
@@ -91,7 +92,14 @@ export async function bookAppointment(
   } catch (e) {
     console.error("Google sync after booking failed:", e);
   }
-  await logAppointmentToSheet(userId, appointment, "booked");
+  await logAppointmentToSheet(userId, appointment, "Booked");
+  // Thank-you / confirmation email to the patient (Gmail if connected, else
+  // Resend). Never blocks the booking.
+  if (appointment.email) {
+    sendBookingConfirmation(userId, appointment).catch((e) =>
+      console.error("Booking confirmation email failed:", e)
+    );
+  }
   return appointment;
 }
 
@@ -169,7 +177,7 @@ export async function rescheduleAppointment(
     updatedAt: new Date().toISOString(),
   };
   const gcalEventId = await syncAppointmentToGoogle(userId, patched);
-  await logAppointmentToSheet(userId, patched, "rescheduled");
+  await logAppointmentToSheet(userId, patched, "Rescheduled");
   return (
     (await updateAppointment(userId, appointment.id, {
       startsAt: newStartsAt,
@@ -185,7 +193,7 @@ export async function cancelAppointment(
   appointment: Appointment
 ): Promise<Appointment | null> {
   await syncAppointmentToGoogle(userId, { ...appointment, status: "canceled" });
-  await logAppointmentToSheet(userId, { ...appointment, status: "canceled" }, "canceled");
+  await logAppointmentToSheet(userId, { ...appointment, status: "canceled" }, "Canceled");
   return (
     (await updateAppointment(userId, appointment.id, {
       status: "canceled",

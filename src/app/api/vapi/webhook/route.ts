@@ -10,8 +10,11 @@
 // charts. Other message types are acknowledged and ignored for now.
 
 import { NextResponse } from "next/server";
-import { findAgentByVapiAssistantId, insertCalls } from "@/lib/db";
+import { findAgentByVapiAssistantId, insertCalls, listAppointments } from "@/lib/db";
 import { getAssistantId, mapEndOfCallReport } from "@/lib/vapi";
+import { logLeadToSheet } from "@/lib/gsheets";
+
+const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 
 export async function POST(request: Request) {
   // Verify the shared secret when one is configured.
@@ -51,6 +54,26 @@ export async function POST(request: Request) {
   try {
     const call = mapEndOfCallReport(message, agent);
     await insertCalls([call]);
+
+    // Log a LEAD row to the Sheet for callers who reached out but did NOT book
+    // (booked callers are already logged as "Booked" by the booking flow, so
+    // skip those to avoid a duplicate row).
+    if (!call.isTest && norm(call.callerNumber).length >= 7) {
+      const cutoff = Date.now() - 2 * 60 * 60 * 1000; // last 2h
+      const booked = (await listAppointments(agent.userId)).some(
+        (a) =>
+          norm(a.phone) === norm(call.callerNumber) &&
+          Date.parse(a.createdAt) >= cutoff
+      );
+      if (!booked) {
+        await logLeadToSheet(agent.userId, {
+          phone: call.callerNumber,
+          channel: "call",
+          status: "Enquiry (no booking)",
+          notes: call.summary,
+        });
+      }
+    }
     return NextResponse.json({ ok: true, callId: call.id });
   } catch (e) {
     console.error("Failed to store Vapi call:", e);

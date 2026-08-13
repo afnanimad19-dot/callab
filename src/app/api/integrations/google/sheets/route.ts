@@ -1,0 +1,31 @@
+import { NextResponse } from "next/server";
+import { getSession } from "@/lib/auth";
+import { createSpreadsheetForUser, useSpreadsheetForUser, setSheetTabForUser } from "@/lib/gsheets";
+
+// Configure WHICH spreadsheet + tab bookings and leads are logged into.
+//   POST { action: "create" }            -> make a new spreadsheet
+//   POST { action: "use", url: "..." }   -> use an existing sheet (URL or id)
+//   POST { action: "tab", tab: "Name" }  -> switch the tab within it
+export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const body = await request.json().catch(() => ({}));
+  const action = String(body?.action ?? "");
+
+  if (action === "create") {
+    const made = await createSpreadsheetForUser(session.userId);
+    if (!made) return NextResponse.json({ error: "Could not create the sheet — reconnect Google Sheets." }, { status: 400 });
+    return NextResponse.json(made);
+  }
+  if (action === "use") {
+    const result = await useSpreadsheetForUser(session.userId, String(body?.url ?? ""));
+    if ("error" in result) return NextResponse.json(result, { status: 400 });
+    return NextResponse.json(result);
+  }
+  if (action === "tab") {
+    const ok = await setSheetTabForUser(session.userId, String(body?.tab ?? "").trim());
+    if (!ok) return NextResponse.json({ error: "Pick a sheet first." }, { status: 400 });
+    return NextResponse.json({ ok: true });
+  }
+  return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+}

@@ -65,7 +65,7 @@ export default function IntegrationsPanel({
 }: {
   integrations: Integration[];
   platforms: Platform[];
-  google?: { configured: boolean; connected: boolean; email: string | null; sheetUrl?: string | null };
+  google?: GoogleStatus;
 }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
@@ -259,7 +259,20 @@ export default function IntegrationsPanel({
         <h2 className="text-base font-semibold">Connected services</h2>
         <p className="text-sm text-ink-400">Connect the outside services your agents use.</p>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          {google && <GoogleCalendarCard google={google} />}
+          {google?.configured === false && (
+            <div className="card sm:col-span-2">
+              <h3 className="text-base font-semibold">Google Calendar, Sheets &amp; Gmail</h3>
+              <p className="mt-1 text-sm text-ink-300">
+                Connect any Google account for each. Set{" "}
+                <span className="font-mono text-xs">GOOGLE_CLIENT_ID</span> and{" "}
+                <span className="font-mono text-xs">GOOGLE_CLIENT_SECRET</span> in your Netlify
+                environment variables to enable these.
+              </p>
+            </div>
+          )}
+          {google?.configured && <GoogleCalendarCard google={google.calendar} />}
+          {google?.configured && <GmailCard gmail={google.gmail} />}
+          {google?.configured && <GoogleSheetsCard sheets={google.sheets} />}
           {platforms.map((p) => (
             <div key={p.name} className="card card-hover">
               <div className="flex items-start justify-between gap-3">
@@ -1108,21 +1121,33 @@ function FlowStepModal({
   );
 }
 
-// --- Google Calendar connect card -------------------------------------------
-// Each workspace owner connects THEIR OWN Google account; appointments booked
-// by agents sync to that account's primary calendar.
+// --- Google connect cards (three independent connections) -------------------
+// Calendar, Gmail and Sheets each connect to THEIR OWN Google account, so a
+// clinic can mix accounts. Calendar receives bookings; Gmail sends the patient
+// their confirmation; Sheets logs every booking AND every enquiry as a row.
 
-function GoogleCalendarCard({
-  google,
-}: {
-  google: { configured: boolean; connected: boolean; email: string | null; sheetUrl?: string | null };
-}) {
+type ServiceStatus = { connected: boolean; email: string | null };
+type SheetsStatus = ServiceStatus & {
+  spreadsheetId: string | null;
+  spreadsheetName: string | null;
+  sheetTab: string | null;
+  url: string | null;
+};
+export type GoogleStatus = {
+  configured: boolean;
+  calendar: ServiceStatus;
+  gmail: ServiceStatus;
+  sheets: SheetsStatus;
+};
+
+// Shared connect/disconnect for a single service.
+function useGoogleService(service: "calendar" | "gmail" | "sheets", disconnectMsg: string) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
 
   async function connect() {
     setBusy(true);
-    const res = await fetch("/api/integrations/google", { method: "POST" });
+    const res = await fetch(`/api/integrations/google?service=${service}`, { method: "POST" });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok && data.url) window.location.href = data.url;
@@ -1130,50 +1155,193 @@ function GoogleCalendarCard({
   }
 
   async function disconnect() {
-    if (!confirm("Disconnect Google? Appointments will stop syncing to your Calendar and Sheet.")) return;
+    if (!confirm(disconnectMsg)) return;
     setBusy(true);
-    await fetch("/api/integrations/google", { method: "DELETE" });
+    await fetch(`/api/integrations/google?service=${service}`, { method: "DELETE" });
     setBusy(false);
-    toast("Google disconnected.");
+    toast("Disconnected.");
     router.refresh();
+  }
+
+  return { busy, connect, disconnect };
+}
+
+function ConnectButton({
+  connected,
+  busy,
+  onClick,
+  connectLabel,
+}: {
+  connected: boolean;
+  busy: boolean;
+  onClick: () => void;
+  connectLabel: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className={`${connected ? "btn-secondary" : "btn-primary"} mt-3 !px-4 !py-2 !text-sm disabled:opacity-60`}
+    >
+      {busy ? "Working\u2026" : connected ? "Disconnect" : connectLabel}
+    </button>
+  );
+}
+
+function CardHead({ title, connected }: { title: string; connected: boolean }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <h3 className="text-base font-semibold">{title}</h3>
+      <span className={connected ? "badge-ok" : "badge-muted"}>
+        {connected ? "Connected" : "Not connected"}
+      </span>
+    </div>
+  );
+}
+
+function GoogleCalendarCard({ google }: { google: ServiceStatus }) {
+  const { busy, connect, disconnect } = useGoogleService(
+    "calendar",
+    "Disconnect Google Calendar? Appointments will stop syncing there."
+  );
+  return (
+    <div className="card card-hover">
+      <CardHead title="Google Calendar" connected={google.connected} />
+      <p className="mt-2 text-sm text-ink-300">
+        Appointments your agents book, reschedule or cancel sync to this Google account&apos;s
+        calendar{google.connected && google.email ? ` (${google.email})` : ""}.
+      </p>
+      <ConnectButton
+        connected={google.connected}
+        busy={busy}
+        onClick={google.connected ? disconnect : connect}
+        connectLabel="Connect Google Calendar"
+      />
+    </div>
+  );
+}
+
+function GmailCard({ gmail }: { gmail: ServiceStatus }) {
+  const { busy, connect, disconnect } = useGoogleService(
+    "gmail",
+    "Disconnect Gmail? Confirmation emails will stop sending from your address."
+  );
+  return (
+    <div className="card card-hover">
+      <CardHead title="Gmail" connected={gmail.connected} />
+      <p className="mt-2 text-sm text-ink-300">
+        After a patient books (by call or chat), a confirmation &amp; thank-you email with their
+        appointment details is sent from this Gmail
+        {gmail.connected && gmail.email ? ` (${gmail.email})` : ""}.
+      </p>
+      <ConnectButton
+        connected={gmail.connected}
+        busy={busy}
+        onClick={gmail.connected ? disconnect : connect}
+        connectLabel="Connect Gmail"
+      />
+    </div>
+  );
+}
+
+function GoogleSheetsCard({ sheets }: { sheets: SheetsStatus }) {
+  const router = useRouter();
+  const { busy, connect, disconnect } = useGoogleService(
+    "sheets",
+    "Disconnect Google Sheets? Bookings and leads will stop logging."
+  );
+  const [working, setWorking] = useState(false);
+  const [url, setUrl] = useState("");
+  const [tabs, setTabs] = useState<string[]>(sheets.sheetTab ? [sheets.sheetTab] : []);
+
+  async function sheetAction(body: Record<string, unknown>) {
+    setWorking(true);
+    const res = await fetch("/api/integrations/google/sheets", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    setWorking(false);
+    if (!res.ok) {
+      toastError(data.error ?? "Something went wrong.");
+      return null;
+    }
+    if (Array.isArray(data.tabs)) setTabs(data.tabs);
+    router.refresh();
+    return data;
   }
 
   return (
     <div className="card card-hover">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-semibold">Google Calendar &amp; Sheets</h3>
-        <span className={google.connected ? "badge-ok" : "badge-muted"}>
-          {google.connected ? "Connected" : "Not connected"}
-        </span>
-      </div>
+      <CardHead title="Google Sheets" connected={sheets.connected} />
       <p className="mt-2 text-sm text-ink-300">
-        Appointments your agents book, reschedule or cancel sync to your own Google Calendar
-        {google.email ? ` (${google.email})` : ""}, and every booking is also logged as a row in a
-        Google Sheet in the same account. One connection covers both.
+        Every booking <span className="font-medium">and every enquiry</span> (someone who reached
+        out but didn&apos;t book) is logged as a row \u2014 name, phone, email, channel (call/chat) and
+        status \u2014 so this sheet doubles as your lead tracker.
       </p>
-      {google.connected && google.sheetUrl && (
-        <a
-          href={google.sheetUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline"
-        >
-          Open appointment sheet &#8599;
-        </a>
+
+      {sheets.connected && (
+        <div className="mt-3 space-y-3">
+          {sheets.spreadsheetId ? (
+            <div className="rounded-lg bg-ink-800/60 px-3 py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-ink-300">Logging to</span>
+                <a href={sheets.url ?? "#"} target="_blank" rel="noreferrer" className="font-medium text-primary hover:underline">
+                  {sheets.spreadsheetName || "sheet"} &#8599;
+                </a>
+              </div>
+              {tabs.length > 1 && (
+                <label className="mt-2 flex items-center gap-2 text-xs text-ink-400">
+                  Tab
+                  <select
+                    value={sheets.sheetTab ?? tabs[0]}
+                    onChange={(e) => sheetAction({ action: "tab", tab: e.target.value })}
+                    className="input !py-1 !text-xs"
+                    disabled={working}
+                  >
+                    {tabs.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
+            </div>
+          ) : (
+            <p className="text-xs text-ink-400">No sheet chosen yet \u2014 create one or paste an existing sheet link below.</p>
+          )}
+
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Paste a Google Sheet link to use\u2026"
+              className="input !py-1.5 !text-sm flex-1 min-w-[180px]"
+            />
+            <button
+              onClick={async () => { if (url.trim()) { const d = await sheetAction({ action: "use", url }); if (d) setUrl(""); } }}
+              disabled={working || !url.trim()}
+              className="btn-secondary !px-3 !py-1.5 !text-sm disabled:opacity-50"
+            >
+              Use this
+            </button>
+            <button
+              onClick={() => sheetAction({ action: "create" })}
+              disabled={working}
+              className="btn-secondary !px-3 !py-1.5 !text-sm disabled:opacity-50"
+            >
+              Create new
+            </button>
+          </div>
+        </div>
       )}
-      {google.configured ? (
-        <button
-          onClick={google.connected ? disconnect : connect}
-          disabled={busy}
-          className={`${google.connected ? "btn-secondary" : "btn-primary"} mt-3 !px-4 !py-2 !text-sm disabled:opacity-60`}
-        >
-          {busy ? "Working\u2026" : google.connected ? "Disconnect" : "Connect Google"}
-        </button>
-      ) : (
-        <p className="mt-3 rounded-lg bg-ink-800 px-3 py-2 font-mono text-xs text-ink-300">
-          Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in your Netlify environment variables.
-        </p>
-      )}
+
+      <ConnectButton
+        connected={sheets.connected}
+        busy={busy}
+        onClick={sheets.connected ? disconnect : connect}
+        connectLabel="Connect Google Sheets"
+      />
     </div>
   );
 }

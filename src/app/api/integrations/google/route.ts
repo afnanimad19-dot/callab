@@ -1,21 +1,38 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { findUserById } from "@/lib/db";
-import { googleAuthUrl, googleConfigured, disconnectGoogle } from "@/lib/gcal";
-import { googleSheetUrl } from "@/lib/gsheets";
+import {
+  googleAuthUrl,
+  googleConfigured,
+  disconnectService,
+  getServiceConn,
+  serviceConnected,
+  GOOGLE_SERVICES,
+  type GoogleService,
+} from "@/lib/google";
+import { sheetConfig } from "@/lib/gsheets";
 
-// GET  -> connection status
-// POST -> begin OAuth (returns the Google consent URL to redirect to)
-// DELETE -> disconnect
+function serviceParam(request: Request): GoogleService | null {
+  const s = new URL(request.url).searchParams.get("service") as GoogleService | null;
+  return s && GOOGLE_SERVICES.includes(s) ? s : null;
+}
+
+// GET  -> status of all three connections (+ sheet config)
+// POST ?service=calendar|sheets|gmail -> begin OAuth for that service
+// DELETE ?service=... -> disconnect that service
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   const user = await findUserById(session.userId);
   return NextResponse.json({
     configured: googleConfigured(),
-    connected: Boolean(user?.googleRefreshToken),
-    email: user?.googleEmail ?? null,
-    sheetUrl: googleSheetUrl(user?.googleSheetId),
+    calendar: { connected: serviceConnected(user, "calendar"), email: user ? getServiceConn(user, "calendar")?.email ?? null : null },
+    gmail: { connected: serviceConnected(user, "gmail"), email: user ? getServiceConn(user, "gmail")?.email ?? null : null },
+    sheets: {
+      connected: serviceConnected(user, "sheets"),
+      email: user ? getServiceConn(user, "sheets")?.email ?? null : null,
+      ...sheetConfig(user),
+    },
   });
 }
 
@@ -28,15 +45,18 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const service = serviceParam(request);
+  if (!service) return NextResponse.json({ error: "Unknown service." }, { status: 400 });
   const origin = new URL(request.url).origin;
   const redirectUri = `${origin}/api/integrations/google/callback`;
-  // state carries the user id so the callback knows whose account to link.
-  return NextResponse.json({ url: googleAuthUrl(redirectUri, session.userId) });
+  return NextResponse.json({ url: googleAuthUrl(service, redirectUri, session.userId) });
 }
 
-export async function DELETE() {
+export async function DELETE(request: Request) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  await disconnectGoogle(session.userId);
+  const service = serviceParam(request);
+  if (!service) return NextResponse.json({ error: "Unknown service." }, { status: 400 });
+  await disconnectService(session.userId, service);
   return NextResponse.json({ ok: true });
 }
