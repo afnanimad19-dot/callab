@@ -10,10 +10,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageCircle, Camera, MessagesSquare, Search, RefreshCw, Send, Mic, Square,
-  Bot, User, Sparkles, SlidersHorizontal, ChevronDown, ExternalLink,
+  Bot, User, Sparkles, SlidersHorizontal, ChevronDown, ExternalLink, Pencil,
+  Plus, Trash2, ArrowUp, ArrowDown, X,
 } from "lucide-react";
 import Link from "next/link";
 import type { Agent, ChatMessage, Contact, Conversation } from "@/lib/db";
+import { DEFAULT_STAGES, STAGE_COLOR_KEYS, colorOf, type LifecycleStage } from "@/lib/lifecycle";
 import { toast, toastError } from "@/components/Toast";
 
 const CHANNEL_META = {
@@ -22,17 +24,13 @@ const CHANNEL_META = {
   messenger: { label: "Messenger", icon: MessagesSquare, cls: "bg-blue-100 text-blue-700" },
 } as const;
 
-// Lifecycle pipeline stages (like Respond.io): move a conversation through the
-// funnel so you always know where each lead stands.
-const STAGES = [
-  { key: "new_lead", label: "New Lead", chip: "bg-blue-100 text-blue-700", dot: "bg-blue-500" },
-  { key: "hot_lead", label: "Hot Lead", chip: "bg-orange-100 text-orange-700", dot: "bg-orange-500" },
-  { key: "payment", label: "Payment", chip: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
-  { key: "customer", label: "Customer", chip: "bg-emerald-100 text-emerald-700", dot: "bg-emerald-500" },
-] as const;
-const DEFAULT_STAGE = "new_lead";
-const stageOf = (c: Conversation) => c.lifecycle || DEFAULT_STAGE;
-const stageMeta = (key: string) => STAGES.find((s) => s.key === key) ?? STAGES[0];
+// A conversation's stage key (falls back to the first configured stage).
+function convStage(c: Conversation, stages: LifecycleStage[]): string {
+  return c.lifecycle || stages[0]?.key || "new_lead";
+}
+function findStage(key: string, stages: LifecycleStage[]): LifecycleStage {
+  return stages.find((s) => s.key === key) ?? stages[0] ?? DEFAULT_STAGES[0];
+}
 
 export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -44,6 +42,8 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [contact, setContact] = useState<Contact | null>(null);
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [unreadOnly, setUnreadOnly] = useState(false);
+  const [stages, setStages] = useState<LifecycleStage[]>(DEFAULT_STAGES);
+  const [editStages, setEditStages] = useState(false);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
@@ -79,7 +79,13 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     }
   }, []);
 
-  useEffect(() => { loadConversations(); }, [loadConversations]);
+  const loadStages = useCallback(async () => {
+    const res = await fetch("/api/inbox/stages");
+    const data = await res.json().catch(() => ({}));
+    if (Array.isArray(data.stages) && data.stages.length) setStages(data.stages);
+  }, []);
+
+  useEffect(() => { loadConversations(); loadStages(); }, [loadConversations, loadStages]);
   useEffect(() => { if (activeId) loadThread(activeId); }, [activeId, loadThread]);
   // Light polling keeps the thread live while the tab is open.
   useEffect(() => {
@@ -102,14 +108,14 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
 
   const visible = conversations
     .filter((c) => filter === "all" || c.channel === filter)
-    .filter((c) => stageFilter === "all" || stageOf(c) === stageFilter)
+    .filter((c) => stageFilter === "all" || convStage(c, stages) === stageFilter)
     .filter((c) => !unreadOnly || c.unread > 0)
     .filter((c) => {
       const q = query.trim().toLowerCase();
       return !q || `${c.customerName} ${c.customerPhone ?? ""} ${c.lastMessageText ?? ""}`.toLowerCase().includes(q);
     });
 
-  const stageCount = (key: string) => conversations.filter((c) => stageOf(c) === key).length;
+  const stageCount = (key: string) => conversations.filter((c) => convStage(c, stages) === key).length;
   const unreadCount = conversations.filter((c) => c.unread > 0).length;
 
   async function send() {
@@ -249,15 +255,20 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                 <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-blue-500 px-1 text-[10px] font-bold text-white">{unreadCount}</span>
               )}
             </button>
-            <p className="px-2.5 pb-1 pt-3 text-[10px] font-semibold uppercase tracking-wide text-ink-500">Lifecycle</p>
-            {STAGES.map((s) => (
+            <div className="flex items-center justify-between px-2.5 pb-1 pt-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-ink-500">Lifecycle</p>
+              <button onClick={() => setEditStages(true)} title="Edit stages" className="rounded p-0.5 text-ink-400 hover:bg-ink-800 hover:text-ink-200">
+                <Pencil className="h-3 w-3" />
+              </button>
+            </div>
+            {stages.map((s) => (
               <button key={s.key}
                 onClick={() => { setStageFilter(s.key); setUnreadOnly(false); }}
                 className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-sm font-medium transition ${
                   stageFilter === s.key ? "bg-ink-800 text-ink-100" : "text-ink-400 hover:bg-ink-900"
                 }`}>
                 <span className="flex items-center gap-2">
-                  <span className={`h-2 w-2 rounded-full ${s.dot}`} />
+                  <span className={`h-2 w-2 rounded-full ${colorOf(s.color).dot}`} />
                   {s.label}
                 </span>
                 <span className="text-xs text-ink-500">{stageCount(s.key)}</span>
@@ -319,9 +330,11 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                         </span>
                       )}
                     </span>
-                    <span className={`mt-1 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${stageMeta(stageOf(c)).chip}`}>
-                      {stageMeta(stageOf(c)).label}
-                    </span>
+                    {(() => { const st = findStage(convStage(c, stages), stages); return (
+                      <span className={`mt-1 inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-semibold ${colorOf(st.color).chip}`}>
+                        {st.label}
+                      </span>
+                    ); })()}
                   </span>
                 </button>
               );
@@ -439,6 +452,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
               key={active.id}
               active={active}
               contact={contact}
+              stages={stages}
               agentName={agentName(active.agentId)}
               onSave={(p) => patchConversation(p)}
             />
@@ -447,6 +461,14 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
           )}
         </div>
       </div>
+
+      {editStages && (
+        <StageEditor
+          initial={stages}
+          onClose={() => setEditStages(false)}
+          onSaved={(next) => { setStages(next); setEditStages(false); loadConversations(); }}
+        />
+      )}
     </div>
   );
 }
@@ -456,11 +478,13 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
 function ContactPanel({
   active,
   contact,
+  stages,
   agentName,
   onSave,
 }: {
   active: Conversation;
   contact: Contact | null;
+  stages: LifecycleStage[];
   agentName: string;
   onSave: (patch: Record<string, unknown>) => void;
 }) {
@@ -469,7 +493,7 @@ function ContactPanel({
   const [email, setEmail] = useState(contact?.metadata?.email ?? "");
   const [editing, setEditing] = useState(false);
 
-  const stage = stageOf(active);
+  const stage = convStage(active, stages);
   const dirty =
     name !== (active.customerName ?? "") ||
     phone !== (active.customerPhone ?? "") ||
@@ -498,7 +522,7 @@ function ContactPanel({
           onChange={(e) => onSave({ lifecycle: e.target.value })}
           className="field mt-1 !py-2 !text-sm"
         >
-          {STAGES.map((s) => (
+          {stages.map((s) => (
             <option key={s.key} value={s.key}>{s.label}</option>
           ))}
         </select>
@@ -559,6 +583,110 @@ function ContactPanel({
           <dd className="mt-0.5">{new Date(active.createdAt).toLocaleDateString()}</dd>
         </div>
       </dl>
+    </div>
+  );
+}
+
+// Add / rename / recolor / reorder / delete lifecycle stages.
+function StageEditor({
+  initial,
+  onClose,
+  onSaved,
+}: {
+  initial: LifecycleStage[];
+  onClose: () => void;
+  onSaved: (stages: LifecycleStage[]) => void;
+}) {
+  const [rows, setRows] = useState<LifecycleStage[]>(initial.map((s) => ({ ...s })));
+  const [busy, setBusy] = useState(false);
+
+  function update(i: number, patch: Partial<LifecycleStage>) {
+    setRows((r) => r.map((s, idx) => (idx === i ? { ...s, ...patch } : s)));
+  }
+  function move(i: number, dir: -1 | 1) {
+    setRows((r) => {
+      const next = [...r];
+      const j = i + dir;
+      if (j < 0 || j >= next.length) return r;
+      [next[i], next[j]] = [next[j], next[i]];
+      return next;
+    });
+  }
+  function remove(i: number) {
+    setRows((r) => (r.length <= 1 ? r : r.filter((_, idx) => idx !== i)));
+  }
+  function add() {
+    setRows((r) => [
+      ...r,
+      { key: "", label: "New stage", color: STAGE_COLOR_KEYS[r.length % STAGE_COLOR_KEYS.length] },
+    ]);
+  }
+
+  async function save() {
+    const cleaned = rows.filter((s) => s.label.trim());
+    if (!cleaned.length) return toastError("Add at least one stage.");
+    setBusy(true);
+    const res = await fetch("/api/inbox/stages", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages: cleaned }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok && Array.isArray(data.stages)) {
+      toast("Lifecycle stages saved.");
+      onSaved(data.stages);
+    } else {
+      toastError(data.error ?? "Could not save stages.");
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <h3 className="text-base font-bold">Lifecycle stages</h3>
+          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100"><X className="h-4 w-4" /></button>
+        </div>
+        <p className="mt-1 text-sm text-ink-400">Rename, recolor, reorder and add the stages leads move through.</p>
+
+        <div className="mt-4 space-y-2">
+          {rows.map((s, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <span className={`h-3 w-3 shrink-0 rounded-full ${colorOf(s.color).dot}`} />
+              <input
+                value={s.label}
+                onChange={(e) => update(i, { label: e.target.value })}
+                className="field !py-1.5 !text-sm flex-1"
+                placeholder="Stage name"
+              />
+              <select
+                value={s.color}
+                onChange={(e) => update(i, { color: e.target.value })}
+                className="field !w-auto !py-1.5 !text-xs capitalize"
+              >
+                {STAGE_COLOR_KEYS.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-1 text-ink-400 hover:bg-ink-100 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
+              <button onClick={() => move(i, 1)} disabled={i === rows.length - 1} className="rounded p-1 text-ink-400 hover:bg-ink-100 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
+              <button onClick={() => remove(i)} disabled={rows.length <= 1} className="rounded p-1 text-signal-red hover:bg-red-50 disabled:opacity-30"><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={add} className="mt-3 flex items-center gap-1.5 text-sm font-medium text-[#301C3F] hover:underline">
+          <Plus className="h-4 w-4" /> Add stage
+        </button>
+
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary !text-sm">Cancel</button>
+          <button onClick={save} disabled={busy} className="btn-primary !text-sm disabled:opacity-60">
+            {busy ? "Saving…" : "Save stages"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

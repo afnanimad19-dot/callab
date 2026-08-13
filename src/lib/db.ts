@@ -96,6 +96,7 @@ export interface GoogleConn {
 }
 
 import type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
+import type { LifecycleStage } from "./lifecycle";
 export { DEFAULT_ADVANCED, DEFAULT_TOOLS } from "./agent-defaults";
 export type { AgentAdvanced, AgentOutcome, AgentTool } from "./agent-defaults";
 
@@ -393,6 +394,8 @@ export interface ChannelSettings {
   instagram?: { pageId: string; accessToken: string; connected: boolean };
   messenger?: { pageId: string; accessToken: string; connected: boolean };
   updatedAt: string;
+  // Custom inbox lifecycle stages (pipeline). Unset = the built-in defaults.
+  lifecycleStages?: LifecycleStage[];
   // Debug: when Meta last called our webhook for this workspace, and a summary.
   lastWebhookAt?: string;
   lastWebhookInfo?: string;
