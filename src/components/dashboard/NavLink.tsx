@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   BookOpen,
   Bot,
   CalendarDays,
@@ -15,6 +16,7 @@ import {
   Plug,
   Radio,
   Rocket,
+  ShieldCheck,
   Users,
   Webhook,
   type LucideIcon,
@@ -34,6 +36,8 @@ const ICONS: Record<string, LucideIcon> = {
   plug: Plug,
   webhook: Webhook,
   gem: Gem,
+  "bar-chart": BarChart3,
+  shield: ShieldCheck,
 };
 
 export default function NavLink({

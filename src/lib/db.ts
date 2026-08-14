@@ -690,6 +690,14 @@ export async function findUserByVerifyToken(token: string): Promise<User | undef
   return (await store.list<User>("users")).find((u) => u.verifyToken === token);
 }
 
+// --- Platform-wide reads (admin only) ---------------------------------------
+// These return rows across ALL tenants — only call them from admin-guarded code.
+export const listAllUsers = () => store.list<User>("users");
+export const listAllAgents = () => store.list<Agent>("agents");
+export const listAllContacts = () => store.list<Contact>("contacts");
+export const listAllCalls = () => store.list<Call>("calls");
+export const listAllAppointments = () => store.list<Appointment>("appointments");
+
 export async function listAgents(userId: string): Promise<Agent[]> {
   // Newest first — a freshly created agent appears at the top of the list.
   const agents = await store.list<Agent>("agents", userId);

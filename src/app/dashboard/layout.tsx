@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import { findUserById } from "@/lib/db";
 import { planFeature, getPlanTier } from "@/lib/plans";
+import { isPlatformAdmin } from "@/lib/admin";
 import NavLink from "@/components/dashboard/NavLink";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
 import ToastHost from "@/components/Toast";
@@ -36,6 +37,7 @@ const NAV_GROUPS: {
       { href: "/dashboard/contacts", label: "Contacts", icon: "users" },
       { href: "/dashboard/calls", label: "Call Logs", icon: "phone-call" },
       { href: "/dashboard/calendar", label: "Calendar", icon: "calendar-days" },
+      { href: "/dashboard/reports", label: "Reports", icon: "bar-chart" },
       { href: "/dashboard/live", label: "Live Monitoring", icon: "radio" },
     ],
   },
@@ -70,6 +72,11 @@ export default async function DashboardLayout({
   const planName = getPlanTier(user).name;
   const barColor = usage.over ? "bg-signal-red" : usage.pct >= 80 ? "bg-signal-amber" : "grad-bg";
 
+  // Platform admins get an extra oversight section.
+  const navGroups: typeof NAV_GROUPS = isPlatformAdmin(session.email)
+    ? [...NAV_GROUPS, { heading: "Platform", items: [{ href: "/dashboard/admin", label: "Admin", icon: "shield" }] }]
+    : NAV_GROUPS;
+
   const initials = session.name
     .split(" ")
     .map((p) => p[0])
@@ -89,7 +96,7 @@ export default async function DashboardLayout({
         </Link>
 
         <nav className="flex-1 overflow-y-auto px-3 pb-4">
-          {NAV_GROUPS.map((group, gi) => (
+          {navGroups.map((group, gi) => (
             <div key={gi} className="mt-3">
               {group.heading && (
                 <p className="px-3 pb-1.5 pt-2 text-[11px] font-semibold uppercase tracking-wider text-ink-400">
@@ -160,7 +167,7 @@ export default async function DashboardLayout({
 
         {/* Mobile nav */}
         <div className="flex gap-4 overflow-x-auto border-b border-ink-700 bg-ink-900 px-4 py-2.5 text-sm text-ink-300 lg:hidden">
-          {NAV_GROUPS.flatMap((g) => g.items).map((item) =>
+          {navGroups.flatMap((g) => g.items).map((item) =>
             isLocked(item.feature) ? (
               <Link key={item.href} href="/dashboard/plans" className="flex items-center gap-1 whitespace-nowrap text-ink-500">
                 🔒 {item.label}
