@@ -11,7 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   MessageCircle, Camera, MessagesSquare, Search, RefreshCw, Send, Mic, Square,
   Bot, User, Sparkles, SlidersHorizontal, ChevronDown, ExternalLink, Pencil,
-  Plus, Trash2, ArrowUp, ArrowDown, X,
+  Plus, Trash2, ArrowUp, ArrowDown, X, Lock, Smile, FileText, Braces, Paperclip, AtSign,
 } from "lucide-react";
 import Link from "next/link";
 import type { Agent, ChatMessage, Contact, Conversation } from "@/lib/db";
@@ -23,6 +23,20 @@ const CHANNEL_META = {
   instagram: { label: "Instagram", icon: Camera, cls: "bg-pink-100 text-pink-700" },
   messenger: { label: "Messenger", icon: MessagesSquare, cls: "bg-blue-100 text-blue-700" },
 } as const;
+
+// Composer helpers: quick emoji, canned snippets, and insertable variables.
+const EMOJIS = ["👍","🙏","😊","🎉","✅","📅","📞","💬","❤️","😀","🙌","👋","🤝","⏰","📍","✨","🙂","👌","🔔","📝"];
+const SNIPPETS = [
+  "Thanks for reaching out! How can we help you today?",
+  "We're open Saturday to Thursday, 9am–9pm.",
+  "Could you please share your preferred date and time?",
+  "Your appointment is confirmed — we look forward to seeing you!",
+  "Could I have your full name and phone number, please?",
+];
+const VARIABLES = [
+  { token: "{{name}}", label: "Customer name" },
+  { token: "{{date}}", label: "Today's date" },
+];
 
 // A conversation's stage key (falls back to the first configured stage).
 function convStage(c: Conversation, stages: LifecycleStage[]): string {
@@ -45,6 +59,9 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const [stages, setStages] = useState<LifecycleStage[]>(DEFAULT_STAGES);
   const [editStages, setEditStages] = useState(false);
   const [text, setText] = useState("");
+  const [mode, setMode] = useState<"reply" | "comment">("reply");
+  const [members, setMembers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [tool, setTool] = useState<null | "emoji" | "snippets" | "vars" | "mention">(null);
   const [busy, setBusy] = useState(false);
   const [recording, setRecording] = useState(false);
   const [atBottom, setAtBottom] = useState(true);
@@ -86,6 +103,9 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   }, []);
 
   useEffect(() => { loadConversations(); loadStages(); }, [loadConversations, loadStages]);
+  useEffect(() => {
+    fetch("/api/settings/users").then((r) => r.json()).then((d) => setMembers(d.members ?? [])).catch(() => {});
+  }, []);
   useEffect(() => { if (activeId) loadThread(activeId); }, [activeId, loadThread]);
   // Light polling keeps the thread live while the tab is open.
   useEffect(() => {
@@ -118,21 +138,33 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const stageCount = (key: string) => conversations.filter((c) => convStage(c, stages) === key).length;
   const unreadCount = conversations.filter((c) => c.unread > 0).length;
 
+  function insert(t: string) {
+    setText((prev) => (prev && !prev.endsWith(" ") ? prev + " " : prev) + t + " ");
+    setTool(null);
+  }
+  function substituteVars(s: string) {
+    return s
+      .replaceAll("{{name}}", active?.customerName ?? "there")
+      .replaceAll("{{date}}", new Date().toLocaleDateString());
+  }
+
   async function send() {
-    const body = text.trim();
-    if (!body || !active || busy) return;
+    const raw = text.trim();
+    if (!raw || !active || busy) return;
+    const isComment = mode === "comment";
     setBusy(true);
     setText("");
+    setTool(null);
     const res = await fetch(`/api/inbox/${active.id}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: body }),
+      body: JSON.stringify(isComment ? { comment: true, text: raw } : { text: substituteVars(raw) }),
     });
     const data = await res.json().catch(() => ({}));
     setBusy(false);
     if (res.ok) {
       setMessages((m) => [...m, data.message]);
-      if (data.delivered === false) toastError("Saved, but the channel didn't accept the message — check Settings → Channels.");
+      if (!isComment && data.delivered === false) toastError("Saved, but the channel didn't accept the message — check Settings → Channels.");
       loadConversations();
     } else {
       toastError(data.error ?? "Could not send the message.");
@@ -386,22 +418,35 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
               </div>
 
               <div ref={scrollRef} onScroll={onThreadScroll} className="min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-4">
-                {messages.map((m) => (
-                  <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
-                      m.direction === "out" ? "bg-[#301C3F] text-white" : "bg-ink-800 text-ink-100"
-                    }`}>
-                      {m.kind === "audio" ? (
-                        <span className="flex items-center gap-1.5"><Mic className="h-3.5 w-3.5" /> {m.text}</span>
-                      ) : m.text}
-                      <div className={`mt-0.5 text-[10px] ${m.direction === "out" ? "text-white/60" : "text-ink-400"}`}>
-                        {m.from === "agent" ? `AI · ${agentName(active.agentId)}` : m.from === "human" ? "You" : active.customerName}
-                        {" · "}
+                {messages.map((m) =>
+                  m.internal ? (
+                    // Team-only comment — never went to the customer.
+                    <div key={m.id} className="mx-auto w-full max-w-[85%] rounded-lg border border-amber-300 bg-amber-50 px-3.5 py-2 text-sm text-amber-900">
+                      <div className="mb-0.5 flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+                        <Lock className="h-3 w-3" /> Internal note · {(m.externalMsgId ?? "").replace(/^comment:/, "") || "You"}
+                      </div>
+                      {m.text}
+                      <div className="mt-0.5 text-[10px] text-amber-700/70">
                         {new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ) : (
+                    <div key={m.id} className={`flex ${m.direction === "out" ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-sm ${
+                        m.direction === "out" ? "bg-[#301C3F] text-white" : "bg-ink-800 text-ink-100"
+                      }`}>
+                        {m.kind === "audio" ? (
+                          <span className="flex items-center gap-1.5"><Mic className="h-3.5 w-3.5" /> {m.text}</span>
+                        ) : m.text}
+                        <div className={`mt-0.5 text-[10px] ${m.direction === "out" ? "text-white/60" : "text-ink-400"}`}>
+                          {m.from === "agent" ? `AI · ${agentName(active.agentId)}` : m.from === "human" ? "You" : active.customerName}
+                          {" · "}
+                          {new Date(m.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                )}
               </div>
 
               {/* Jump to latest — appears when scrolled up */}
@@ -416,30 +461,101 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
               )}
 
               {/* Composer */}
-              <div className="flex items-center gap-2 border-t border-ink-700 px-4 py-3">
-                <button onClick={aiReply} disabled={busy}
-                  title="Have the AI agent write and send the next reply"
-                  className="btn-secondary flex items-center gap-1.5 !px-3 !py-2 !text-xs disabled:opacity-50">
-                  <Sparkles className="h-3.5 w-3.5" /> AI reply
-                </button>
-                <input
-                  className="field flex-1 !py-2.5"
-                  placeholder={active.aiEnabled ? "AI answers automatically — type to jump in..." : "Type a message..."}
-                  value={text}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && send()}
-                />
-                <button onClick={toggleRecord}
-                  title={active.channel === "whatsapp" ? (recording ? "Stop and send" : "Record a voice note") : "Voice notes: WhatsApp only"}
-                  className={`rounded-lg border px-3 py-2.5 transition ${
-                    recording ? "border-signal-red bg-signal-red/10 text-signal-red" : "border-ink-700 text-ink-300 hover:bg-ink-800"
-                  }`}>
-                  {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
-                </button>
-                <button onClick={send} disabled={busy || !text.trim()} aria-label="Send"
-                  className="btn-primary !px-3.5 !py-2.5 disabled:opacity-50">
-                  <Send className="h-4 w-4" />
-                </button>
+              <div className={`border-t px-4 pb-3 pt-2 ${mode === "comment" ? "border-amber-300 bg-amber-50/60" : "border-ink-700"}`}>
+                {/* Reply / Comment mode tabs */}
+                <div className="mb-2 flex items-center gap-1 text-xs">
+                  <button onClick={() => { setMode("reply"); setTool(null); }}
+                    className={`rounded-md px-2.5 py-1 font-semibold transition ${mode === "reply" ? "bg-[#301C3F] text-white" : "text-ink-400 hover:bg-ink-800"}`}>
+                    Reply
+                  </button>
+                  <button onClick={() => { setMode("comment"); setTool(null); }}
+                    className={`flex items-center gap-1 rounded-md px-2.5 py-1 font-semibold transition ${mode === "comment" ? "bg-amber-500 text-white" : "text-ink-400 hover:bg-ink-800"}`}>
+                    <Lock className="h-3 w-3" /> Comment
+                  </button>
+                  {mode === "comment" && <span className="text-[11px] text-amber-700">Only your team sees this — the customer won&apos;t.</span>}
+                </div>
+
+                <div className="relative flex items-center gap-2">
+                  {/* Tool popovers */}
+                  {tool === "emoji" && (
+                    <div className="absolute bottom-12 left-0 z-20 grid w-56 grid-cols-8 gap-0.5 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
+                      {EMOJIS.map((e) => (
+                        <button key={e} onClick={() => insert(e)} className="rounded p-1 text-lg hover:bg-ink-100">{e}</button>
+                      ))}
+                    </div>
+                  )}
+                  {tool === "snippets" && (
+                    <div className="absolute bottom-12 left-0 z-20 w-72 space-y-1 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
+                      <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Snippets</p>
+                      {SNIPPETS.map((s) => (
+                        <button key={s} onClick={() => insert(s)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">{s}</button>
+                      ))}
+                    </div>
+                  )}
+                  {tool === "vars" && (
+                    <div className="absolute bottom-12 left-0 z-20 w-56 space-y-1 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
+                      <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Variables</p>
+                      {VARIABLES.map((v) => (
+                        <button key={v.token} onClick={() => insert(v.token)} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">
+                          <span>{v.label}</span><span className="font-mono text-xs text-ink-400">{v.token}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {tool === "mention" && (
+                    <div className="absolute bottom-12 left-0 z-20 w-56 space-y-1 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
+                      <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Mention a teammate</p>
+                      {members.length === 0 && <p className="px-2 py-1 text-xs text-ink-400">Invite team members in Settings → Users.</p>}
+                      {members.map((mem) => (
+                        <button key={mem.id} onClick={() => insert(`@${mem.name}`)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">@{mem.name}</button>
+                      ))}
+                    </div>
+                  )}
+
+                  {mode === "reply" && (
+                    <button onClick={aiReply} disabled={busy}
+                      title="Have the AI agent write and send the next reply"
+                      className="btn-secondary flex shrink-0 items-center gap-1.5 !px-2.5 !py-2 !text-xs disabled:opacity-50">
+                      <Sparkles className="h-3.5 w-3.5" /> AI
+                    </button>
+                  )}
+
+                  {/* Toolbar */}
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <ToolBtn active={tool === "emoji"} onClick={() => setTool(tool === "emoji" ? null : "emoji")} title="Emoji"><Smile className="h-4 w-4" /></ToolBtn>
+                    {mode === "reply" ? (
+                      <>
+                        <ToolBtn active={tool === "snippets"} onClick={() => setTool(tool === "snippets" ? null : "snippets")} title="Snippets"><FileText className="h-4 w-4" /></ToolBtn>
+                        <ToolBtn active={tool === "vars"} onClick={() => setTool(tool === "vars" ? null : "vars")} title="Variables"><Braces className="h-4 w-4" /></ToolBtn>
+                        <ToolBtn active={false} onClick={() => toastError("File attachments are coming soon.")} title="Attach (soon)"><Paperclip className="h-4 w-4" /></ToolBtn>
+                      </>
+                    ) : (
+                      <ToolBtn active={tool === "mention"} onClick={() => setTool(tool === "mention" ? null : "mention")} title="Mention a teammate"><AtSign className="h-4 w-4" /></ToolBtn>
+                    )}
+                  </div>
+
+                  <input
+                    className={`field flex-1 !py-2.5 ${mode === "comment" ? "!border-amber-300 !bg-amber-50" : ""}`}
+                    placeholder={mode === "comment" ? "Add an internal note… use @ to mention a teammate" : active.aiEnabled ? "AI answers automatically — type to jump in..." : "Type a message… / snippets, {{ }} variables"}
+                    value={text}
+                    onChange={(e) => setText(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && send()}
+                  />
+
+                  {mode === "reply" && (
+                    <button onClick={toggleRecord}
+                      title={active.channel === "whatsapp" ? (recording ? "Stop and send" : "Record a voice note") : "Voice notes: WhatsApp only"}
+                      className={`shrink-0 rounded-lg border px-3 py-2.5 transition ${
+                        recording ? "border-signal-red bg-signal-red/10 text-signal-red" : "border-ink-700 text-ink-300 hover:bg-ink-800"
+                      }`}>
+                      {recording ? <Square className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                    </button>
+                  )}
+                  <button onClick={send} disabled={busy || !text.trim()} aria-label={mode === "comment" ? "Post comment" : "Send"}
+                    className={`shrink-0 !px-3.5 !py-2.5 disabled:opacity-50 ${mode === "comment" ? "rounded-lg bg-amber-500 text-white hover:bg-amber-600" : "btn-primary"}`}>
+                    <Send className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </>
           )}
@@ -470,6 +586,31 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
         />
       )}
     </div>
+  );
+}
+
+// Small composer toolbar button.
+function ToolBtn({
+  active,
+  onClick,
+  title,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={title}
+      aria-label={title}
+      className={`rounded-lg p-2 transition ${active ? "bg-ink-800 text-[#301C3F]" : "text-ink-400 hover:bg-ink-800 hover:text-ink-200"}`}
+    >
+      {children}
+    </button>
   );
 }
 

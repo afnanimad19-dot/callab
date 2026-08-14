@@ -373,6 +373,7 @@ export interface ChatMessage {
   mediaUrl?: string;
   at: string; // ISO
   externalMsgId?: string; // provider message id, for de-duplicating retries
+  internal?: boolean; // team-only comment (never sent to the customer)
 }
 
 // Per-workspace channel connections + Agent Hub settings. Meta tokens are the

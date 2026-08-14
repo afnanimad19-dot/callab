@@ -161,6 +161,29 @@ export async function recordMessage(
   return msg;
 }
 
+// Team-only comment on a conversation. Stored like a message (so it shows in
+// the thread) but flagged internal and NEVER delivered to the customer, and it
+// doesn't change the conversation's customer-facing "last message".
+export async function recordInternalComment(
+  conversation: Conversation,
+  authorName: string,
+  text: string
+): Promise<ChatMessage> {
+  return createChatMessage({
+    id: newId("msg"),
+    userId: conversation.userId,
+    conversationId: conversation.id,
+    direction: "out",
+    from: "human",
+    kind: "text",
+    text,
+    at: new Date().toISOString(),
+    internal: true,
+    // authorName travels in the text-less metadata via `from`; the UI labels it.
+    externalMsgId: `comment:${authorName}`,
+  });
+}
+
 // --- AI auto-reply (Agent Hub) ----------------------------------------------
 
 // Build the text-chat system prompt from the SAME brain as the voice agent

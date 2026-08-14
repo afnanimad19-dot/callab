@@ -4,7 +4,7 @@ import {
   getChannelSettings, listChatMessages, listConversations, updateConversation,
   listContacts, updateContact,
 } from "@/lib/db";
-import { generateAgentReply, recordMessage, sendChannelText } from "@/lib/channels";
+import { generateAgentReply, recordInternalComment, recordMessage, sendChannelText } from "@/lib/channels";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -51,6 +51,14 @@ export async function POST(request: Request, { params }: Params) {
 
   const text = String(body?.text ?? "").trim().slice(0, 4000);
   if (!text) return NextResponse.json({ error: "Message is empty." }, { status: 400 });
+
+  // Internal team comment: stored on the thread, mentions teammates, but NEVER
+  // sent to the customer's channel.
+  if (body?.comment === true) {
+    const message = await recordInternalComment(conversation, session.name, text);
+    return NextResponse.json({ message, delivered: null, comment: true });
+  }
+
   const sent = await sendChannelText(settings, conversation, text);
   const message = await recordMessage(conversation, "out", "human", text);
   return NextResponse.json({ message, delivered: sent });
