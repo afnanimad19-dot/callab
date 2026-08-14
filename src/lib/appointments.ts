@@ -12,11 +12,22 @@ import { sendBookingConfirmation } from "./notify";
 
 const norm = (p?: string) => (p ?? "").replace(/[^\d]/g, "").slice(-9);
 
+// Friendly label for where a contact came from, based on the booking channel.
+function sourceLabel(source?: string): string {
+  switch (source) {
+    case "call": return "Voice call";
+    case "chat": return "Chat";
+    case "manual": return "Manual";
+    default: return "AI Agent";
+  }
+}
+
 export async function ensureContact(
   userId: string,
   name: string,
   phone?: string,
-  email?: string
+  email?: string,
+  source?: string
 ): Promise<string | undefined> {
   if (!name.trim()) return undefined;
   const cleanEmail = email?.trim();
@@ -41,7 +52,7 @@ export async function ensureContact(
     name: name.trim(),
     phone: phone?.trim() ?? "",
     tag: "patient",
-    source: "AI Agent",
+    source: sourceLabel(source),
     createdAt: new Date().toISOString(),
     ...(cleanEmail ? { metadata: { email: cleanEmail } } : {}),
   });
@@ -62,7 +73,7 @@ export async function bookAppointment(
     source?: string;
   }
 ): Promise<Appointment> {
-  const contactId = await ensureContact(userId, input.patientName, input.phone, input.email);
+  const contactId = await ensureContact(userId, input.patientName, input.phone, input.email, input.source);
   const now = new Date().toISOString();
   const appointment: Appointment = {
     id: newId("apt"),

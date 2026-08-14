@@ -27,9 +27,9 @@ const COUNTRY_CODES = [
 ];
 
 function downloadCsv(rows: Contact[]) {
-  const header = "name,phone,category,tag,source,created";
+  const header = "name,phone,email,category,tag,source,created";
   const lines = rows.map((c) =>
-    [c.name, c.phone, c.category ?? "", c.tag, c.source ?? "", c.createdAt]
+    [c.name, c.phone, c.metadata?.email ?? "", c.category ?? "", c.tag, c.source ?? "", c.createdAt]
       .map((v) => `"${String(v).replaceAll('"', '""')}"`)
       .join(",")
   );
@@ -215,6 +215,7 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
               </th>
               <th className="px-4 py-3 font-medium">Name</th>
               <th className="px-4 py-3 font-medium">Phone</th>
+              <th className="px-4 py-3 font-medium">Email</th>
               <th className="px-4 py-3 font-medium">Source</th>
               <th className="px-4 py-3 font-medium">Category</th>
               <th className="px-4 py-3 font-medium">Tag</th>
@@ -238,6 +239,7 @@ export default function ContactsPanel({ contacts }: { contacts: Contact[] }) {
                 </td>
                 <td className="px-4 py-3 font-medium">{c.name}</td>
                 <td className="px-4 py-3 font-mono text-[13px] text-ink-300">{c.phone}</td>
+                <td className="px-4 py-3 text-[13px] text-ink-300">{c.metadata?.email || "—"}</td>
                 <td className="px-4 py-3">
                   <span className={c.source === "Manual" ? "badge-ok" : "badge-warn"}>
                     {c.source ?? "Manual"}

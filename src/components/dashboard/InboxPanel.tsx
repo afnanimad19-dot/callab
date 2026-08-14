@@ -68,6 +68,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   function scrollToBottom(behavior: ScrollBehavior = "auto") {
     const el = scrollRef.current;
@@ -245,6 +246,46 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
       setRecording(true);
     } catch {
       toastError("Microphone access is needed to record a voice note.");
+    }
+  }
+
+  function pickFile() {
+    if (!active) return;
+    if (active.channel !== "whatsapp") {
+      toastError("File attachments are supported on WhatsApp conversations.");
+      return;
+    }
+    setTool(null);
+    fileInputRef.current?.click();
+  }
+
+  async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !active) return;
+    if (file.size > 5 * 1024 * 1024) {
+      toastError("Please attach a file under 5 MB.");
+      return;
+    }
+    setBusy(true);
+    const base64 = await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result).split(",")[1] ?? "");
+      reader.readAsDataURL(file);
+    });
+    const res = await fetch(`/api/inbox/${active.id}/media`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file: base64, mimeType: file.type || "application/octet-stream", filename: file.name }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusy(false);
+    if (res.ok) {
+      setMessages((m) => [...m, data.message]);
+      toast("File sent.");
+      loadConversations();
+    } else {
+      toastError(data.error ?? "Could not send the file.");
     }
   }
 
@@ -437,6 +478,16 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                       }`}>
                         {m.kind === "audio" ? (
                           <span className="flex items-center gap-1.5"><Mic className="h-3.5 w-3.5" /> {m.text}</span>
+                        ) : m.kind === "image" ? (
+                          <span className="block">
+                            {m.mediaUrl && (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={m.mediaUrl} alt={m.text || "image"} className="mb-1 max-h-52 rounded-lg" />
+                            )}
+                            {m.text && m.text !== "image" ? m.text : null}
+                          </span>
+                        ) : m.kind === "file" ? (
+                          <span className="flex items-center gap-1.5"><Paperclip className="h-3.5 w-3.5" /> {m.text || "File"}</span>
                         ) : m.text}
                         <div className={`mt-0.5 text-[10px] ${m.direction === "out" ? "text-white/60" : "text-ink-400"}`}>
                           {m.from === "agent" ? `AI · ${agentName(active.agentId)}` : m.from === "human" ? "You" : active.customerName}
@@ -459,6 +510,14 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                   <ChevronDown className="h-5 w-5" />
                 </button>
               )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,video/*,application/pdf,.doc,.docx,.xls,.xlsx"
+                className="hidden"
+                onChange={onFilePicked}
+              />
 
               {/* Composer */}
               <div className={`border-t px-4 pb-3 pt-2 ${mode === "comment" ? "border-amber-300 bg-amber-50/60" : "border-ink-700"}`}>
@@ -527,7 +586,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                       <>
                         <ToolBtn active={tool === "snippets"} onClick={() => setTool(tool === "snippets" ? null : "snippets")} title="Snippets"><FileText className="h-4 w-4" /></ToolBtn>
                         <ToolBtn active={tool === "vars"} onClick={() => setTool(tool === "vars" ? null : "vars")} title="Variables"><Braces className="h-4 w-4" /></ToolBtn>
-                        <ToolBtn active={false} onClick={() => toastError("File attachments are coming soon.")} title="Attach (soon)"><Paperclip className="h-4 w-4" /></ToolBtn>
+                        <ToolBtn active={false} onClick={pickFile} title="Attach a file (WhatsApp)"><Paperclip className="h-4 w-4" /></ToolBtn>
                       </>
                     ) : (
                       <ToolBtn active={tool === "mention"} onClick={() => setTool(tool === "mention" ? null : "mention")} title="Mention a teammate"><AtSign className="h-4 w-4" /></ToolBtn>

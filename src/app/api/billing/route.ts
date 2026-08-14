@@ -74,7 +74,7 @@ export async function POST(request: Request) {
     case "addMinutes": {
       const minutes = Math.min(100000, Math.max(1, Math.round(Number(body.minutes) || 0)));
       const amount = Math.round(minutes * MINUTE_PRICE * 100) / 100;
-      billing.minutesTotal += minutes;
+      billing.topupMinutes = (billing.topupMinutes ?? 0) + minutes;
       billing.history.unshift({
         id: newId("inv"),
         description: "Minutes Top-up",

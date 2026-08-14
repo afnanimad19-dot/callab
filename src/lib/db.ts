@@ -44,6 +44,7 @@ export interface BillingState {
   minutesTotal: number;
   minutesUsed: number;
   addons: { workspace: number; knowledgeBase: number };
+  topupMinutes?: number; // extra minutes bought on top of the plan allowance
   cards: BillingCard[];
   history: BillingEntry[];
 }
@@ -368,9 +369,9 @@ export interface ChatMessage {
   conversationId: string;
   direction: "in" | "out";
   from: "customer" | "agent" | "human";
-  kind: "text" | "audio";
+  kind: "text" | "audio" | "image" | "file";
   text: string;
-  mediaUrl?: string;
+  mediaUrl?: string; // data URI for image previews; filename lives in `text`
   at: string; // ISO
   externalMsgId?: string; // provider message id, for de-duplicating retries
   internal?: boolean; // team-only comment (never sent to the customer)

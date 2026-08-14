@@ -106,6 +106,56 @@ export async function sendWhatsAppAudio(
   }
 }
 
+// Send an image / video / document attachment on WhatsApp. Uploads the file to
+// Meta, then sends the message referencing the uploaded media id.
+export async function sendWhatsAppMedia(
+  settings: ChannelSettings,
+  conversation: Conversation,
+  file: Buffer,
+  mimeType: string,
+  filename: string,
+  caption?: string
+): Promise<boolean> {
+  const wa = settings.whatsapp;
+  if (!wa?.accessToken || conversation.channel !== "whatsapp") return false;
+  const kind = mimeType.startsWith("image/") ? "image" : mimeType.startsWith("video/") ? "video" : "document";
+  try {
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp");
+    form.append("type", mimeType);
+    form.append("file", new Blob([new Uint8Array(file)], { type: mimeType }), filename || "attachment");
+    const up = await fetch(`${GRAPH}/${wa.phoneNumberId}/media`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${wa.accessToken}` },
+      body: form,
+    });
+    if (!up.ok) {
+      console.error("WhatsApp media upload failed:", await up.text());
+      return false;
+    }
+    const { id: mediaId } = (await up.json()) as { id?: string };
+    if (!mediaId) return false;
+    const media: Record<string, unknown> = { id: mediaId };
+    if (caption && kind !== "document") media.caption = caption;
+    if (kind === "document") { media.filename = filename; if (caption) media.caption = caption; }
+    const res = await fetch(`${GRAPH}/${wa.phoneNumberId}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${wa.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: conversation.externalId,
+        type: kind,
+        [kind]: media,
+      }),
+    });
+    if (!res.ok) console.error("WhatsApp media send failed:", await res.text());
+    return res.ok;
+  } catch (e) {
+    console.error("WhatsApp media send error:", e);
+    return false;
+  }
+}
+
 // --- Conversations -----------------------------------------------------------
 
 export async function upsertConversation(
@@ -140,7 +190,8 @@ export async function recordMessage(
   from: ChatMessage["from"],
   text: string,
   kind: ChatMessage["kind"] = "text",
-  externalMsgId?: string
+  externalMsgId?: string,
+  mediaUrl?: string
 ): Promise<ChatMessage> {
   const msg = await createChatMessage({
     id: newId("msg"),
@@ -152,10 +203,16 @@ export async function recordMessage(
     text,
     at: new Date().toISOString(),
     ...(externalMsgId ? { externalMsgId } : {}),
+    ...(mediaUrl ? { mediaUrl } : {}),
   });
+  const preview =
+    kind === "audio" ? "Voice message" :
+    kind === "image" ? "📷 Photo" :
+    kind === "file" ? `📎 ${text || "File"}` :
+    text.slice(0, 120);
   await updateConversation(conversation.userId, conversation.id, {
     lastMessageAt: msg.at,
-    lastMessageText: kind === "audio" ? "Voice message" : text.slice(0, 120),
+    lastMessageText: preview,
     unread: direction === "in" ? (conversation.unread ?? 0) + 1 : 0,
   });
   return msg;

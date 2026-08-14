@@ -8,6 +8,7 @@
 // later, other usage (e.g. WhatsApp) can spend the same credits.
 
 import { findUserById, listCalls } from "./db";
+import { getPlanTier } from "./plans";
 
 export const CREDITS_PER_MINUTE = 1;
 export const DEFAULT_INCLUDED_MINUTES = 1000;
@@ -43,8 +44,10 @@ function currentPeriodStart(startedAt?: string): string {
 export async function getUsage(userId: string): Promise<Usage> {
   const [user, calls] = await Promise.all([findUserById(userId), listCalls(userId)]);
   const billing = user?.billing;
-  const totalMinutes =
-    billing?.minutesTotal && billing.minutesTotal > 0 ? billing.minutesTotal : DEFAULT_INCLUDED_MINUTES;
+  // The included minutes come from the current PLAN tier, plus any top-up
+  // minutes the clinic has purchased. So the bar always reflects the package.
+  const planMinutes = getPlanTier(user).limits.minutes;
+  const totalMinutes = planMinutes + (billing?.topupMinutes ?? 0);
   const periodStart = currentPeriodStart(billing?.startedAt);
   const usedSec = calls
     .filter((c) => c.startedAt >= periodStart)
