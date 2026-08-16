@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import { findUserById } from "@/lib/db";
+import { findDataOwner } from "@/lib/db";
 import { planFeature, getPlanTier } from "@/lib/plans";
 import { isPlatformAdmin } from "@/lib/admin";
 import NavLink from "@/components/dashboard/NavLink";
 import ProfileMenu from "@/components/dashboard/ProfileMenu";
+import WorkspaceSwitcher from "@/components/dashboard/WorkspaceSwitcher";
 import ToastHost from "@/components/Toast";
 import { getUsage } from "@/lib/usage";
 
@@ -64,7 +65,7 @@ export default async function DashboardLayout({
 
   // Plan gating: mark nav items whose feature the current plan doesn't include
   // so they render as locked (non-navigating) and route to Plans on click.
-  const user = await findUserById(session.userId);
+  const user = await findDataOwner(session.userId);
   const outbound = planFeature(user, "outbound");
   const isLocked = (feature?: "outbound") => (feature === "outbound" ? !outbound : false);
 
@@ -113,10 +114,7 @@ export default async function DashboardLayout({
         </nav>
 
         <div className="space-y-3 border-t border-ink-700 px-4 py-4">
-          <div className="flex items-center justify-between rounded-lg border border-ink-700 px-3 py-2">
-            <span className="truncate text-sm font-medium">{session.company}</span>
-            <span className="text-ink-400">▾</span>
-          </div>
+          <WorkspaceSwitcher current={session.company} />
           <Link href="/dashboard/settings?tab=billing" className="block rounded-lg border border-ink-700 px-3 py-2.5 transition hover:border-ink-500">
             <div className="flex items-center justify-between text-xs">
               <span className="text-ink-400">Voice minutes · {planName}</span>

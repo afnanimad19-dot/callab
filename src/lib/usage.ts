@@ -7,7 +7,7 @@
 // 1 credit = 1 voice minute (clean for clinics). Change it here to re-price;
 // later, other usage (e.g. WhatsApp) can spend the same credits.
 
-import { findUserById, listCalls } from "./db";
+import { findDataOwner, listCalls } from "./db";
 import { getPlanTier } from "./plans";
 
 export const CREDITS_PER_MINUTE = 1;
@@ -42,11 +42,11 @@ function currentPeriodStart(startedAt?: string): string {
 }
 
 export async function getUsage(userId: string): Promise<Usage> {
-  const [user, calls] = await Promise.all([findUserById(userId), listCalls(userId)]);
-  const billing = user?.billing;
-  // The included minutes come from the current PLAN tier, plus any top-up
-  // minutes the clinic has purchased. So the bar always reflects the package.
-  const planMinutes = getPlanTier(user).limits.minutes;
+  const [owner, calls] = await Promise.all([findDataOwner(userId), listCalls(userId)]);
+  const billing = owner?.billing;
+  // Plan + top-up minutes come from the ROOT account (shared across its
+  // workspaces); calls are metered per active workspace.
+  const planMinutes = getPlanTier(owner).limits.minutes;
   const totalMinutes = planMinutes + (billing?.topupMinutes ?? 0);
   const periodStart = currentPeriodStart(billing?.startedAt);
   const usedSec = calls

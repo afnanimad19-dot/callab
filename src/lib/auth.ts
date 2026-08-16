@@ -14,11 +14,12 @@ export const SESSION_COOKIE = "vl_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 24 * 7; // 7 days
 
 export interface SessionPayload {
-  userId: string; // workspace data owner id (owner's id for members)
+  userId: string; // ACTIVE workspace data key (all data is scoped to this)
   email: string;
-  company: string;
+  company: string; // active workspace name (for display)
   name: string;
   memberId?: string; // the logged-in user's own record id
+  ownerId?: string; // root account owner (billing/plan); defaults to userId
   role?: "owner" | "supervisor" | "viewer";
 }
 
@@ -43,6 +44,7 @@ export async function verifySessionToken(
       company: payload.company as string,
       name: payload.name as string,
       memberId: (payload.memberId as string) ?? (payload.userId as string),
+      ownerId: (payload.ownerId as string) ?? (payload.userId as string),
       role: (payload.role as SessionPayload["role"]) ?? "owner",
     };
   } catch {

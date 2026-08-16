@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createAgent, findUserById, listAgents, newId, updateAgent, Agent, DEFAULT_TOOLS } from "@/lib/db";
+import { createAgent, findDataOwner, listAgents, newId, updateAgent, Agent, DEFAULT_TOOLS } from "@/lib/db";
 import { sanitizeAdvanced, sanitizeOutcomes, sanitizeTools } from "@/lib/agent-sanitize";
 import { syncAgentToVapi } from "@/lib/vapi";
 import { buildKnowledgeText } from "@/lib/knowledge";
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   // Plan limit: block creating more agents than the tier allows.
-  const owner = await findUserById(session.userId);
+  const owner = await findDataOwner(session.userId);
   const limit = agentLimit(owner);
   const existing = (await listAgents(session.userId)).length;
   if (existing >= limit) {

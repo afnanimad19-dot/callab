@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
 import {
-  findUserById,
+  findDataOwner,
   listAgents,
   listCampaigns,
   listContacts,
@@ -18,7 +18,7 @@ export default async function LaunchPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  const user = await findUserById(session.userId);
+  const user = await findDataOwner(session.userId);
   // Outbound campaigns are a paid feature — lower tiers can't open (or preview)
   // this page at all; they're sent to Plans to upgrade.
   if (!planFeature(user, "outbound")) redirect("/dashboard/plans");

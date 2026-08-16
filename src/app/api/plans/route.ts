@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { findUserById, listAgents, updateUser } from "@/lib/db";
+import { findDataOwner, listAgents, listWorkspacesFor, updateUser } from "@/lib/db";
 import { PLAN_TIERS, getPlanTier, type PlanTierKey } from "@/lib/plans";
 
 export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  const user = await findUserById(session.userId);
+  const user = await findDataOwner(session.userId);
   const current = getPlanTier(user);
   const agentsUsed = (await listAgents(session.userId)).length;
   return NextResponse.json({ tiers: PLAN_TIERS, current: current.key, agentsUsed });
@@ -25,6 +25,11 @@ export async function POST(request: Request) {
   if (!PLAN_TIERS.some((p) => p.key === tier)) {
     return NextResponse.json({ error: "Unknown plan." }, { status: 400 });
   }
-  await updateUser(session.userId, { planTier: tier });
+  // Apply to the root account and propagate to all its workspaces so the whole
+  // account shares one subscription.
+  const owner = await findDataOwner(session.userId);
+  const rootId = owner?.id ?? session.ownerId ?? session.userId;
+  const { workspaces } = await listWorkspacesFor(rootId);
+  await Promise.all(workspaces.map((w) => updateUser(w.id, { planTier: tier })));
   return NextResponse.json({ ok: true, current: tier });
 }

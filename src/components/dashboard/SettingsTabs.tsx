@@ -626,14 +626,14 @@ function WorkspacesTab({ session }: { session: SessionInfo }) {
       <div className="mt-5 flex items-center justify-between rounded-xl border border-ink-700 px-4 py-3.5">
         <div>
           <p className="text-sm font-semibold">{session.company}</p>
-          <p className="text-xs text-ink-400">Default workspace</p>
+          <p className="text-xs text-ink-400">Active workspace</p>
         </div>
         <span className="badge-ok">Current</span>
       </div>
-      <button className="btn-secondary mt-4"
-        onClick={() => alert("Multiple workspaces arrive with the teams phase.")}>
-        + New workspace
-      </button>
+      <p className="mt-4 text-sm text-ink-400">
+        Switch between workspaces or create a new one from the workspace menu at the bottom-left of
+        the sidebar. How many you can create depends on your plan.
+      </p>
     </div>
   );
 }

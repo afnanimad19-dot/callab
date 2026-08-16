@@ -65,6 +65,10 @@ export interface User {
   ownerId?: string;
   role?: "owner" | "supervisor" | "viewer";
   status?: "active" | "invited" | "blocked";
+  // Additional WORKSPACES are headless sub-accounts owned by the root account
+  // (ownerId = root owner). Each has fully isolated data (agents, calls,
+  // contacts…). isWorkspace distinguishes them from invited team members.
+  isWorkspace?: boolean;
   verifyToken?: string;
   emailVerified?: boolean;
   mustResetPassword?: boolean;
@@ -681,10 +685,31 @@ export const updateUser = (id: string, patch: Partial<User>) =>
 export async function findUserById(id: string): Promise<User | undefined> {
   return (await store.list<User>("users")).find((u) => u.id === id);
 }
-// Owner + everyone invited into the owner's workspace.
+// Owner + everyone invited into the owner's workspace (NOT sub-workspaces).
 export async function listWorkspaceMembers(ownerId: string): Promise<User[]> {
   const all = await store.list<User>("users");
-  return all.filter((u) => u.id === ownerId || u.ownerId === ownerId);
+  return all.filter((u) => (u.id === ownerId || u.ownerId === ownerId) && !u.isWorkspace);
+}
+
+// The root account owner for a given data key (a sub-workspace's ownerId, or
+// the user itself). Plan/billing are read from this record so every workspace
+// under one account shares the same subscription.
+export async function findDataOwner(userId: string): Promise<User | undefined> {
+  const u = await findUserById(userId);
+  if (!u) return undefined;
+  return u.ownerId ? (await findUserById(u.ownerId)) ?? u : u;
+}
+
+// The root owner id + all its workspaces (the root account counts as the
+// "Default Workspace"). Used by the workspace switcher.
+export async function listWorkspacesFor(userId: string): Promise<{ rootId: string; workspaces: User[] }> {
+  const u = await findUserById(userId);
+  const rootId = u?.ownerId ?? u?.id ?? userId;
+  const root = await findUserById(rootId);
+  const all = await store.list<User>("users");
+  const subs = all.filter((w) => w.ownerId === rootId && w.isWorkspace);
+  const list = [root, ...subs].filter(Boolean) as User[];
+  return { rootId, workspaces: list };
 }
 export async function findUserByVerifyToken(token: string): Promise<User | undefined> {
   return (await store.list<User>("users")).find((u) => u.verifyToken === token);

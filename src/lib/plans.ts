@@ -28,9 +28,10 @@ export interface PlanTier {
   priceAED: number;
   tagline: string;
   limits: {
-    agents: number; // max AI agents
+    agents: number; // max AI agents (per workspace)
     minutes: number; // included voice minutes / month
     knowledgeBases: number; // max knowledge base items
+    workspaces: number; // how many separate workspaces the account can create
   };
   features: {
     outbound: boolean; // outbound call campaigns ("Launch your AI")
@@ -45,7 +46,7 @@ export const PLAN_TIERS: PlanTier[] = [
     name: "Starter",
     priceAED: 1500,
     tagline: "An AI receptionist on WhatsApp, chat and inbound calls.",
-    limits: { agents: 2, minutes: 300, knowledgeBases: 3 },
+    limits: { agents: 2, minutes: 500, knowledgeBases: 3, workspaces: 1 },
     features: {
       outbound: false,
       calendarSheets: true,
@@ -57,7 +58,7 @@ export const PLAN_TIERS: PlanTier[] = [
     name: "Professional",
     priceAED: 3000,
     tagline: "The full clinic setup — inbound and outbound campaigns.",
-    limits: { agents: 5, minutes: 800, knowledgeBases: 10 },
+    limits: { agents: 5, minutes: 1500, knowledgeBases: 10, workspaces: 3 },
     features: {
       outbound: true,
       calendarSheets: true,
@@ -69,7 +70,7 @@ export const PLAN_TIERS: PlanTier[] = [
     name: "Business",
     priceAED: 5000,
     tagline: "Scale across locations with more agents, minutes and support.",
-    limits: { agents: 15, minutes: 2000, knowledgeBases: 50 },
+    limits: { agents: 15, minutes: 4000, knowledgeBases: 50, workspaces: 10 },
     features: {
       outbound: true,
       calendarSheets: true,
@@ -95,6 +96,10 @@ export function agentLimit(user: User | null | undefined): number {
 
 export function knowledgeBaseLimit(user: User | null | undefined): number {
   return getPlanTier(user).limits.knowledgeBases;
+}
+
+export function workspaceLimit(user: User | null | undefined): number {
+  return getPlanTier(user).limits.workspaces;
 }
 
 // The lowest tier that unlocks a given feature — used for "Upgrade to X" copy.

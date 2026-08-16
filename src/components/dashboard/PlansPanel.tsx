@@ -9,7 +9,8 @@ import { toast, toastError } from "@/components/Toast";
 // Feature rows shown on every plan card. `value` returns what to render for a
 // tier: a checkmark, a lock, or a number/label.
 const ROWS: { label: string; value: (t: PlanTier) => { on: boolean; text?: string } }[] = [
-  { label: "AI agents", value: (t) => ({ on: true, text: String(t.limits.agents) }) },
+  { label: "Workspaces", value: (t) => ({ on: true, text: String(t.limits.workspaces) }) },
+  { label: "AI agents (per workspace)", value: (t) => ({ on: true, text: String(t.limits.agents) }) },
   { label: "Voice minutes / month", value: (t) => ({ on: true, text: t.limits.minutes.toLocaleString() }) },
   { label: "Knowledge bases", value: (t) => ({ on: true, text: String(t.limits.knowledgeBases) }) },
   { label: "Omnichannel inbox (WhatsApp, Instagram, Messenger)", value: () => ({ on: true }) },

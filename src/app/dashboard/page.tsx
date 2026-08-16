@@ -11,9 +11,10 @@ import {
 import DateRangeSelect from "@/components/dashboard/DateRangeSelect";
 
 function fmtDuration(totalSec: number) {
-  const m = Math.floor(totalSec / 60);
-  const s = totalSec % 60;
-  return `${m}m ${s}s`;
+  const whole = Math.round(totalSec); // avoid float noise like 1.70199999s
+  const m = Math.floor(whole / 60);
+  const s = whole % 60;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
 function dayKey(iso: string) {

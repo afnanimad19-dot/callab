@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { createKnowledgeBase, findUserById, listKnowledgeBases, KnowledgeBase, newId } from "@/lib/db";
+import { createKnowledgeBase, findDataOwner, listKnowledgeBases, KnowledgeBase, newId } from "@/lib/db";
 import { fetchWebsiteText } from "@/lib/web-content";
 import { knowledgeBaseLimit, getPlanTier } from "@/lib/plans";
 
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
   }
 
   // Plan limit on knowledge bases.
-  const owner = await findUserById(session.userId);
+  const owner = await findDataOwner(session.userId);
   const limit = knowledgeBaseLimit(owner);
   const existing = (await listKnowledgeBases(session.userId)).length;
   if (existing >= limit) {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
   listAllUsers, listAllAgents, listAllContacts, listAllCalls, listAllAppointments,
-  updateUser,
+  listWorkspacesFor, updateUser,
 } from "@/lib/db";
 import { isPlatformAdmin } from "@/lib/admin";
 import { getPlanTier, PLAN_TIERS, type PlanTierKey } from "@/lib/plans";
@@ -40,7 +40,7 @@ export async function GET() {
 
   const owners = users.filter((u) => !u.ownerId); // top-level tenant accounts
   const memberCount = new Map<string, number>();
-  for (const u of users) if (u.ownerId) memberCount.set(u.ownerId, (memberCount.get(u.ownerId) ?? 0) + 1);
+  for (const u of users) if (u.ownerId && !u.isWorkspace) memberCount.set(u.ownerId, (memberCount.get(u.ownerId) ?? 0) + 1);
 
   const rows = owners
     .map((u) => {
@@ -95,6 +95,8 @@ export async function POST(request: Request) {
   if (!userId || !PLAN_TIERS.some((p) => p.key === tier)) {
     return NextResponse.json({ error: "Bad request." }, { status: 400 });
   }
-  await updateUser(userId, { planTier: tier });
+  // Apply to the tenant and all its workspaces.
+  const { workspaces } = await listWorkspacesFor(userId);
+  await Promise.all(workspaces.map((w) => updateUser(w.id, { planTier: tier })));
   return NextResponse.json({ ok: true });
 }
