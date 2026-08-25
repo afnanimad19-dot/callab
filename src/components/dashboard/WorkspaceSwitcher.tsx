@@ -84,7 +84,7 @@ export default function WorkspaceSwitcher({ current }: { current: string }) {
           <div className="max-h-56 overflow-y-auto">
             {list.map((w) => (
               <button key={w.id} onClick={() => switchTo(w.id)} disabled={busy}
-                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink-800 transition hover:bg-ink-100 disabled:opacity-60">
+                className="flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-ink-200 transition hover:bg-ink-800 disabled:opacity-60">
                 <span className="truncate">{w.name}{w.isDefault && <span className="ml-1 text-[10px] text-ink-400">(default)</span>}</span>
                 {w.id === active && <Check className="h-4 w-4 shrink-0 text-[#301C3F]" />}
               </button>
@@ -92,7 +92,7 @@ export default function WorkspaceSwitcher({ current }: { current: string }) {
             {list.length === 0 && <p className="px-3 py-2 text-sm text-ink-400">Loading…</p>}
           </div>
 
-          <div className="border-t border-ink-100">
+          <div className="border-t border-ink-700">
             {adding ? (
               <div className="p-2">
                 <input
@@ -107,12 +107,12 @@ export default function WorkspaceSwitcher({ current }: { current: string }) {
               </div>
             ) : canAdd ? (
               <button onClick={() => setAdding(true)}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium text-[#301C3F] transition hover:bg-ink-100">
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm font-medium text-[#301C3F] transition hover:bg-ink-800">
                 <Plus className="h-4 w-4" /> Add new workspace
               </button>
             ) : (
               <Link href="/dashboard/plans" onClick={() => setOpen(false)}
-                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ink-500 transition hover:bg-ink-100">
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-sm text-ink-500 transition hover:bg-ink-800">
                 <Lock className="h-3.5 w-3.5" /> {planName} plan limit reached — upgrade
               </Link>
             )}

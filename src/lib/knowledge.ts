@@ -3,7 +3,8 @@
 // time) means editing a resource automatically updates every agent using it
 // on their next publish/test.
 
-import { listKnowledgeBases } from "./db";
+import { listKnowledgeBases, updateKnowledgeBase } from "./db";
+import { fetchWebsiteText } from "./web-content";
 
 const PER_RESOURCE_LIMIT = 8000;
 const TOTAL_LIMIT = 30000;
@@ -20,6 +21,18 @@ export async function buildKnowledgeText(
   let total = 0;
   const parts: string[] = [];
   for (const kb of selected) {
+    // URL resources whose fetch failed at creation: retry here (at publish
+    // time) so the agent actually reads the page, and persist the result so
+    // future syncs are instant.
+    if (kb.url && !kb.content?.trim()) {
+      try {
+        const fetched = await fetchWebsiteText(kb.url, { crawl: true });
+        if (fetched?.content?.trim()) {
+          kb.content = fetched.content;
+          await updateKnowledgeBase(userId, kb.id, { content: fetched.content }).catch(() => {});
+        }
+      } catch { /* keep the link-only fallback */ }
+    }
     const body =
       kb.content?.trim() ||
       (kb.url ? `Reference material lives at: ${kb.url}` : "(no content)");

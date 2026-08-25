@@ -539,7 +539,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                   {tool === "emoji" && (
                     <div className="absolute bottom-12 left-0 z-20 grid w-56 grid-cols-8 gap-0.5 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
                       {EMOJIS.map((e) => (
-                        <button key={e} onClick={() => insert(e)} className="rounded p-1 text-lg hover:bg-ink-100">{e}</button>
+                        <button key={e} onClick={() => insert(e)} className="rounded p-1 text-lg hover:bg-ink-800">{e}</button>
                       ))}
                     </div>
                   )}
@@ -547,7 +547,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                     <div className="absolute bottom-12 left-0 z-20 w-72 space-y-1 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
                       <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Snippets</p>
                       {SNIPPETS.map((s) => (
-                        <button key={s} onClick={() => insert(s)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">{s}</button>
+                        <button key={s} onClick={() => insert(s)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-800">{s}</button>
                       ))}
                     </div>
                   )}
@@ -555,7 +555,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                     <div className="absolute bottom-12 left-0 z-20 w-56 space-y-1 rounded-xl border border-ink-700 bg-white p-2 shadow-xl">
                       <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Variables</p>
                       {VARIABLES.map((v) => (
-                        <button key={v.token} onClick={() => insert(v.token)} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">
+                        <button key={v.token} onClick={() => insert(v.token)} className="flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-800">
                           <span>{v.label}</span><span className="font-mono text-xs text-ink-400">{v.token}</span>
                         </button>
                       ))}
@@ -566,7 +566,7 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
                       <p className="px-1 pb-1 text-[10px] font-semibold uppercase tracking-wide text-ink-400">Mention a teammate</p>
                       {members.length === 0 && <p className="px-2 py-1 text-xs text-ink-400">Invite team members in Settings → Users.</p>}
                       {members.map((mem) => (
-                        <button key={mem.id} onClick={() => insert(`@${mem.name}`)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-100">@{mem.name}</button>
+                        <button key={mem.id} onClick={() => insert(`@${mem.name}`)} className="block w-full truncate rounded-lg px-2 py-1.5 text-left text-sm text-ink-200 hover:bg-ink-800">@{mem.name}</button>
                       ))}
                     </div>
                   )}
@@ -846,7 +846,7 @@ function StageEditor({
       <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold">Lifecycle stages</h3>
-          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-100"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} className="rounded p-1 text-ink-400 hover:bg-ink-800"><X className="h-4 w-4" /></button>
         </div>
         <p className="mt-1 text-sm text-ink-400">Rename, recolor, reorder and add the stages leads move through.</p>
 
@@ -869,8 +869,8 @@ function StageEditor({
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
-              <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-1 text-ink-400 hover:bg-ink-100 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
-              <button onClick={() => move(i, 1)} disabled={i === rows.length - 1} className="rounded p-1 text-ink-400 hover:bg-ink-100 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
+              <button onClick={() => move(i, -1)} disabled={i === 0} className="rounded p-1 text-ink-400 hover:bg-ink-800 disabled:opacity-30"><ArrowUp className="h-3.5 w-3.5" /></button>
+              <button onClick={() => move(i, 1)} disabled={i === rows.length - 1} className="rounded p-1 text-ink-400 hover:bg-ink-800 disabled:opacity-30"><ArrowDown className="h-3.5 w-3.5" /></button>
               <button onClick={() => remove(i)} disabled={rows.length <= 1} className="rounded p-1 text-signal-red hover:bg-red-50 disabled:opacity-30"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}

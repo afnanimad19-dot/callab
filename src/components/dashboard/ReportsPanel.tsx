@@ -66,8 +66,23 @@ function LegendDonut({ title, map }: { title: string; map: Record<string, number
   );
 }
 
-export default function ReportsPanel({ data }: { data: Data }) {
+export default function ReportsPanel({
+  data,
+  range,
+  from,
+  to,
+}: {
+  data: Data;
+  range: string;
+  from: string;
+  to: string;
+}) {
   const k = data.kpis;
+  const rangeLabel =
+    range === "7" ? "last 7 days" :
+    range === "30" ? "last 30 days" :
+    range === "90" ? "last 90 days" :
+    range === "all" ? "all time" : `${from} → ${to}`;
   const kpis = [
     { label: "Total calls", value: k.calls, icon: PhoneCall },
     { label: "Voice minutes", value: k.minutes, icon: Clock },
@@ -86,6 +101,31 @@ export default function ReportsPanel({ data }: { data: Data }) {
           <h1 className="text-2xl font-bold tracking-tight">Reports</h1>
           <p className="mt-0.5 text-sm text-ink-400">Everything your workspace does, in charts — with CSV export.</p>
         </div>
+        {/* Date range — quick presets or a custom from/to */}
+        <form method="get" className="flex flex-wrap items-center gap-2">
+          <select
+            name="range"
+            defaultValue={range === "custom" ? "30" : range}
+            onChange={(e) => e.currentTarget.form?.requestSubmit()}
+            className="field !w-auto !py-2 !text-sm"
+          >
+            <option value="7">Last 7 days</option>
+            <option value="30">Last 30 days</option>
+            <option value="90">Last 90 days</option>
+            <option value="all">All time</option>
+          </select>
+          <input type="date" name="from" defaultValue={range === "custom" ? from : ""} className="field !w-auto !py-2 !text-sm" />
+          <input type="date" name="to" defaultValue={range === "custom" ? to : ""} className="field !w-auto !py-2 !text-sm" />
+          <button type="submit" className="btn-secondary !py-2 !text-sm">Apply</button>
+        </form>
+      </div>
+
+      {/* Export the report data (respects the selected date range) */}
+      <div className="card flex flex-wrap items-center justify-between gap-3 !py-3.5">
+        <div>
+          <p className="text-sm font-semibold">Export this report</p>
+          <p className="text-xs text-ink-400">CSV downloads for the selected period ({rangeLabel}).</p>
+        </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => exportCsv("calls", data.exports.calls)} className="btn-secondary flex items-center gap-1.5 !text-sm"><Download className="h-4 w-4" /> Calls</button>
           <button onClick={() => exportCsv("appointments", data.exports.appointments)} className="btn-secondary flex items-center gap-1.5 !text-sm"><Download className="h-4 w-4" /> Appointments</button>
@@ -97,7 +137,7 @@ export default function ReportsPanel({ data }: { data: Data }) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {kpis.map((x) => (
           <div key={x.label} className="card flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-100 text-[#301C3F]"><x.icon className="h-5 w-5" /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F0EAF7] text-[#301C3F]"><x.icon className="h-5 w-5" /></span>
             <div>
               <div className="text-xl font-bold tabular-nums">{x.value.toLocaleString()}</div>
               <div className="text-xs text-ink-400">{x.label}</div>
@@ -109,11 +149,11 @@ export default function ReportsPanel({ data }: { data: Data }) {
       {/* Trends */}
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="card">
-          <h3 className="mb-3 text-sm font-semibold">Calls · last 30 days</h3>
+          <h3 className="mb-3 text-sm font-semibold">Calls · {rangeLabel}</h3>
           <AreaChart values={data.trend.callsPerDay} labels={data.trend.labels} height={200} />
         </div>
         <div className="card">
-          <h3 className="mb-3 text-sm font-semibold">Voice minutes · last 30 days</h3>
+          <h3 className="mb-3 text-sm font-semibold">Voice minutes · {rangeLabel}</h3>
           <AreaChart values={data.trend.minutesPerDay} labels={data.trend.labels} height={200} valueSuffix="m" />
         </div>
       </div>

@@ -89,7 +89,7 @@ export default function AdminPanel() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {kpis.map((k) => (
             <div key={k.label} className="card flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink-100 text-[#301C3F]"><k.icon className="h-5 w-5" /></span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F0EAF7] text-[#301C3F]"><k.icon className="h-5 w-5" /></span>
               <div>
                 <div className="text-xl font-bold tabular-nums">{k.value}</div>
                 <div className="text-xs text-ink-400">{k.label}</div>

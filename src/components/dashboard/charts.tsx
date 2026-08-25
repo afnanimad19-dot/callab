@@ -108,18 +108,31 @@ export function AreaChart({
           </g>
         )}
 
-        {labels.map((label, i) => (
-          <text
-            key={i}
-            x={pad.left + (labels.length === 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW)}
-            y={h - 8}
-            textAnchor="middle"
-            fontSize="10"
-            style={{ fill: "var(--chart-label)" }}
-          >
-            {label}
-          </text>
-        ))}
+        {/* Thin the x-axis ticks so long ranges (30/90 days) never overlap:
+            show at most ~8 evenly spaced labels, always including the last. */}
+        {(() => {
+          const step = Math.max(1, Math.ceil(labels.length / 8));
+          return labels.map((label, i) => {
+            const isLast = i === labels.length - 1;
+            if (!isLast && i % step !== 0) return null;
+            if (isLast && labels.length > 1 && (labels.length - 1) % step !== 0 && (labels.length - 1) % step < step / 2) {
+              // skip a last label that would crowd the previous tick
+              return null;
+            }
+            return (
+              <text
+                key={i}
+                x={pad.left + (labels.length === 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW)}
+                y={h - 8}
+                textAnchor="middle"
+                fontSize="10"
+                style={{ fill: "var(--chart-label)" }}
+              >
+                {label}
+              </text>
+            );
+          });
+        })()}
 
         {/* Transparent hit slices — hovering one selects that data point. */}
         {points.map((p, i) => {
@@ -173,7 +186,9 @@ export function BarChart({
   const barX = (i: number) => pad.left + slot * i + (slot - barW) / 2;
 
   return (
-    <div className="relative" onMouseLeave={() => setHi(null)}>
+    // Cap the rendered width — in a full-width card an uncapped responsive SVG
+    // scales its 10px viewBox fonts into giant labels.
+    <div className="relative mx-auto max-w-3xl" onMouseLeave={() => setHi(null)}>
       <svg viewBox={`0 0 ${w} ${h}`} className="block w-full" role="img">
         {[0, 0.5, 1].map((t) => (
           <g key={t}>
