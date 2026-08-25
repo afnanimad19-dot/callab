@@ -10,7 +10,8 @@ import { useRouter } from "next/navigation";
 import type { Call, Campaign } from "@/lib/db";
 
 function fmtDuration(sec: number) {
-  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, "0")}`;
+  const whole = Math.round(sec || 0); // stored values can be fractional
+  return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
 }
 
 function statusOf(c: Call): { label: string; cls: string } {

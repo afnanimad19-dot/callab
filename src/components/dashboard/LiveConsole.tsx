@@ -18,8 +18,9 @@ interface LiveCall {
 }
 
 function formatElapsed(sec: number) {
-  const m = Math.floor(sec / 60);
-  const s = sec % 60;
+  const whole = Math.round(sec || 0);
+  const m = Math.floor(whole / 60);
+  const s = whole % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 

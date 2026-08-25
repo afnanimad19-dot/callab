@@ -1219,16 +1219,17 @@ export function mapEndOfCallReport(
   message: VapiMessage,
   agent: Agent
 ): Call {
-  const durationSec =
-    message.durationSeconds ??
-    (message.startedAt && message.endedAt
-      ? Math.max(
-          0,
-          Math.round(
-            (Date.parse(message.endedAt) - Date.parse(message.startedAt)) / 1000
-          )
-        )
-      : 0);
+  // Vapi's durationSeconds is fractional (e.g. 218.61) — round to whole
+  // seconds so durations render as m:ss everywhere, not float noise.
+  const durationSec = Math.max(
+    0,
+    Math.round(
+      message.durationSeconds ??
+        (message.startedAt && message.endedAt
+          ? (Date.parse(message.endedAt) - Date.parse(message.startedAt)) / 1000
+          : 0)
+    )
+  );
 
   const success = message.analysis?.successEvaluation;
   const positive = success === true || success === "true" || success === "pass";
