@@ -153,6 +153,16 @@ export default function KnowledgePanel({ items }: { items: KnowledgeBase[] }) {
                           <RefreshCw className="h-3 w-3" /> Auto 24h
                         </span>
                       )}
+                      {/* Whether agents actually have text to answer from. */}
+                      {kb.content?.trim() ? (
+                        <span className="badge-ok">{kb.content.length.toLocaleString()} chars indexed</span>
+                      ) : kb.type === "url" ? (
+                        <span className="badge-muted">Fetched at publish</span>
+                      ) : (
+                        <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                          No text indexed — agents can&apos;t read this
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
