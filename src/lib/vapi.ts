@@ -66,16 +66,22 @@ export async function getVapiAssistant(assistantId: string): Promise<{
   name?: string;
   toolNames: string[];
   model?: string;
+  systemPrompt?: string; // the LIVE prompt on Vapi's side (for diagnostics)
 } | null> {
   if (!vapiConfigured()) return null;
   try {
     const a = (await vapi(`/assistant/${assistantId}`)) as {
       id: string;
       name?: string;
-      model?: { model?: string; tools?: { function?: { name?: string }; type?: string }[] };
+      model?: {
+        model?: string;
+        tools?: { function?: { name?: string }; type?: string }[];
+        messages?: { role?: string; content?: string }[];
+      };
     };
     const toolNames = (a.model?.tools ?? []).map((t) => t.function?.name ?? t.type ?? "tool");
-    return { id: a.id, name: a.name, toolNames, model: a.model?.model };
+    const systemPrompt = (a.model?.messages ?? []).find((m) => m.role === "system")?.content;
+    return { id: a.id, name: a.name, toolNames, model: a.model?.model, systemPrompt };
   } catch (e) {
     console.error("getVapiAssistant failed:", e);
     return null;

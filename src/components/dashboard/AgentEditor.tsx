@@ -2700,6 +2700,15 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
       missingTools: string[];
       toolSyncError: string | null;
       skippedTools?: string[];
+      knowledge?: {
+        attachedResources: { name: string; chars: number }[];
+        builtChars: number;
+        livePromptChars: number | null;
+        liveHasKnowledgeSection: boolean;
+        liveHasDocumentStart: boolean;
+        liveHasDocumentEnd: boolean;
+        verdict: string;
+      };
     } | null;
   } | null>(null);
   const [busy, setBusy] = useState(true);
@@ -2741,6 +2750,32 @@ function VapiDiagnosticsModal({ agentId, onClose }: { agentId: string; onClose: 
             {report && (
               <>
                 <Row label="Agent synced" ok={report.synced} value={report.synced ? "Yes" : "No"} />
+
+                {/* Knowledge: is it attached, indexed, and LIVE on the assistant? */}
+                {report.knowledge && (
+                  <div className={`rounded-lg border px-3 py-2.5 ${
+                    report.knowledge.verdict.startsWith("OK")
+                      ? "border-emerald-300 bg-emerald-50"
+                      : "border-signal-red/40 bg-signal-red/10"
+                  }`}>
+                    <p className={`text-xs font-semibold ${report.knowledge.verdict.startsWith("OK") ? "text-emerald-800" : "text-signal-red"}`}>
+                      Knowledge check
+                    </p>
+                    <p className={`mt-1 break-words text-xs ${report.knowledge.verdict.startsWith("OK") ? "text-emerald-800" : "text-signal-red"}`}>
+                      {report.knowledge.verdict}
+                    </p>
+                    <div className="mt-2 space-y-0.5 text-[11px] text-ink-400">
+                      {report.knowledge.attachedResources.map((r) => (
+                        <p key={r.name}>• {r.name} — {r.chars.toLocaleString()} chars indexed</p>
+                      ))}
+                      <p>
+                        Built for prompt: {report.knowledge.builtChars.toLocaleString()} chars
+                        {report.knowledge.livePromptChars !== null && ` · live prompt on the voice system: ${report.knowledge.livePromptChars.toLocaleString()} chars`}
+                        {` · document end present: ${report.knowledge.liveHasDocumentEnd ? "yes" : "NO"}`}
+                      </p>
+                    </div>
+                  </div>
+                )}
                 <div>
                   <p className="mb-1.5 font-semibold">Active tools ({report.vapiTools.length})</p>
                   {report.vapiTools.length === 0 ? (

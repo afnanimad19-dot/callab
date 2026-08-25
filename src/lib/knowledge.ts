@@ -50,6 +50,7 @@ export async function buildKnowledgeText(
 
   return `# Knowledge Base
 Use the following verified business knowledge to answer questions. Prefer these facts over guesses; if the answer isn't covered here, say you'll check and offer a follow-up.
+The prices, report turnaround times, and preparation rules listed below are the business's CONFIRMED information — when a caller asks about a specific item, look it up here and quote it directly and confidently (do NOT say you need to confirm it, unless the entry itself is blank or says to confirm).
 
 ${parts.join("\n\n")}`;
 }
