@@ -16,8 +16,12 @@ export default async function NewAgentPage({
 
   const { type, template } = await searchParams;
   const agentType = type === "conversation_flow" ? "conversation_flow" : "single_prompt";
-  const content = TEMPLATE_CONTENT[template ?? "scratch"] ?? TEMPLATE_CONTENT.scratch;
   const knowledgeBases = await listKnowledgeBases(session.userId);
+
+  // "Start from scratch" means exactly that: a blank agent. Only an explicitly
+  // chosen template prefills the identity/tasks/guardrails.
+  const isTemplate = Boolean(template && template !== "scratch" && TEMPLATE_CONTENT[template]);
+  const content = isTemplate ? TEMPLATE_CONTENT[template!] : null;
 
   return (
     <AgentEditor
@@ -27,20 +31,27 @@ export default async function NewAgentPage({
         name: k.name,
         type: k.type ?? "text",
       }))}
-      agent={{
-        name:
-          template && template !== "scratch"
-            ? content.name
-            : agentType === "conversation_flow"
-              ? "New Conversation Flow"
-              : "New Single Prompt Agent",
-        role: content.role,
-        identity: content.identity,
-        tasks: content.tasks,
-        guardrails: content.guardrails,
-        greeting: content.greeting,
-        outcomes: content.outcomes,
-      }}
+      agent={
+        content
+          ? {
+              name: content.name,
+              role: content.role,
+              identity: content.identity,
+              tasks: content.tasks,
+              guardrails: content.guardrails,
+              greeting: content.greeting,
+              outcomes: content.outcomes,
+            }
+          : {
+              name: agentType === "conversation_flow" ? "New Conversation Flow" : "New Single Prompt Agent",
+              role: "",
+              identity: "",
+              tasks: "",
+              guardrails: "",
+              greeting: "",
+              outcomes: [],
+            }
+      }
     />
   );
 }

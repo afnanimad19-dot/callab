@@ -284,13 +284,22 @@ export default async function OverviewPage({
         </div>
         <div className="card">
           <h2 className="text-sm font-semibold">Concurrent Calls Over Time</h2>
-          <p className="text-xs text-ink-400">Simultaneous active calls</p>
+          <p className="text-xs text-ink-400">Peak simultaneous active calls per day</p>
           <div className="mt-4">
             <BarChart
-              items={days.slice(-4).map((d) => ({
-                label: dayLabel(d),
-                value: Math.max(...[1, byDay.get(d)!.length > 4 ? 2 : 1]),
-              }))}
+              items={days.slice(-4).map((d) => {
+                // Real peak concurrency: sweep the day's call start/end events.
+                const dayCalls = byDay.get(d)!;
+                const events: [number, number][] = [];
+                for (const c of dayCalls) {
+                  const start = Date.parse(c.startedAt);
+                  events.push([start, 1], [start + (c.durationSec || 0) * 1000, -1]);
+                }
+                events.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+                let cur = 0, peak = 0;
+                for (const [, delta] of events) { cur += delta; peak = Math.max(peak, cur); }
+                return { label: dayLabel(d), value: peak };
+              })}
             />
           </div>
         </div>
