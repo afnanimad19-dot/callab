@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getSession } from "@/lib/auth";
 import {
   ArrowRight,
   Activity,
@@ -176,7 +177,10 @@ const FAQS = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  // Session-aware header: visitors see Login / Sign Up; a signed-in user sees
+  // Open Dashboard instead.
+  const session = await getSession();
   return (
     <div className="flex flex-col bg-[#F5F5F5]" style={{ colorScheme: "light" }}>
       {/* ============ Hero (full-bleed) ============ */}
@@ -208,10 +212,23 @@ export default function LandingPage() {
                 </a>
               ))}
             </div>
-            <Link href="/login"
-              className="rounded-full bg-black px-7 py-2.5 text-base font-medium text-white transition-colors duration-200 hover:bg-gray-800">
-              Open Dashboard
-            </Link>
+            {session ? (
+              <Link href="/dashboard"
+                className="rounded-full bg-black px-7 py-2.5 text-base font-medium text-white transition-colors duration-200 hover:bg-gray-800">
+                Open Dashboard
+              </Link>
+            ) : (
+              <div className="flex items-center gap-3">
+                <Link href="/login"
+                  className="rounded-full border border-black/15 bg-white/70 px-6 py-2.5 text-base font-medium text-black backdrop-blur transition-colors duration-200 hover:bg-white">
+                  Login
+                </Link>
+                <Link href="/signup"
+                  className="rounded-full bg-black px-6 py-2.5 text-base font-medium text-white transition-colors duration-200 hover:bg-gray-800">
+                  Sign Up
+                </Link>
+              </div>
+            )}
           </div>
         </nav>
 
