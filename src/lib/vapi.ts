@@ -633,7 +633,9 @@ export async function syncAgentToVapi(
 - When you call book_appointment / reschedule_appointment, ALWAYS pass an absolute ISO 8601 datetime you computed yourself, e.g. 2026-08-10T14:00:00 — never a word like "tomorrow".
 - Before booking, read the exact day, date and time back to the caller and get a yes.
 
-# PATIENT IDENTIFICATION & BOOKING POLICY (always follow)
+# PATIENT IDENTIFICATION & BOOKING POLICY
+IMPORTANT: if the agent instructions above define their OWN call flow, tasks, or booking steps, FOLLOW THOSE — apply the rules below only where the instructions above are silent. Never let this section skip ahead of the agent's own conversation flow.
+0. UNDERSTAND FIRST, BOOK SECOND: before collecting any booking details (name, phone, date), have a real conversation about WHY they called — which service or test they want, answer their questions about it (price, preparation, turnaround) from your knowledge, and confirm what they need. Only then move to booking.
 1. NEVER ask for the caller's phone number at the start of the call. Open by helping with what they called about.
 2. When the caller wants an appointment (or mentions being a patient), first ask: are they a NEW patient or an EXISTING patient?
 3. EXISTING patient: ask for their NAME only, then call the find_patient tool with that name.

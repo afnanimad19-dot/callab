@@ -236,20 +236,44 @@ function AddResourceModal({
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Read the uploaded file's text so agents can actually answer from it.
+  // Plain-text formats are read in the browser; Word documents (.docx) are
+  // extracted server-side, so agents answer from the full document.
   async function onFilePicked(f: File) {
     setFileName(f.name);
     if (!name.trim()) setName(f.name.replace(/\.[^.]+$/, ""));
     const textLike = /\.(txt|md|csv|json|html?)$/i.test(f.name);
     if (textLike) {
       const text = await f.text();
-      setContent(text.slice(0, 20000));
-      setFileNote(`${f.name} — ${Math.min(text.length, 20000).toLocaleString()} characters read and indexed.`);
-    } else {
-      setContent("");
-      setFileNote(
-        `${f.name} attached. PDF/DOCX text can't be extracted in the browser — paste the key content as a Text resource for the agent to answer from it.`
-      );
+      setContent(text.slice(0, 60000));
+      setFileNote(`${f.name} — ${Math.min(text.length, 60000).toLocaleString()} characters read and indexed.`);
+      return;
     }
+    if (/\.docx$/i.test(f.name)) {
+      setFileNote(`Extracting text from ${f.name}…`);
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result).split(",")[1] ?? "");
+        reader.readAsDataURL(f);
+      });
+      const res = await fetch("/api/knowledge/extract", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file: base64, fileName: f.name }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data.text) {
+        setContent(data.text);
+        setFileNote(`${f.name} — ${Number(data.chars ?? data.text.length).toLocaleString()} characters extracted and indexed. Agents will answer from this document.`);
+      } else {
+        setContent("");
+        setFileNote(data.error ?? "Could not extract text from that document.");
+      }
+      return;
+    }
+    setContent("");
+    setFileNote(
+      `${f.name} attached. PDF text can't be extracted yet — export it as Word (.docx) and upload that, or paste the key content as a Text resource.`
+    );
   }
 
   async function create() {

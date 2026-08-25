@@ -6,8 +6,13 @@
 import { listKnowledgeBases, updateKnowledgeBase } from "./db";
 import { fetchWebsiteText } from "./web-content";
 
-const PER_RESOURCE_LIMIT = 8000;
-const TOTAL_LIMIT = 30000;
+// Generous limits so long documents (e.g. a full test price list) survive
+// intact — a truncated price table is worse than none: the list often sits at
+// the END of the document, so cutting at N chars silently deletes exactly the
+// facts the agent gets asked about. ~90k chars ≈ 22k tokens, within the voice
+// LLM's context.
+const PER_RESOURCE_LIMIT = 60000;
+const TOTAL_LIMIT = 90000;
 
 export async function buildKnowledgeText(
   userId: string,
