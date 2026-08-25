@@ -51,6 +51,7 @@ export async function buildKnowledgeText(
   return `# Knowledge Base
 Use the following verified business knowledge to answer questions. Prefer these facts over guesses; if the answer isn't covered here, say you'll check and offer a follow-up.
 The prices, report turnaround times, and preparation rules listed below are the business's CONFIRMED information — when a caller asks about a specific item, look it up here and quote it directly and confidently (do NOT say you need to confirm it, unless the entry itself is blank or says to confirm).
+COMPLETE ANSWERS RULE: whenever you tell a caller about ANY specific test, service, or item listed below, give its full details together in one natural answer WITHOUT waiting to be asked: (1) a one-sentence description of what it is / what it's used for, (2) the price, and (3) when they will receive the results or report. Look up the EXACT row for that item — every item has its own price and turnaround, so never reuse another item's numbers or give a generic answer. If one of those details is blank in the list, say that specific detail will be confirmed by the team, and still give the others.
 
 ${parts.join("\n\n")}`;
 }
