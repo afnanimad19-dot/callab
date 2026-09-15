@@ -424,12 +424,20 @@ async function runChatAgent(
   return "Let me get that sorted for you — one moment.";
 }
 
-const RESUME_MENU =
-  "Welcome back! Our previous chat had gone quiet, so it's now closed. What would you like to do?\n\n" +
-  "1️⃣ Continue our previous conversation\n" +
-  "2️⃣ Start a new chat\n" +
-  "3️⃣ Get information (doctors, services, hours)\n\n" +
-  "Just reply with 1, 2, or 3.";
+// The menu's "info" line adapts to the business: only agents whose own
+// instructions talk about doctors (clinics, labs) mention doctors — a car
+// wash or any other business gets the generic services/prices/hours wording.
+function resumeMenu(agent: { systemPrompt?: string; identity?: string; tasks?: string }): string {
+  const brain = [agent.systemPrompt, agent.identity, agent.tasks].filter(Boolean).join(" ");
+  const info = /doctor/i.test(brain) ? "doctors, services, hours" : "services, prices, hours";
+  return (
+    "Welcome back! Our previous chat had gone quiet, so it's now closed. What would you like to do?\n\n" +
+    "1️⃣ Continue our previous conversation\n" +
+    "2️⃣ Start a new chat\n" +
+    `3️⃣ Get information (${info})\n\n` +
+    "Just reply with 1, 2, or 3."
+  );
+}
 
 export async function generateAgentReply(
   conversation: Conversation,
@@ -467,7 +475,7 @@ export async function generateAgentReply(
     );
     if (prior.length > 1) {
       await updateConversation(conversation.userId, conversation.id, { awaitingSessionChoice: true }).catch(() => {});
-      return { reply: RESUME_MENU, agentName };
+      return { reply: resumeMenu(agent), agentName };
     }
   }
 
