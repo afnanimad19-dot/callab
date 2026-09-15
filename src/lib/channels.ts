@@ -4,11 +4,11 @@
 
 import {
   ChannelSettings, ChatMessage, Conversation, createChatMessage,
-  createConversation, findAgentAnyUser, listChatMessages, listContacts, listConversations, newId,
+  createConversation, findAgentAnyUser, listAppointments, listChatMessages, listContacts, listConversations, newId,
   updateConversation,
 } from "./db";
 import {
-  bookAppointmentSafe, cancelAppointment, ensureContact, findUpcomingAppointment, rescheduleAppointment,
+  bookAppointmentSafe, cancelAppointment, ensureContact, findSlotConflict, findUpcomingAppointment, rescheduleAppointment,
 } from "./appointments";
 import { chatWithAssistant, vapiConfigured } from "./vapi";
 import { buildKnowledgeText } from "./knowledge";
@@ -330,7 +330,7 @@ async function executeChatTool(
         source: "chat",
       });
       if (r.status === "conflict") {
-        return `ERROR: Dr. ${r.doctor} is already booked at ${r.when}. Do NOT book. Apologise and offer the patient a different time, or a different doctor at that time.`;
+        return `ERROR: that slot is TAKEN — ${r.doctor ? `Dr. ${r.doctor} is` : "we are"} already booked at ${r.when}, and each booking needs its full service window plus travel time. Do NOT book this time. Apologise and offer ${r.nextFree} (the next free slot) or a later time${r.doctor ? ", or a different doctor at the original time" : ""}.`;
       }
       if (r.status === "duplicate") {
         return `NOTE: this appointment is ALREADY booked (${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}). Do NOT book again — just confirm it's already set. Send no more than one confirmation.`;
@@ -342,6 +342,13 @@ async function executeChatTool(
       if (!when) return "ERROR: ask the patient for a specific new date and time, then reschedule again.";
       const existing = await findUpcomingAppointment(userId, String(args.name ?? args.patient_name ?? "").trim() || undefined, String(args.phone ?? "").trim());
       if (!existing) return "No existing appointment found for that patient — offer to book a new one instead.";
+      // Moving into a taken window would double-book just like a fresh booking.
+      const clash = findSlotConflict(await listAppointments(userId), {
+        startsAt: when, doctor: existing.doctor, excludeId: existing.id,
+      });
+      if (clash) {
+        return `ERROR: the new time is TAKEN — ${clash.doctor ? `Dr. ${clash.doctor} is` : "we are"} already booked at ${clash.when}. Do NOT confirm the move. Offer ${clash.nextFree} (the next free slot) instead.`;
+      }
       await rescheduleAppointment(userId, existing, when);
       return `SUCCESS: moved ${existing.patientName}'s appointment to ${fmtWhen(when)}. Confirm the new day and time, then stop.`;
     }
@@ -381,7 +388,9 @@ async function runChatAgent(
 - NEVER end or close the chat yourself. Keep helping until the patient stops replying.
 - When it feels right, ask simply: "Are you ready to book an appointment?" If yes, collect — one at a time — their full name, phone number, and email.
 - Recommend the most suitable doctor from your knowledge (say which doctor and why they fit) when asked or when booking.
-- Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.` +
+- Before booking, read back a short summary (name, date & time, doctor, phone, email) and ask them to confirm or change anything.
+- If the patient writes their email in words — "john dot smith at the rate gmail dot com", "at gmail", "(at)" — convert it to a real address: "at"/"at the rate" = @, "dot" = ".", no spaces. Confirm the final address back, e.g. john.smith@gmail.com.
+- Every booking occupies its full service window plus travel time for home visits — never offer times back-to-back or 15 minutes apart. A time is only confirmed after a BOOK action returns SUCCESS; if the RESULT says the slot is taken, it IS taken — offer the next free time from the result instead, never re-book the same time.` +
     `\n\n# ACTIONS (internal — the patient never sees these lines)
 - Look up an existing patient — reply with ONLY: [[FIND]] {"name":"...","phone":"..."}
 - BOOK (only AFTER the patient confirmed the summary) — reply with ONLY: [[BOOK]] {"patient_name":"...","phone":"...","email":"...","doctor":"...","service":"...","datetime":"...","notes":"..."}

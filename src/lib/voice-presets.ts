@@ -52,7 +52,12 @@ export function presetConfig(preset?: SpeedPreset): PresetConfig {
       return { llm: "anthropic:claude-3-5-haiku-20241022", voiceModel: "eleven_flash_v2_5", transcriberModel: "nova-2" };
     case "balanced":
     default:
-      return { llm: "anthropic:claude-3-5-sonnet-20241022", voiceModel: "eleven_turbo_v2_5", transcriberModel: "nova-2" };
+      // Haiku, not Sonnet: on a live phone call the LLM's time-to-first-token
+      // dominates perceived latency (callers were waiting 5-10s with Sonnet +
+      // a large knowledge prompt). Haiku answers in a fraction of the time and
+      // is plenty for reception/booking flows; pick "High Intelligence" for
+      // Sonnet when a call genuinely needs deeper reasoning.
+      return { llm: "anthropic:claude-3-5-haiku-20241022", voiceModel: "eleven_turbo_v2_5", transcriberModel: "nova-2" };
   }
 }
 

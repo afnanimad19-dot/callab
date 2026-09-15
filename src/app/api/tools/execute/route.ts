@@ -5,6 +5,7 @@ import {
   createContact,
   updateContact,
   listCalls,
+  listAppointments,
   newId,
   Contact,
   Agent,
@@ -13,6 +14,7 @@ import { sendEmail } from "@/lib/email";
 import {
   bookAppointmentSafe,
   cancelAppointment,
+  findSlotConflict,
   findUpcomingAppointment,
   rescheduleAppointment,
 } from "@/lib/appointments";
@@ -269,7 +271,7 @@ export async function POST(request: Request) {
               source: "call",
             });
             if (r.status === "conflict") {
-              return { toolCallId: call.id, result: `ERROR: Dr. ${r.doctor} is already booked at ${r.when}. Do NOT confirm. Apologise and offer a different time, or a different doctor at that time.` };
+              return { toolCallId: call.id, result: `ERROR: that slot is TAKEN — ${r.doctor ? `Dr. ${r.doctor} is` : "we are"} already booked at ${r.when}, and each booking needs its full service window plus travel time. Do NOT confirm this time under any circumstances. Apologise and offer ${r.nextFree} (the next free slot) or a later time${r.doctor ? ", or a different doctor at the original time" : ""}.` };
             }
             if (r.status === "duplicate") {
               return { toolCallId: call.id, result: `NOTE: already booked for ${r.appointment.patientName} on ${new Date(r.appointment.startsAt).toLocaleString()}. Do NOT book again — just confirm it's already set.` };
@@ -287,6 +289,13 @@ export async function POST(request: Request) {
             const existing = await findUpcomingAppointment(agent.userId, name || undefined, phone);
             if (!existing) {
               return { toolCallId: call.id, result: "No existing appointment found for that patient — offer to book a new one." };
+            }
+            // Moving into a taken window would double-book just like a fresh booking.
+            const clash = findSlotConflict(await listAppointments(agent.userId), {
+              startsAt: when, doctor: existing.doctor, excludeId: existing.id,
+            });
+            if (clash) {
+              return { toolCallId: call.id, result: `ERROR: the new time is TAKEN — ${clash.doctor ? `Dr. ${clash.doctor} is` : "we are"} already booked at ${clash.when}. Do NOT confirm the move. Offer ${clash.nextFree} (the next free slot) instead.` };
             }
             await rescheduleAppointment(agent.userId, existing, when);
             return {

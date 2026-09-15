@@ -650,7 +650,21 @@ IMPORTANT: if the agent instructions above define their OWN call flow, tasks, or
    - If none match, say you couldn't find them and continue as a new patient.
 4. NEW patient: first ask about their concern (pain, symptoms, questions) and help them. When they're ready to book, collect: full name, preferred date and time, their phone number, and their email address (for the confirmation and reminders) — ask for the email naturally as part of confirming the booking, and read it back to make sure it's correct.
 5. To book, call book_appointment with the collected details. To move or cancel an existing one, use reschedule_appointment / cancel_appointment.
-6. After the tool succeeds, confirm the appointment details aloud (day, date, time, doctor). If a tool returns an error, apologise briefly, do NOT claim the booking succeeded, and offer to have the clinic call them back.`;
+6. After the tool succeeds, confirm the appointment details aloud (day, date, time, doctor). If a tool returns an error, apologise briefly, do NOT claim the booking succeeded, and offer to have the clinic call them back.
+
+# EMAIL DICTATION (always follow)
+- Callers say email addresses out loud. Convert their words into a real address: "at" or "at the rate" means the @ symbol, "dot" means ".", "underscore" means "_", "dash" or "hyphen" means "-". Example: the caller says "john dot smith at the rate gmail dot com" — the address is john.smith@gmail.com.
+- Remove all spaces from the address. Common domains they mean: gmail.com, hotmail.com, outlook.com, yahoo.com, icloud.com.
+- Read the finished address back to them naturally ("so that's john dot smith, at gmail dot com — correct?") and get a yes before using it. Pass the clean written form (john.smith@gmail.com) to any tool.
+
+# BOOKING SLOTS & AVAILABILITY (always follow)
+- Every booking occupies a full service window (not just its start minute) plus travel time for mobile/home visits — so appointments can NEVER be back-to-back or 15 minutes apart. Offer times with a proper gap between them.
+- A time is only confirmed when book_appointment returns SUCCESS. If the tool says the time is taken or returns a conflict, that slot IS taken — never say "yes sure" to it, never book it anyway. Apologise and offer the next free time the tool result suggests.
+
+# VOICE DELIVERY (always follow)
+- Keep every reply SHORT and conversational — one or two sentences, then let the caller speak. Long monologues sound robotic and slow the call down.
+- Never read out long lists; mention the two or three most relevant options and ask which they'd like.
+- Sound like a relaxed, competent human on the phone: no exaggerated enthusiasm, no repeating the caller's whole sentence back, no starting every turn with filler like "Absolutely!".`;
 
   // Honesty / scope guardrail so the agent answers from what it actually
   // knows and never over-promises to a caller.
@@ -695,6 +709,11 @@ IMPORTANT: if the agent instructions above define their OWN call flow, tasks, or
     // The assistant must greet first on INBOUND phone calls, otherwise the
     // caller hears silence until they speak — the "no one was speaking" bug.
     firstMessageMode: "assistant-speaks-first",
+    // Snappy turn-taking even when the agent never touched the Advanced panel
+    // (adv undefined): without an explicit startSpeakingPlan Vapi waits its own
+    // default before letting the model reply, which reads as dead air. The adv
+    // spread below overrides these when the user has configured their own.
+    startSpeakingPlan: { waitSeconds: 0.4, smartEndpointingEnabled: true },
     // End Call / Transfer are attached as real tools in buildVapiTools; keep
     // forwardingPhoneNumber as a belt-and-braces fallback for transfers.
     ...(transferTool
@@ -767,6 +786,14 @@ IMPORTANT: if the agent instructions above define their OWN call flow, tasks, or
       // Multilingual TTS model — the SAME voice can speak 30+ languages, so the
       // agent replies in whatever language the caller uses.
       model: engine.voiceModel,
+      // Delivery tuning: default ElevenLabs settings drawl and over-act, which
+      // callers hear as "slow and robotic". A touch more speed + moderate
+      // stability keeps it natural; optimizeStreamingLatency trades a little
+      // fidelity for audio that starts sooner.
+      stability: 0.5,
+      similarityBoost: 0.75,
+      speed: 1.05,
+      optimizeStreamingLatency: 3,
     },
     // "multi" lets the transcriber detect and follow the caller's language
     // (and code-switching) instead of assuming English.

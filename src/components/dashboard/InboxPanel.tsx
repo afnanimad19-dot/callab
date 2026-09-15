@@ -108,12 +108,16 @@ export default function InboxPanel({ agents }: { agents: Agent[] }) {
     fetch("/api/settings/users").then((r) => r.json()).then((d) => setMembers(d.members ?? [])).catch(() => {});
   }, []);
   useEffect(() => { if (activeId) loadThread(activeId); }, [activeId, loadThread]);
-  // Light polling keeps the thread live while the tab is open.
+  // Polling keeps the inbox live while the tab is open. The OPEN thread
+  // refreshes every tick so replies appear near-realtime; the conversation
+  // list every other tick (it's a heavier query and changes less).
   useEffect(() => {
+    let tick = 0;
     const t = setInterval(() => {
-      loadConversations();
+      tick++;
       if (activeId) loadThread(activeId);
-    }, 12000);
+      if (!activeId || tick % 2 === 0) loadConversations();
+    }, 4000);
     return () => clearInterval(t);
   }, [activeId, loadConversations, loadThread]);
   // Auto-jump to the newest message only if the reader is already near the
